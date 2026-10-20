@@ -147,7 +147,8 @@ export async function recordUsage(
   if (piece.retired || piece.condition === 'Retired') throw new Error('Retired pieces cannot be used.');
 
   const usageCount = piece.usageCount + 1;
-  const condition: PieceCondition = usageCount >= 5 ? 'For Inspection' : piece.condition;
+  const crossedInspectionThreshold = piece.usageCount < 5 && usageCount >= 5;
+  const condition: PieceCondition = crossedInspectionThreshold ? 'For Inspection' : piece.condition;
   const now = new Date().toISOString();
 
   await db.transaction('rw', db.pieces, db.usageLog, async () => {
