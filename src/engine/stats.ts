@@ -6,7 +6,6 @@ import type {
   PlywoodStats,
 } from './types';
 
-const EPS = 1e-9;
 
 export interface CuttingCosts {
   phenolicPerSheet: number;

@@ -29,34 +29,16 @@ import type {
 } from '@/engine/types';
 import {
   conditionBadgeClass,
+  crossSectionLabel,
   formatMeters,
   formatPeso,
   materialTypeLabel,
+  shortId,
 } from '@/lib/format';
 import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
+import { toMatchPiece } from '@/lib/pieces';
 
 const OFFCUT_THICKNESS = 0.012;
-
-function shortId(id: string): string {
-  return id.slice(0, 8).toUpperCase();
-}
-
-function crossSectionLabel(crossSection: string): string {
-  return crossSection.replace('x', '×');
-}
-
-function toMatchPiece(piece: Piece): MatchPiece {
-  return {
-    id: piece.id,
-    materialType: piece.materialType,
-    length: piece.length,
-    width: piece.width,
-    crossSection: piece.crossSection,
-    condition: piece.condition,
-    retired: piece.retired,
-    usageCount: piece.usageCount,
-  };
-}
 
 function requirementDimensions(requirement: MatchRequirement): string {
   if (requirement.materialType === 'lumber') {
@@ -165,7 +147,7 @@ export default function OptimizationScreen() {
     () =>
       buildMemberColorMap(
         optimization.plywood.sheets.flatMap((sheet) =>
-          sheet.panels.map((panel) => panel.sourceMemberLabel),
+          sheet.panels.map((panel) => panel.label),
         ),
       ),
     [optimization.plywood.sheets],

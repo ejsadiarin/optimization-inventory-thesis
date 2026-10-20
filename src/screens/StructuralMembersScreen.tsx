@@ -44,7 +44,7 @@ import type {
 } from '@/db/types';
 import { decomposeMember, panelsExceedingStock } from '@/engine/decompose';
 import type { PanelRequirement } from '@/engine/types';
-import { formatMeters } from '@/lib/format';
+import { crossSectionLabel, formatMeters } from '@/lib/format';
 
 const MEMBER_TYPE_LABELS: Record<StructuralMemberType, string> = {
   column: 'Column',
@@ -63,10 +63,6 @@ function summarizePanels(panels: PanelRequirement[]): string {
   return Array.from(counts, ([dimension, count]) =>
     count > 1 ? `${dimension} ×${count}` : dimension,
   ).join(', ');
-}
-
-function crossSectionLabel(crossSection: CrossSection): string {
-  return crossSection.replace('x', '×');
 }
 
 function toPositiveNumber(value: string): number | null {

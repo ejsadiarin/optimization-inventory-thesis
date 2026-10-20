@@ -6,26 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
-import type { Piece, Project } from '@/db/types';
+import type { Project } from '@/db/types';
 import { decomposeMember } from '@/engine/decompose';
 import { buildProjectSummary, type ProjectSummary } from '@/engine/report';
-import type { LumberRequirementInput, MatchPiece } from '@/engine/types';
+import type { LumberRequirementInput } from '@/engine/types';
 import { piecesToCsv } from '@/lib/csv';
 import { buildDatedFilename, downloadTextFile } from '@/lib/download';
 import { formatPeso } from '@/lib/format';
-
-function toMatchPiece(piece: Piece): MatchPiece {
-  return {
-    id: piece.id,
-    materialType: piece.materialType,
-    length: piece.length,
-    width: piece.width,
-    crossSection: piece.crossSection,
-    condition: piece.condition,
-    retired: piece.retired,
-    usageCount: piece.usageCount,
-  };
-}
+import { toMatchPiece } from '@/lib/pieces';
 
 function percent(value: number): string {
   return `${value.toFixed(1)}%`;

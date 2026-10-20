@@ -42,8 +42,6 @@ export function decomposeMember(member: MemberInput): PanelRequirement[] {
     label: member.label,
     memberType: member.type,
     materialType: 'phenolic',
-    sourceMemberLabel: member.label,
-    sourceMemberType: member.type,
     length: panel.length,
     width: panel.width,
     quantity: 1,

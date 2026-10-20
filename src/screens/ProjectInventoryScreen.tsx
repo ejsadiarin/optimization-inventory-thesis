@@ -28,6 +28,7 @@ import {
   conditionBadgeClass,
   formatPieceDimensions,
   materialTypeLabel,
+  shortId,
 } from '@/lib/format';
 
 const SELECT_CLASS =
@@ -42,10 +43,6 @@ const COLUMNS: { key: PieceSortKey; label: string }[] = [
   { key: 'storageLocation', label: 'Location' },
   { key: 'dateAdded', label: 'Days in inventory' },
 ];
-
-function shortId(id: string): string {
-  return id.slice(0, 8).toUpperCase();
-}
 
 function parseUsage(value: string): number | undefined {
   if (!value.trim()) return undefined;

@@ -11,12 +11,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { addPiece, updatePiece } from '@/db/inventory';
+import { LUMBER_CROSS_SECTIONS } from '@/db/types';
 import type { CrossSection, MaterialType, Piece, PieceCondition } from '@/db/types';
+import { normalizePieceDimensions } from '@/lib/pieces';
 
 const SELECT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm';
-
-const CROSS_SECTIONS: CrossSection[] = ['2x2', '2x3', '2x4'];
 
 export interface PieceFormDialogProps {
   projectId: string;
@@ -71,12 +71,16 @@ export default function PieceFormDialog({
 
     setSaving(true);
     try {
+      const dimensions = normalizePieceDimensions({
+        materialType,
+        width: parsedWidth,
+        thickness: parsedThickness,
+        crossSection,
+      });
       const saved = piece
         ? await updatePiece(piece.id, {
             length: parsedLength,
-            width: materialType === 'lumber' ? 0 : parsedWidth,
-            thickness: materialType === 'lumber' ? 0 : parsedThickness,
-            crossSection: materialType === 'lumber' ? crossSection : undefined,
+            ...dimensions,
             condition,
             storageLocation,
           })
@@ -84,9 +88,7 @@ export default function PieceFormDialog({
             projectId,
             materialType,
             length: parsedLength,
-            width: materialType === 'lumber' ? 0 : parsedWidth,
-            thickness: materialType === 'lumber' ? 0 : parsedThickness,
-            crossSection: materialType === 'lumber' ? crossSection : undefined,
+            ...dimensions,
             condition,
             storageLocation,
           });
@@ -182,7 +184,7 @@ export default function PieceFormDialog({
                   value={crossSection}
                   onChange={(event) => setCrossSection(event.target.value as CrossSection)}
                 >
-                  {CROSS_SECTIONS.map((value) => (
+                  {LUMBER_CROSS_SECTIONS.map((value) => (
                     <option key={value} value={value}>
                       {value}
                     </option>

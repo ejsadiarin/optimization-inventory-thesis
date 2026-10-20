@@ -141,11 +141,11 @@ export default function CutPlanSheet({
         ))}
 
         {sheet.panels.map((panel) => {
-          const fill = memberColors.get(panel.sourceMemberLabel) ?? MEMBER_COLORS[0];
+          const fill = memberColors.get(panel.label) ?? MEMBER_COLORS[0];
           const centerX = panel.x + panel.length / 2;
           const centerY = panel.y + panel.width / 2;
           const fontSize = panelFontSize(panel.length, panel.width);
-          const label = panel.label || panel.sourceMemberLabel;
+          const label = panel.label;
 
           return (
             <g

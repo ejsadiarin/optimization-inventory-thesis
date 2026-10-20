@@ -18,16 +18,14 @@ function panel(
   id: string,
   length: number,
   width: number,
-  sourceMemberLabel = id,
+  label = id,
 ): PanelRequirement {
   return {
     id,
-    memberId: sourceMemberLabel,
-    label: sourceMemberLabel,
+    memberId: label,
+    label,
     memberType: 'column',
     materialType: 'phenolic',
-    sourceMemberLabel,
-    sourceMemberType: 'column',
     length,
     width,
     quantity: 1,
@@ -117,7 +115,7 @@ describe('optimizeProject', () => {
     expect(result.plywood.oversizedPanels.map((entry) => entry.panelId)).toEqual(['BIG']);
   });
 
-  it('preserves the source member label on placed panels', () => {
+  it('preserves the member label on placed panels', () => {
     const panels = [panel('C1-panel-1', 0.5, 1.2, 'C1')];
 
     const result = optimizeProject(baseInput({ panels }));
@@ -125,7 +123,7 @@ describe('optimizeProject', () => {
     const [sheet] = result.plywood.sheets;
     expect(sheet!.panels[0]).toMatchObject({
       panelId: 'C1-panel-1',
-      sourceMemberLabel: 'C1',
+      label: 'C1',
     });
   });
 

@@ -41,3 +41,11 @@ export function conditionBadgeClass(condition: 'Good' | 'For Inspection' | 'Reti
   if (condition === 'For Inspection') return 'border-amber-600/30 bg-amber-50 text-amber-700';
   return 'border-muted-foreground/30 bg-muted text-muted-foreground';
 }
+
+export function shortId(id: string): string {
+  return id.slice(0, 8).toUpperCase();
+}
+
+export function crossSectionLabel(crossSection: string): string {
+  return crossSection.replace('x', '×');
+}

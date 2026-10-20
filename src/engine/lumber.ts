@@ -1,4 +1,4 @@
-import type { CrossSection } from '@/db/types';
+import { LUMBER_CROSS_SECTIONS } from '@/db/types';
 import type {
   LumberCut,
   LumberGroupPlan,
@@ -9,7 +9,6 @@ import type {
 } from './types';
 
 const EPS = 1e-9;
-const CROSS_SECTION_ORDER: CrossSection[] = ['2x2', '2x3', '2x4'];
 
 interface StockState {
   stockLength: number;
@@ -39,7 +38,7 @@ export function optimizeLumber(
   const unplacedRequirements: LumberUnplaced[] = [];
   let stockIndex = 0;
 
-  for (const crossSection of CROSS_SECTION_ORDER) {
+  for (const crossSection of LUMBER_CROSS_SECTIONS) {
     const items = requirements
       .filter((requirement) => requirement.crossSection === crossSection)
       .sort(

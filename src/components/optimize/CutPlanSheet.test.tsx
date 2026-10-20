@@ -15,7 +15,6 @@ function sheetPlan(overrides: Partial<PlywoodSheetPlan> = {}): PlywoodSheetPlan 
       {
         panelId: 'C1-panel-1',
         label: 'C1',
-        sourceMemberLabel: 'C1',
         x: 0,
         y: 0,
         length: 1.22,
@@ -25,7 +24,6 @@ function sheetPlan(overrides: Partial<PlywoodSheetPlan> = {}): PlywoodSheetPlan 
       {
         panelId: 'B1-panel-1',
         label: 'B1',
-        sourceMemberLabel: 'B1',
         x: 0,
         y: 0.5,
         length: 0.6,

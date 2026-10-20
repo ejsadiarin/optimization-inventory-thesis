@@ -1,5 +1,6 @@
 import { generateId } from '@/lib/ids';
 import { db } from './db';
+import { LUMBER_CROSS_SECTIONS } from './types';
 import type {
   CrossSection,
   LumberRequirement,
@@ -7,7 +8,7 @@ import type {
   StructuralMemberType,
 } from './types';
 
-export const LUMBER_CROSS_SECTIONS: CrossSection[] = ['2x2', '2x3', '2x4'];
+export { LUMBER_CROSS_SECTIONS };
 
 export interface StructuralMemberInput {
   projectId: string;

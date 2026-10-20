@@ -39,7 +39,6 @@ function toPlywoodPanel(panel: PanelRequirement): PlywoodPanel {
   return {
     id: panel.id,
     label: panel.label,
-    sourceMemberLabel: panel.sourceMemberLabel,
     length: panel.length,
     width: panel.width,
   };

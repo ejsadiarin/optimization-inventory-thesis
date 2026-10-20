@@ -87,7 +87,6 @@ function placePanel(
   return {
     panelId: panel.id,
     label: panel.label ?? panel.id,
-    sourceMemberLabel: panel.sourceMemberLabel ?? panel.label ?? panel.id,
     x,
     y,
     length: orientation.length,
