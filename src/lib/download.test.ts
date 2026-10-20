@@ -122,7 +122,10 @@ describe('downloadSvgAsPng', () => {
       downloadedHref = this.href;
     });
 
-    const canvas = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+    const canvas = document.createElementNS(
+      'http://www.w3.org/1999/xhtml',
+      'canvas',
+    ) as HTMLCanvasElement;
     const drawImage = vi.fn();
     const fillRect = vi.fn();
     const getContext = vi.fn(() => ({ fillStyle: '', fillRect, drawImage }));
