@@ -1,0 +1,3 @@
+# Separate 1D and 2D cutting optimization algorithms
+
+Lumber is cut along its length only (a 1D problem), while phenolic board panels are cut from a 2D sheet. We use two separate algorithms — 1D First-Fit Decreasing for lumber, and a 2D rectangular packing algorithm for plywood — rather than forcing both through a single 2D solver. The 1D case is simpler, faster, and well-studied; shoehorning lumber into a 2D model (as a very narrow rectangle) adds complexity without benefit. The thesis literature supports both: Wang & Yi (2022) for 1D construction materials, Mei et al. (2022) for 2D cutting-stock on plywood.

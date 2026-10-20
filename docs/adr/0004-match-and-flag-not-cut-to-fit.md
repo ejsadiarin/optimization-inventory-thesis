@@ -1,0 +1,3 @@
+# Match-and-flag for inventory reuse, not cut-to-fit
+
+When the system finds inventory pieces that could satisfy a formwork requirement, it ranks them and flags oversized pieces as "requires cutting" rather than generating a new cutting plan for them. Full cut-to-fit would mean running the cutting optimizer a second time against existing inventory pieces, which doubles the algorithm complexity and blurs the line between "new material optimization" and "reuse matching" — two concerns the system keeps separate. The engineer decides whether to trim a flagged piece. This keeps the prototype scope tractable while still surfacing actionable reuse opportunities.
