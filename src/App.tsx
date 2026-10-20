@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import ProjectGate from '@/components/ProjectGate';
 import ProjectLayout from '@/components/ProjectLayout';
+import ProjectInventoryScreen from '@/screens/ProjectInventoryScreen';
 import ProjectOverviewScreen from '@/screens/ProjectOverviewScreen';
 import ProjectSettingsScreen from '@/screens/ProjectSettingsScreen';
 import ProjectsScreen from '@/screens/ProjectsScreen';
@@ -23,6 +24,7 @@ export default function App() {
         <Route element={<ProjectLayout />}>
           <Route index element={<ProjectOverviewScreen />} />
           <Route path="members" element={<StructuralMembersScreen />} />
+          <Route path="inventory" element={<ProjectInventoryScreen />} />
           <Route path="settings" element={<ProjectSettingsScreen />} />
         </Route>
       </Route>
