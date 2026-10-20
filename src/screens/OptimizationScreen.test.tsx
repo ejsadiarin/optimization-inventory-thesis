@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
 import { db } from '@/db/db';
-import { addPiece, getPiece, getUsageLog, recordUsage } from '@/db/inventory';
+import { addPiece, getPiece, getUsageLog, listPieces, recordUsage } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { createProject } from '@/db/projects';
 import { unlockProject } from '@/lib/projectSession';
@@ -71,13 +71,15 @@ describe('OptimizationScreen matching', () => {
     });
 
     await renderOptimize(project.id);
-    expect(screen.getByText('Brace A')).toBeInTheDocument();
+    expect(screen.getAllByText('Brace A').length).toBeGreaterThan(0);
     expect(screen.getByText(/usage 0/i)).toBeInTheDocument();
     expect(screen.getByText(/requires cutting/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /accept/i }));
 
-    expect(await screen.findByText(/satisfied/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/all requirements satisfied by reused pieces/i),
+    ).toBeInTheDocument();
     expect(await screen.findByText(/usage 1/i)).toBeInTheDocument();
     expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
@@ -144,5 +146,137 @@ describe('OptimizationScreen matching', () => {
     expect(screen.queryByText('Satisfied')).not.toBeInTheDocument();
     await expect(getUsageLog(piece.id)).resolves.toHaveLength(0);
     await expect(getPiece(piece.id)).resolves.toMatchObject({ usageCount: 0 });
+  });
+});
+
+describe('OptimizationScreen cutting plans', () => {
+  it('renders plywood SVG plans and grouped lumber cuts for remaining requirements', async () => {
+    const project = await createProject({ name: 'Plan Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Long Brace',
+      length: 7,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+
+    expect(screen.getByRole('heading', { name: /cutting plans/i })).toBeInTheDocument();
+    expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
+    expect(screen.getByText('0.60 × 0.60 m')).toBeInTheDocument();
+    expect(screen.getAllByText('S1').length).toBeGreaterThan(0);
+
+    expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
+    expect(screen.getByText(/stock 1 · 2\.40 m/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Brace A').length).toBeGreaterThan(0);
+    expect(screen.getByText(/longer than the longest stock length/i)).toBeInTheDocument();
+    expect(screen.getByText(/estimated savings/i)).toBeInTheDocument();
+  });
+
+  it('recomputes plans and shows the all-satisfied state after accepting a reuse match', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'Replan Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+
+    await renderOptimize(project.id);
+    expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /accept/i }));
+
+    expect(
+      await screen.findByText(/all requirements satisfied by reused pieces/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
+  });
+
+  it('adds selected reusable offcuts to inventory as Good pieces with zero uses', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'Offcut Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 2.14,
+      width: 0.92,
+      height: 0,
+    });
+
+    await renderOptimize(project.id);
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes).toHaveLength(2);
+    const addButton = screen.getByRole('button', { name: /add selected to inventory/i });
+    expect(addButton).toBeDisabled();
+
+    await user.click(checkboxes[0]!);
+    expect(addButton).toBeEnabled();
+    await user.click(addButton);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/added 1 offcut/i);
+
+    const pieces = await listPieces(project.id);
+    const added = pieces.filter((piece) => piece.source === 'Cut plan offcut');
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({
+      materialType: 'phenolic',
+      condition: 'Good',
+      usageCount: 0,
+      thickness: 0.012,
+      storageLocation: '',
+      source: 'Cut plan offcut',
+    });
+    expect(added[0]!.length).toBeCloseTo(0.3);
+    expect(added[0]!.width).toBeCloseTo(0.92);
+    expect(Date.now() - Date.parse(added[0]!.dateAdded)).toBeLessThan(60_000);
+
+    expect(screen.getByRole('checkbox', { name: /offcut 1 from sheet 1/i })).toBeDisabled();
+    expect(screen.getByText('Added')).toBeInTheDocument();
+    expect(addButton).toBeDisabled();
+  });
+
+  it('flags panels that are larger than the stock sheet', async () => {
+    const project = await createProject({ name: 'Oversized Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'Big Slab',
+      length: 3,
+      width: 1.5,
+      height: 0,
+    });
+
+    await renderOptimize(project.id);
+
+    expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
+    expect(screen.getByText(/cannot fit on a stock sheet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no plywood panels can be placed/i)).toBeInTheDocument();
   });
 });

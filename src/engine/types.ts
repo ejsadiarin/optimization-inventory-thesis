@@ -234,13 +234,14 @@ export interface OptimizeInput {
     lumberPerPiece: number;
   };
   pieces: MatchPiece[];
+  satisfiedRequirementIds?: ReadonlySet<string>;
 }
 
 export interface OptimizationResult {
   matches: MatchGroup[];
-  unmatchedPanels: PanelRequirement[];
-  plywoodPlans: PlywoodSheetPlan[];
-  lumberPlans: LumberStockPlan[];
-  reusableOffcuts: Offcut[];
-  stats: OptimizationStats;
+  remainingPanels: PanelRequirement[];
+  remainingLumberRequirements: LumberRequirementInput[];
+  plywood: PlywoodPlan;
+  lumber: LumberPlan;
+  stats: CuttingStats;
 }
