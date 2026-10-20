@@ -19,8 +19,8 @@ function blobText(blob: Blob): Promise<string> {
 }
 
 function mockObjectUrls() {
-  const createObjectURL = vi.fn(() => CREATE_URL);
-  const revokeObjectURL = vi.fn(() => undefined);
+  const createObjectURL = vi.fn<(blob: Blob) => string>(() => CREATE_URL);
+  const revokeObjectURL = vi.fn<(url: string) => void>(() => undefined);
 
   Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
