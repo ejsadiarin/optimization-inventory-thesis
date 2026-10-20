@@ -9,10 +9,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { addPiece, getActivePieces, recordUsage } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
+import {
+  filterCuttingPlanSnapshot,
+  getLatestCuttingPlan,
+  saveCuttingPlanSnapshot,
+} from '@/db/plans';
 import type { Piece, Project } from '@/db/types';
 import { optimizeProject } from '@/engine';
 import { decomposeMember } from '@/engine/decompose';
-import { matchInventory, remainingRequirements } from '@/engine/match';
+import { remainingRequirements } from '@/engine/match';
 import type {
   InventoryMatch,
   LumberRequirementInput,
@@ -83,7 +88,6 @@ function offcutKey(sheetIndex: number, offcut: Offcut): string {
 
 export default function OptimizationScreen() {
   const project = useOutletContext<Project>();
-  const [groups, setGroups] = useState<MatchGroup[]>([]);
   const [panels, setPanels] = useState<PanelRequirement[]>([]);
   const [lumberInputs, setLumberInputs] = useState<LumberRequirementInput[]>([]);
   const [pieces, setPieces] = useState<MatchPiece[]>([]);
@@ -104,10 +108,11 @@ export default function OptimizationScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [members, lumberRequirements, inventoryPieces] = await Promise.all([
+    const [members, lumberRequirements, inventoryPieces, savedPlan] = await Promise.all([
       listStructuralMembers(project.id),
       listLumberRequirements(project.id),
       getActivePieces(project.id),
+      getLatestCuttingPlan(project.id),
     ]);
 
     const panelRequirements = members.flatMap((member) => decomposeMember(member));
@@ -119,36 +124,26 @@ export default function OptimizationScreen() {
         crossSection: requirement.crossSection,
       }),
     );
-    const requirements: MatchRequirement[] = [
-      ...panelRequirements.map((panel) => ({
-        id: panel.id,
-        materialType: 'phenolic' as const,
-        label: panel.label,
-        length: panel.length,
-        width: panel.width,
-      })),
-      ...lumberRequirementInputs.map((requirement) => ({
-        id: requirement.id,
-        materialType: 'lumber' as const,
-        label: requirement.label,
-        length: requirement.length,
-        crossSection: requirement.crossSection,
-      })),
-    ];
     const matchPieces = inventoryPieces.map(toMatchPiece);
+    const requirementIds = new Set([
+      ...panelRequirements.map((panel) => panel.id),
+      ...lumberRequirementInputs.map((requirement) => requirement.id),
+    ]);
+    const snapshot = savedPlan
+      ? filterCuttingPlanSnapshot(savedPlan.snapshot, requirementIds)
+      : { satisfiedRequirementIds: [], acceptedByRequirement: {} };
 
     setPanels(panelRequirements);
     setLumberInputs(lumberRequirementInputs);
     setPieces(matchPieces);
-    setGroups(matchInventory(requirements, matchPieces));
+    setSatisfiedRequirementIds(new Set(snapshot.satisfiedRequirementIds));
+    setAcceptedByRequirement(new Map(Object.entries(snapshot.acceptedByRequirement)));
     setLoading(false);
   }, [project.id]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  const remaining = remainingRequirements(groups, satisfiedRequirementIds);
 
   const optimization = useMemo(
     () =>
@@ -162,6 +157,9 @@ export default function OptimizationScreen() {
       }),
     [panels, lumberInputs, project.stock, project.costs, pieces, satisfiedRequirementIds],
   );
+
+  const groups = optimization.matches;
+  const remaining = remainingRequirements(groups, satisfiedRequirementIds);
 
   const memberColors = useMemo(
     () =>
@@ -193,52 +191,52 @@ export default function OptimizationScreen() {
 
   async function handleAccept(group: MatchGroup, candidate: InventoryMatch) {
     setError('');
-    try {
-      const updated = await recordUsage(
-        candidate.piece.id,
-        project.id,
-        group.requirement.label,
-      );
+    if (satisfiedRequirementIds.has(group.requirement.id)) return;
 
-      setSatisfiedRequirementIds((current) => new Set(current).add(group.requirement.id));
-      setAcceptedByRequirement((current) =>
-        new Map(current).set(group.requirement.id, candidate.pieceId),
-      );
-      setGroups((current) =>
-        current.map((item) => {
-          if (item.requirement.id !== group.requirement.id) return item;
-          return {
-            ...item,
-            candidates: item.candidates.map((entry) =>
-              entry.pieceId === candidate.pieceId
-                ? {
-                    ...entry,
-                    piece: {
-                      ...entry.piece,
-                      usageCount: updated.usageCount,
-                      condition: updated.condition,
-                      retired: updated.retired,
-                    },
-                  }
-                : entry,
-            ),
-          };
-        }),
-      );
-      setPieces((current) =>
-        current.map((piece) =>
-          piece.id === candidate.pieceId
-            ? {
-                ...piece,
-                usageCount: updated.usageCount,
-                condition: updated.condition,
-                retired: updated.retired,
-              }
-            : piece,
-        ),
-      );
+    const assignedElsewhere = Array.from(acceptedByRequirement.entries()).some(
+      ([requirementId, pieceId]) =>
+        requirementId !== group.requirement.id && pieceId === candidate.pieceId,
+    );
+    if (assignedElsewhere) {
+      setError('This piece is already assigned to another requirement.');
+      return;
+    }
+
+    let updated: Piece;
+    try {
+      updated = await recordUsage(candidate.piece.id, project.id, group.requirement.label);
     } catch {
       setError('Could not record usage for this piece. It may have been retired.');
+      return;
+    }
+
+    const nextSatisfied = new Set(satisfiedRequirementIds);
+    nextSatisfied.add(group.requirement.id);
+    const nextAccepted = new Map(acceptedByRequirement);
+    nextAccepted.set(group.requirement.id, candidate.pieceId);
+
+    setSatisfiedRequirementIds(nextSatisfied);
+    setAcceptedByRequirement(nextAccepted);
+    setPieces((current) =>
+      current.map((piece) =>
+        piece.id === candidate.pieceId
+          ? {
+              ...piece,
+              usageCount: updated.usageCount,
+              condition: updated.condition,
+              retired: updated.retired,
+            }
+          : piece,
+      ),
+    );
+
+    try {
+      await saveCuttingPlanSnapshot(project.id, {
+        satisfiedRequirementIds: Array.from(nextSatisfied),
+        acceptedByRequirement: Object.fromEntries(nextAccepted),
+      });
+    } catch {
+      setError('Could not save the accepted plan.');
     }
   }
 
@@ -358,11 +356,13 @@ export default function OptimizationScreen() {
             const requirement = group.requirement;
             const satisfied = satisfiedRequirementIds.has(requirement.id);
             const acceptedPieceId = acceptedByRequirement.get(requirement.id);
+            const assignedPieceIds = new Set(acceptedByRequirement.values());
             const visibleCandidates = group.candidates.filter((candidate) => {
               if (declinedCandidates.has(declinedKey(requirement.id, candidate.pieceId))) {
                 return false;
               }
-              return !acceptedPieceId || candidate.pieceId === acceptedPieceId;
+              if (acceptedPieceId) return candidate.pieceId === acceptedPieceId;
+              return !assignedPieceIds.has(candidate.pieceId);
             });
 
             return (

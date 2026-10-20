@@ -15,7 +15,7 @@ beforeEach(async () => {
 
 async function renderOptimize(projectId: string) {
   unlockProject(projectId);
-  render(
+  const view = render(
     <MemoryRouter initialEntries={[`/projects/${projectId}/optimize`]}>
       <App />
     </MemoryRouter>,
@@ -24,6 +24,7 @@ async function renderOptimize(projectId: string) {
   await waitFor(() => {
     expect(screen.queryByText(/loading matches/i)).not.toBeInTheDocument();
   });
+  return view;
 }
 
 describe('OptimizationScreen matching', () => {
@@ -118,6 +119,72 @@ describe('OptimizationScreen matching', () => {
       usageCount: 5,
       condition: 'For Inspection',
     });
+  });
+
+  it('restores accepted matches after unmount and remount', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'Persisted Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    const first = await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /accept/i }));
+    expect(
+      await screen.findByText(/all requirements satisfied by reused pieces/i),
+    ).toBeInTheDocument();
+    first.unmount();
+
+    await renderOptimize(project.id);
+
+    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/all requirements satisfied by reused pieces/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    await expect(getUsageLog(piece.id)).resolves.toHaveLength(1);
+  });
+
+  it('prevents one physical piece from satisfying a second requirement', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'One Piece Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace B',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 4.8,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+    expect(screen.getAllByRole('button', { name: /accept/i })).toHaveLength(2);
+
+    await user.click(screen.getAllByRole('button', { name: /accept/i })[0]!);
+
+    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/no active inventory pieces match/i)).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    await expect(getUsageLog(piece.id)).resolves.toHaveLength(1);
   });
 
   it('declines a candidate without consuming it or satisfying the requirement', async () => {
