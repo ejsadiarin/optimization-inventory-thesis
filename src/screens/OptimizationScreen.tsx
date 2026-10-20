@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { AlertTriangle, Check, Loader2, PackageSearch, Plus } from 'lucide-react';
+import { AlertTriangle, Check, Download, Loader2, PackageSearch, Plus } from 'lucide-react';
 import CutPlanSheet from '@/components/optimize/CutPlanSheet';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ import {
   formatPeso,
   materialTypeLabel,
 } from '@/lib/format';
+import { buildDatedFilename, downloadSvgAsFile } from '@/lib/download';
 
 const OFFCUT_THICKNESS = 0.012;
 
@@ -295,6 +296,22 @@ export default function OptimizationScreen() {
     }
   }
 
+  function exportSheet(sheetIndex: number) {
+    const element = document.getElementById(`cut-plan-sheet-${sheetIndex}`);
+    if (!element || element.tagName.toLowerCase() !== 'svg') {
+      setError('Could not find the cutting plan sheet to export.');
+      return;
+    }
+    downloadSvgAsFile(
+      buildDatedFilename(project.name, `cut-plan-sheet-${sheetIndex + 1}`, 'svg'),
+      element as unknown as SVGSVGElement,
+    );
+  }
+
+  function exportAllSheets() {
+    optimization.plywood.sheets.forEach((sheet) => exportSheet(sheet.sheetIndex));
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
@@ -472,7 +489,20 @@ export default function OptimizationScreen() {
 
                 {optimization.remainingPanels.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="font-semibold">Plywood sheets</h3>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-semibold">Plywood sheets</h3>
+                      {optimization.plywood.sheets.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          aria-label="Export all sheets"
+                          onClick={exportAllSheets}
+                        >
+                          <Download className="h-4 w-4" /> Export all
+                        </Button>
+                      )}
+                    </div>
 
                     {optimization.plywood.sheets.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
@@ -482,7 +512,11 @@ export default function OptimizationScreen() {
                       optimization.plywood.sheets.map((sheet) => (
                         <Card key={sheet.sheetIndex}>
                           <CardContent className="py-4">
-                            <CutPlanSheet sheet={sheet} memberColors={memberColors} />
+                            <CutPlanSheet
+                              sheet={sheet}
+                              memberColors={memberColors}
+                              onExport={() => exportSheet(sheet.sheetIndex)}
+                            />
                           </CardContent>
                         </Card>
                       ))

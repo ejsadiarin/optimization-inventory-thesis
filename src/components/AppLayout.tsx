@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router-dom';
 import { Ruler } from 'lucide-react';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 export default function AppLayout() {
   return (
@@ -17,6 +18,7 @@ export default function AppLayout() {
       <main className="container flex-1 py-5">
         <Outlet />
       </main>
+      <PWAInstallPrompt />
     </div>
   );
 }
