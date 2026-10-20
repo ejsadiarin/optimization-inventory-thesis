@@ -11,6 +11,9 @@ export interface MemberInput {
 
 export interface PanelRequirement {
   id: string;
+  memberId: string;
+  label: string;
+  memberType: StructuralMemberType;
   materialType: 'phenolic';
   sourceMemberLabel: string;
   sourceMemberType: StructuralMemberType;
