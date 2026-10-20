@@ -20,8 +20,6 @@ function panel(id: string, length: number, width: number): PanelRequirement {
     label: id,
     memberType: 'slab',
     materialType: 'phenolic',
-    sourceMemberLabel: id,
-    sourceMemberType: 'slab',
     length,
     width,
     quantity: 1,
@@ -47,7 +45,7 @@ function piece(overrides: Partial<MatchPiece> = {}): MatchPiece {
 }
 
 describe('buildProjectSummary', () => {
-  it('reports plywood utilization, waste, and reusable offcut share', () => {
+  it('reports cost-weighted utilization and waste with plywood detail', () => {
     const panels = [
       panel('P1', 1.2, 1.2),
       panel('P2', 1.2, 1.2),
@@ -64,32 +62,15 @@ describe('buildProjectSummary', () => {
     });
 
     expect(summary.newSheetsRequired).toBe(2);
-    expect(summary.utilization).toBeCloseTo((5.76 / (2 * 2.44 * 1.22)) * 100);
-    expect(summary.waste).toBeCloseTo(100 - summary.utilization);
-    expect(summary.reusableOffcutPercent).toBeCloseTo(
-      (summary.optimization.plywood.reusableOffcutArea / summary.optimization.plywood.stockArea) *
-        100,
-    );
+    expect(summary.plywoodUtilization).toBeCloseTo((5.76 / (2 * 2.44 * 1.22)) * 100);
+    expect(summary.plywoodWaste).toBeCloseTo(100 - summary.plywoodUtilization);
+    expect(summary.utilization).toBeCloseTo(summary.plywoodUtilization);
+    expect(summary.waste).toBeCloseTo(summary.plywoodWaste);
+    expect(summary.lumberUtilization).toBe(0);
+    expect(summary.lumberWaste).toBe(0);
   });
 
-  it('counts distinct reused pieces and total reuse events from inventory', () => {
-    const summary = buildProjectSummary({
-      panels: [panel('P1', 0.5, 0.5)],
-      lumberRequirements: [],
-      stock: STOCK,
-      costs: COSTS,
-      pieces: [
-        piece({ id: 'a', usageCount: 2 }),
-        piece({ id: 'b', usageCount: 1 }),
-        piece({ id: 'c', usageCount: 0 }),
-      ],
-    });
-
-    expect(summary.reusedPieces).toBe(2);
-    expect(summary.reuseEvents).toBe(3);
-  });
-
-  it('breaks down phenolic savings and new lumber cost in PHP', () => {
+  it('weights overall metrics by the cost of each material stock', () => {
     const panels = [
       panel('P1', 1.2, 1.2),
       panel('P2', 1.2, 1.2),
@@ -105,18 +86,73 @@ describe('buildProjectSummary', () => {
       pieces: [],
     });
 
+    expect(summary.plywoodUtilization).toBeCloseTo(96.7481859715);
+    expect(summary.lumberUtilization).toBeCloseTo(83.3333333333);
+    expect(summary.utilization).toBeCloseTo(95.8636901932);
+    expect(summary.waste).toBeCloseTo(4.1363098068);
+  });
+
+  it('derives reused counts from the accepted plan and excludes reused work from new stock', () => {
+    const panels = [panel('P1', 1.2, 0.7), panel('P2', 1.2, 0.7), panel('P3', 1.2, 0.8)];
+
+    const summary = buildProjectSummary({
+      panels,
+      lumberRequirements: [],
+      stock: STOCK,
+      costs: COSTS,
+      pieces: [piece({ id: 'a', usageCount: 12 })],
+      satisfiedRequirementIds: new Set(['P1']),
+    });
+
+    expect(summary.reusedPieces).toBe(1);
+    expect(summary.reuseEvents).toBe(1);
+    expect(summary.newSheetsRequired).toBe(1);
+    expect(summary.procurement.phenolicSheetsAvoided).toBe(1);
+    expect(summary.procurement.phenolicSavings).toBe(COSTS.phenolicPerSheet);
+    expect(summary.optimization.remainingPanels.map((entry) => entry.id)).toEqual([
+      'P2',
+      'P3',
+    ]);
+  });
+
+  it('ignores lifetime usage and stale accepted ids', () => {
+    const summary = buildProjectSummary({
+      panels: [panel('P1', 0.5, 0.5)],
+      lumberRequirements: [],
+      stock: STOCK,
+      costs: COSTS,
+      pieces: [piece({ id: 'a', usageCount: 4 })],
+      satisfiedRequirementIds: new Set(['removed-panel']),
+    });
+
+    expect(summary.reusedPieces).toBe(0);
+    expect(summary.reuseEvents).toBe(0);
+    expect(summary.newSheetsRequired).toBe(1);
+  });
+
+  it('breaks down phenolic savings and new lumber cost in PHP', () => {
+    const panels = [panel('P1', 1.2, 0.7), panel('P2', 1.2, 0.8)];
+
+    const summary = buildProjectSummary({
+      panels,
+      lumberRequirements: [lumber('L1', 2)],
+      stock: STOCK,
+      costs: COSTS,
+      pieces: [],
+    });
+
     expect(summary.newLumberPiecesRequired).toBe(1);
     expect(summary.procurement).toMatchObject({
       phenolicSheetCost: 850,
-      phenolicSheetsUsed: 2,
-      phenolicSheetsAvoided: 2,
-      phenolicSavings: 1700,
-      newPhenolicCost: 1700,
+      phenolicSheetsUsed: 1,
+      phenolicSheetsAvoided: 1,
+      phenolicSavings: 850,
+      newPhenolicCost: 850,
       lumberPieceCost: 120,
       lumberPiecesUsed: 1,
       lumberCost: 120,
-      totalMaterialCost: 1820,
-      totalEstimatedSavings: 1700,
+      totalMaterialCost: 970,
+      totalEstimatedSavings: 850,
     });
   });
 
@@ -132,7 +168,10 @@ describe('buildProjectSummary', () => {
     expect(summary).toMatchObject({
       utilization: 0,
       waste: 0,
-      reusableOffcutPercent: 0,
+      plywoodUtilization: 0,
+      plywoodWaste: 0,
+      lumberUtilization: 0,
+      lumberWaste: 0,
       reusedPieces: 0,
       reuseEvents: 0,
       newSheetsRequired: 0,

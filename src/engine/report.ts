@@ -1,26 +1,7 @@
 import { optimizeProject } from './index';
-import type {
-  LumberRequirementInput,
-  MatchPiece,
-  OptimizationResult,
-  PanelRequirement,
-  StockSize,
-} from './types';
+import type { OptimizationResult, OptimizeInput } from './types';
 
-export interface ProjectSummaryInput {
-  panels: PanelRequirement[];
-  lumberRequirements: LumberRequirementInput[];
-  stock: {
-    phenolic: StockSize;
-    lumberLengths: number[];
-  };
-  costs: {
-    phenolicPerSheet: number;
-    lumberPerPiece: number;
-  };
-  pieces: MatchPiece[];
-  satisfiedRequirementIds?: ReadonlySet<string>;
-}
+export type ProjectSummaryInput = OptimizeInput;
 
 export interface ProcurementBreakdown {
   phenolicSheetCost: number;
@@ -38,8 +19,10 @@ export interface ProcurementBreakdown {
 export interface ProjectSummary {
   utilization: number;
   waste: number;
-  reusableOffcutPercent: number;
+  plywoodUtilization: number;
+  plywoodWaste: number;
   lumberUtilization: number;
+  lumberWaste: number;
   reusedPieces: number;
   reuseEvents: number;
   newSheetsRequired: number;
@@ -48,53 +31,65 @@ export interface ProjectSummary {
   optimization: OptimizationResult;
 }
 
-/**
- * Builds the project-level report from the same pure optimization result the
- * Optimize screen uses. Reuse counts come from the recorded usage on inventory
- * pieces; the engine deliberately does not persist accepted matches.
- */
 export function buildProjectSummary(input: ProjectSummaryInput): ProjectSummary {
+  const requirementIds = new Set([
+    ...input.panels.map((panel) => panel.id),
+    ...input.lumberRequirements.map((requirement) => requirement.id),
+  ]);
+  const satisfiedRequirementIds = new Set(
+    Array.from(input.satisfiedRequirementIds ?? []).filter((id) => requirementIds.has(id)),
+  );
+
   const optimization = optimizeProject({
-    panels: input.panels,
-    lumberRequirements: input.lumberRequirements,
-    stock: input.stock,
-    costs: input.costs,
-    pieces: input.pieces,
-    satisfiedRequirementIds: input.satisfiedRequirementIds,
+    ...input,
+    satisfiedRequirementIds,
   });
 
   const { plywood, lumber, stats } = optimization;
 
-  const reusedPieces = input.pieces.filter((piece) => (piece.usageCount ?? 0) > 0).length;
-  const reuseEvents = input.pieces.reduce((total, piece) => total + (piece.usageCount ?? 0), 0);
-
   const phenolicSheetCost = input.costs.phenolicPerSheet;
   const phenolicSavings = stats.plywood.sheetsSaved * phenolicSheetCost;
   const newPhenolicCost = stats.plywood.sheetsUsed * phenolicSheetCost;
-  const lumberCost = stats.lumber.stockPiecesUsed * input.costs.lumberPerPiece;
+  const lumberPieceCost = input.costs.lumberPerPiece;
+  const lumberCost = stats.lumber.stockPiecesUsed * lumberPieceCost;
+  const plywoodStockCost = stats.plywood.sheetsUsed * phenolicSheetCost;
+  const lumberStockCost = stats.lumber.stockPiecesUsed * lumberPieceCost;
+  const totalStockCost = plywoodStockCost + lumberStockCost;
+  const utilization =
+    totalStockCost > 0
+      ? (plywood.utilization * plywoodStockCost + lumber.utilization * lumberStockCost) /
+        totalStockCost
+      : 0;
+  const waste =
+    totalStockCost > 0
+      ? (plywood.waste * plywoodStockCost + lumber.waste * lumberStockCost) / totalStockCost
+      : 0;
+
+  const procurement: ProcurementBreakdown = {
+    phenolicSheetCost,
+    phenolicSheetsUsed: stats.plywood.sheetsUsed,
+    phenolicSheetsAvoided: stats.plywood.sheetsSaved,
+    phenolicSavings,
+    newPhenolicCost,
+    lumberPieceCost,
+    lumberPiecesUsed: stats.lumber.stockPiecesUsed,
+    lumberCost,
+    totalMaterialCost: newPhenolicCost + lumberCost,
+    totalEstimatedSavings: phenolicSavings,
+  };
 
   return {
-    utilization: plywood.utilization,
-    waste: plywood.waste,
-    reusableOffcutPercent:
-      plywood.stockArea > 0 ? (plywood.reusableOffcutArea / plywood.stockArea) * 100 : 0,
+    utilization,
+    waste,
+    plywoodUtilization: plywood.utilization,
+    plywoodWaste: plywood.waste,
     lumberUtilization: lumber.utilization,
-    reusedPieces,
-    reuseEvents,
-    newSheetsRequired: stats.plywood.sheetsUsed,
-    newLumberPiecesRequired: stats.lumber.stockPiecesUsed,
-    procurement: {
-      phenolicSheetCost,
-      phenolicSheetsUsed: stats.plywood.sheetsUsed,
-      phenolicSheetsAvoided: stats.plywood.sheetsSaved,
-      phenolicSavings,
-      newPhenolicCost,
-      lumberPieceCost: input.costs.lumberPerPiece,
-      lumberPiecesUsed: stats.lumber.stockPiecesUsed,
-      lumberCost,
-      totalMaterialCost: newPhenolicCost + lumberCost,
-      totalEstimatedSavings: phenolicSavings,
-    },
+    lumberWaste: lumber.waste,
+    reusedPieces: satisfiedRequirementIds.size,
+    reuseEvents: satisfiedRequirementIds.size,
+    newSheetsRequired: procurement.phenolicSheetsUsed,
+    newLumberPiecesRequired: procurement.lumberPiecesUsed,
+    procurement,
     optimization,
   };
 }
