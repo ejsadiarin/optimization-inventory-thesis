@@ -33,7 +33,7 @@ import {
   formatPeso,
   materialTypeLabel,
 } from '@/lib/format';
-import { buildDatedFilename, downloadSvgAsFile } from '@/lib/download';
+import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
 
 const OFFCUT_THICKNESS = 0.012;
 
@@ -306,6 +306,20 @@ export default function OptimizationScreen() {
     );
   }
 
+  function exportSheetPng(sheetIndex: number) {
+    const element = document.getElementById(`cut-plan-sheet-${sheetIndex}`);
+    if (!element || element.tagName.toLowerCase() !== 'svg') {
+      setError('Could not find the cutting plan sheet to export.');
+      return;
+    }
+    void downloadSvgAsPng(
+      buildDatedFilename(project.name, `cut-plan-sheet-${sheetIndex + 1}`, 'png'),
+      element as unknown as SVGSVGElement,
+    ).catch(() => {
+      setError('Could not export the cutting plan image.');
+    });
+  }
+
   function exportAllSheets() {
     optimization.plywood.sheets.forEach((sheet) => exportSheet(sheet.sheetIndex));
   }
@@ -516,6 +530,7 @@ export default function OptimizationScreen() {
                               sheet={sheet}
                               memberColors={memberColors}
                               onExport={() => exportSheet(sheet.sheetIndex)}
+                              onExportPng={() => exportSheetPng(sheet.sheetIndex)}
                             />
                           </CardContent>
                         </Card>

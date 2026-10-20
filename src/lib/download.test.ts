@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildDatedFilename,
   downloadSvgAsFile,
+  downloadSvgAsPng,
   downloadTextFile,
   serializeSvg,
 } from './download';
@@ -38,6 +39,7 @@ function mockObjectUrls() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('buildDatedFilename', () => {
@@ -105,5 +107,62 @@ describe('downloadSvgAsFile', () => {
     const text = await blobText(blob);
     expect(text).toContain('xmlns="http://www.w3.org/2000/svg"');
     expect(text).toContain('cut-plan-sheet-2');
+  });
+});
+
+describe('downloadSvgAsPng', () => {
+  it('rasterizes the SVG on a canvas and downloads a PNG', async () => {
+    const { createObjectURL, revokeObjectURL } = mockObjectUrls();
+    let downloadedFilename = '';
+    let downloadedHref = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloadedFilename = this.download;
+      downloadedHref = this.href;
+    });
+
+    const canvas = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+    const drawImage = vi.fn();
+    const fillRect = vi.fn();
+    const getContext = vi.fn(() => ({ fillStyle: '', fillRect, drawImage }));
+    const toDataURL = vi.fn(() => 'data:image/png;base64,abc');
+    Object.defineProperty(canvas, 'getContext', { configurable: true, value: getContext });
+    Object.defineProperty(canvas, 'toDataURL', { configurable: true, value: toDataURL });
+
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(
+      (tagName: string, options?: ElementCreationOptions) => {
+        if (tagName === 'canvas') return canvas;
+        return originalCreateElement(tagName, options);
+      },
+    );
+
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', MockImage);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('id', 'cut-plan-sheet-0');
+    svg.setAttribute('viewBox', '0 0 2.44 1.22');
+    svg.innerHTML = '<rect width="1" height="1" />';
+
+    await downloadSvgAsPng('site-sheet-1.png', svg, 1600);
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = createObjectURL.mock.calls[0]![0] as Blob;
+    expect(blob.type).toBe('image/svg+xml;charset=utf-8');
+    expect(canvas.width).toBe(1600);
+    expect(canvas.height).toBe(800);
+    expect(drawImage).toHaveBeenCalledTimes(1);
+    expect(toDataURL).toHaveBeenCalledWith('image/png');
+    expect(downloadedFilename).toBe('site-sheet-1.png');
+    expect(downloadedHref).toBe('data:image/png;base64,abc');
+    expect(revokeObjectURL).toHaveBeenCalledWith(CREATE_URL);
   });
 });

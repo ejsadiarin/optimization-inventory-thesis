@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import CutPlanSheet from './CutPlanSheet';
 import { buildMemberColorMap } from './memberColors';
 import type { PlywoodSheetPlan } from '@/engine/types';
@@ -124,5 +125,28 @@ describe('CutPlanSheet', () => {
     expect(stats).toHaveTextContent('Reusable offcuts 20.5%');
     expect(screen.getByText(/red hatch = waste/i)).toBeInTheDocument();
     expect(screen.getByText(/gray hatch = reusable offcut/i)).toBeInTheDocument();
+  });
+});
+
+describe('CutPlanSheet export controls', () => {
+  it('offers separate SVG and PNG controls for each sheet', async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    const onExportPng = vi.fn();
+
+    render(
+      <CutPlanSheet
+        sheet={sheetPlan()}
+        memberColors={COLORS}
+        onExport={onExport}
+        onExportPng={onExportPng}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /export sheet 1 as svg/i }));
+    await user.click(screen.getByRole('button', { name: /export sheet 1 as png/i }));
+
+    expect(onExport).toHaveBeenCalledTimes(1);
+    expect(onExportPng).toHaveBeenCalledTimes(1);
   });
 });

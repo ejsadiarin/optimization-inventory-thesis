@@ -11,13 +11,19 @@ export interface CutPlanSheetProps {
   sheet: PlywoodSheetPlan;
   memberColors: ReadonlyMap<string, string>;
   onExport?: () => void;
+  onExportPng?: () => void;
 }
 
 function panelFontSize(length: number, width: number): number {
   return Math.min(0.08, Math.max(0.028, Math.min(length, width) * 0.18));
 }
 
-export default function CutPlanSheet({ sheet, memberColors, onExport }: CutPlanSheetProps) {
+export default function CutPlanSheet({
+  sheet,
+  memberColors,
+  onExport,
+  onExportPng,
+}: CutPlanSheetProps) {
   const { stock } = sheet;
   const stockArea = stock.length * stock.width;
   const reusableOffcutPercent =
@@ -38,16 +44,31 @@ export default function CutPlanSheet({ sheet, memberColors, onExport }: CutPlanS
             {formatMeters(stock.length)} × {formatMeters(stock.width)}
           </p>
         </div>
-        {onExport && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={`Export sheet ${sheet.sheetIndex + 1} as SVG`}
-            onClick={onExport}
-          >
-            <Download className="h-4 w-4" /> Export SVG
-          </Button>
+        {(onExport || onExportPng) && (
+          <div className="flex flex-wrap gap-2">
+            {onExport && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                aria-label={`Export sheet ${sheet.sheetIndex + 1} as SVG`}
+                onClick={onExport}
+              >
+                <Download className="h-4 w-4" /> Export SVG
+              </Button>
+            )}
+            {onExportPng && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                aria-label={`Export sheet ${sheet.sheetIndex + 1} as PNG`}
+                onClick={onExportPng}
+              >
+                <Download className="h-4 w-4" /> Export PNG
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
