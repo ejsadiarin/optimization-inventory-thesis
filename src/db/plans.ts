@@ -14,7 +14,7 @@ export interface LatestCuttingPlan {
   snapshot: CuttingPlanSnapshot;
 }
 
-function isJsonObject(value: JsonValue): value is { [key: string]: JsonValue } {
+function isJsonObject(value: unknown): value is { [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
