@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { ArrowLeft, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Project } from '@/db/types';
@@ -8,6 +8,7 @@ import { PROJECT_NAV_ITEMS, projectNavHref } from '@/screens/projectNav';
 export default function ProjectLayout() {
   const project = useOutletContext<Project>();
   const { projectId } = useParams();
+  const navigate = useNavigate();
 
   return (
     <div className="flex min-h-dvh flex-col bg-muted/30">
@@ -24,7 +25,11 @@ export default function ProjectLayout() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => projectId && lockProject(projectId)}
+            onClick={() => {
+              if (!projectId) return;
+              lockProject(projectId);
+              navigate('/');
+            }}
             type="button"
           >
             <Lock className="h-4 w-4" />
