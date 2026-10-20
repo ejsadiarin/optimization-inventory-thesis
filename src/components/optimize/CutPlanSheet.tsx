@@ -1,3 +1,5 @@
+import { Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { PlywoodSheetPlan } from '@/engine/types';
 import { formatMeters } from '@/lib/format';
 import { MEMBER_COLORS } from './memberColors';
@@ -8,13 +10,14 @@ const PANEL_STROKE = '#0f172a';
 export interface CutPlanSheetProps {
   sheet: PlywoodSheetPlan;
   memberColors: ReadonlyMap<string, string>;
+  onExport?: () => void;
 }
 
 function panelFontSize(length: number, width: number): number {
   return Math.min(0.08, Math.max(0.028, Math.min(length, width) * 0.18));
 }
 
-export default function CutPlanSheet({ sheet, memberColors }: CutPlanSheetProps) {
+export default function CutPlanSheet({ sheet, memberColors, onExport }: CutPlanSheetProps) {
   const { stock } = sheet;
   const stockArea = stock.length * stock.width;
   const reusableOffcutPercent =
@@ -28,11 +31,24 @@ export default function CutPlanSheet({ sheet, memberColors }: CutPlanSheetProps)
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-1">
-        <h3 className="font-semibold">Sheet {sheet.sheetIndex + 1}</h3>
-        <p className="text-sm text-muted-foreground">
-          {formatMeters(stock.length)} × {formatMeters(stock.width)}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h3 className="font-semibold">Sheet {sheet.sheetIndex + 1}</h3>
+          <p className="text-sm text-muted-foreground">
+            {formatMeters(stock.length)} × {formatMeters(stock.width)}
+          </p>
+        </div>
+        {onExport && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label={`Export sheet ${sheet.sheetIndex + 1} as SVG`}
+            onClick={onExport}
+          >
+            <Download className="h-4 w-4" /> Export SVG
+          </Button>
+        )}
       </div>
 
       <svg

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -278,5 +278,88 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
     expect(screen.getByText(/cannot fit on a stock sheet/i)).toBeInTheDocument();
     expect(screen.getByText(/no plywood panels can be placed/i)).toBeInTheDocument();
+  });
+});
+
+describe('OptimizationScreen SVG export', () => {
+  function mockObjectUrls() {
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:cut-plan');
+    const revokeObjectURL = vi.fn<(url: string) => void>(() => undefined);
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: revokeObjectURL,
+    });
+    return { createObjectURL, revokeObjectURL };
+  }
+
+  function blobText(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+  }
+
+  it('downloads a generated sheet as an SVG with the required namespace and filename', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'Export Plan Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    const { createObjectURL, revokeObjectURL } = mockObjectUrls();
+    let downloadedFilename = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloadedFilename = this.download;
+    });
+
+    await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /export sheet 1 as svg/i }));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = createObjectURL.mock.calls[0]![0] as Blob;
+    expect(blob.type).toBe('image/svg+xml;charset=utf-8');
+    const markup = await blobText(blob);
+    expect(markup).toContain('xmlns="http://www.w3.org/2000/svg"');
+    expect(markup).toContain('cut-plan-sheet-0');
+    expect(downloadedFilename).toMatch(/export-plan-site-cut-plan-sheet-1-.*\.svg$/);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:cut-plan');
+  });
+
+  it('exports every generated sheet at once', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'Export All Site' });
+    for (let index = 0; index < 4; index += 1) {
+      await createStructuralMember({
+        projectId: project.id,
+        type: 'slab',
+        label: `S${index + 1}`,
+        length: 1.2,
+        width: 1.2,
+        height: 0,
+      });
+    }
+    const { createObjectURL } = mockObjectUrls();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    await renderOptimize(project.id);
+    expect(screen.getByTestId('cut-plan-sheet-1')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /export all sheets/i }));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
   });
 });
