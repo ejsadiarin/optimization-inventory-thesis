@@ -36,7 +36,7 @@ describe('matchInventory filtering', () => {
       ],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['active']);
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['active']);
   });
 
   it('keeps pieces flagged For Inspection available for reuse', () => {
@@ -45,7 +45,7 @@ describe('matchInventory filtering', () => {
       [piece({ id: 'inspection', condition: 'For Inspection' })],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['inspection']);
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['inspection']);
   });
 
   it('matches only pieces of the requirement material type', () => {
@@ -64,8 +64,8 @@ describe('matchInventory filtering', () => {
       ],
     );
 
-    expect(phenolicGroups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['plywood']);
-    expect(lumberGroups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['lumber']);
+    expect(phenolicGroups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['plywood']);
+    expect(lumberGroups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['lumber']);
   });
 
   it('requires an exact cross-section and sufficient length for lumber', () => {
@@ -86,7 +86,7 @@ describe('matchInventory filtering', () => {
       ],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['long-enough']);
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['long-enough']);
   });
 
   it('requires both phenolic dimensions to be at least the requirement, in either orientation', () => {
@@ -100,7 +100,7 @@ describe('matchInventory filtering', () => {
       ],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['rotated', 'upright']);
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['rotated', 'upright']);
   });
 });
 
@@ -115,7 +115,7 @@ describe('matchInventory ranking', () => {
       ],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual([
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual([
       'closest',
       'medium',
       'large',
@@ -131,7 +131,7 @@ describe('matchInventory ranking', () => {
       ],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual(['square', 'tall']);
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual(['square', 'tall']);
   });
 
   it('exposes the best match as the first candidate', () => {
@@ -143,7 +143,7 @@ describe('matchInventory ranking', () => {
       ],
     );
 
-    expect(groups[0].bestMatch?.pieceId).toBe('exact');
+    expect(groups[0]!.bestMatch?.pieceId).toBe('exact');
   });
 });
 
@@ -154,7 +154,7 @@ describe('matchInventory cutting flags', () => {
       [piece({ id: 'exact', length: 1, width: 0.5 }), piece({ id: 'rotated', length: 0.5, width: 1 })],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.requiresCutting)).toEqual([false, false]);
+    expect(groups[0]!.candidates.map((candidate) => candidate.requiresCutting)).toEqual([false, false]);
   });
 
   it('flags phenolic pieces oversized in either dimension', () => {
@@ -167,12 +167,12 @@ describe('matchInventory cutting flags', () => {
       ],
     );
 
-    expect(groups[0].candidates.map((candidate) => candidate.pieceId)).toEqual([
+    expect(groups[0]!.candidates.map((candidate) => candidate.pieceId)).toEqual([
       'wider',
       'longer',
       'both',
     ]);
-    expect(groups[0].candidates.map((candidate) => candidate.requiresCutting)).toEqual([
+    expect(groups[0]!.candidates.map((candidate) => candidate.requiresCutting)).toEqual([
       true,
       true,
       true,
@@ -197,7 +197,7 @@ describe('matchInventory cutting flags', () => {
     );
 
     expect(
-      groups[0].candidates.map((candidate) => [candidate.pieceId, candidate.requiresCutting]),
+      groups[0]!.candidates.map((candidate) => [candidate.pieceId, candidate.requiresCutting]),
     ).toEqual([
       ['exact', false],
       ['longer', true],
@@ -213,8 +213,8 @@ describe('matchInventory groups', () => {
     );
 
     expect(groups.map((group) => group.requirement.id)).toEqual(['req-a', 'req-b']);
-    expect(groups[1].candidates).toEqual([]);
-    expect(groups[1].bestMatch).toBeNull();
+    expect(groups[1]!.candidates).toEqual([]);
+    expect(groups[1]!.bestMatch).toBeNull();
   });
 
   it('lists requirements still awaiting an accepted match', () => {
