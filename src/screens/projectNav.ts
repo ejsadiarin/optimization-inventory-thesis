@@ -6,6 +6,7 @@ export interface ProjectNavItem {
 
 export const PROJECT_NAV_ITEMS: ProjectNavItem[] = [
   { path: '', label: 'Overview', end: true },
+  { path: 'inventory', label: 'Inventory' },
   { path: 'settings', label: 'Settings' },
 ];
 
