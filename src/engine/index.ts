@@ -45,11 +45,6 @@ function toPlywoodPanel(panel: PanelRequirement): PlywoodPanel {
   };
 }
 
-/**
- * Single orchestration entry point for the optimization engine. Composes
- * inventory matching with 2D plywood and 1D lumber cutting optimization and
- * reports the combined stats. Pure: no React or Dexie dependencies.
- */
 export function optimizeProject(input: OptimizeInput): OptimizationResult {
   const satisfied = input.satisfiedRequirementIds ?? new Set<string>();
 
