@@ -84,6 +84,31 @@ describe('calculatePlywoodStats', () => {
     expect(stats.waste).toBeCloseTo(100 - stats.utilization);
   });
 
+  it('uses one sheet per placed panel as the unoptimized baseline', () => {
+    const panels = Array.from({ length: 4 }, (_, index) => panel(`p${index}`, 1.2, 1.2));
+    const plan = optimizePlywood(panels, STOCK);
+    const stats = calculatePlywoodStats(plan, COSTS.phenolicPerSheet);
+
+    expect(stats.sheetsUsed).toBe(2);
+    expect(stats.naiveSheets).toBe(4);
+    expect(stats.sheetsSaved).toBe(2);
+    expect(stats.estimatedSavings).toBe(2 * COSTS.phenolicPerSheet);
+  });
+
+  it('excludes oversized panels from the unoptimized baseline', () => {
+    const panels = [
+      ...Array.from({ length: 4 }, (_, index) => panel(`p${index}`, 1.2, 1.2)),
+      panel('big', 3, 1.5),
+    ];
+    const plan = optimizePlywood(panels, STOCK);
+    const stats = calculatePlywoodStats(plan, COSTS.phenolicPerSheet);
+
+    expect(stats.sheetsUsed).toBe(2);
+    expect(stats.naiveSheets).toBe(4);
+    expect(stats.sheetsSaved).toBe(2);
+    expect(stats.estimatedSavings).toBe(2 * COSTS.phenolicPerSheet);
+  });
+
   it('returns zeroed stats for an empty plan', () => {
     const plan = optimizePlywood([], STOCK);
     const stats = calculatePlywoodStats(plan, COSTS.phenolicPerSheet);
