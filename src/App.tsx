@@ -5,6 +5,7 @@ import ProjectLayout from '@/components/ProjectLayout';
 import ProjectOverviewScreen from '@/screens/ProjectOverviewScreen';
 import ProjectSettingsScreen from '@/screens/ProjectSettingsScreen';
 import ProjectsScreen from '@/screens/ProjectsScreen';
+import StructuralMembersScreen from '@/screens/StructuralMembersScreen';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/projects/:projectId" element={<ProjectGate />}>
         <Route element={<ProjectLayout />}>
           <Route index element={<ProjectOverviewScreen />} />
+          <Route path="members" element={<StructuralMembersScreen />} />
           <Route path="settings" element={<ProjectSettingsScreen />} />
         </Route>
       </Route>
