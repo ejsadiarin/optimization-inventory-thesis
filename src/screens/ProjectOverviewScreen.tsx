@@ -4,10 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import type { Project } from '@/db/types';
 import { formatMeters, formatPeso } from '@/lib/format';
 
-const UPCOMING_MODULES = [
+const PROJECT_MODULES = [
   'Structural members — define columns, beams, and slabs',
   'Inventory — track phenolic boards and lumber pieces',
   'Optimization — match reuse and plan cuts',
+  'Summary — review utilization, waste, reuse, and savings',
+  'Settings — adjust material costs and stock sizes',
 ];
 
 export default function ProjectOverviewScreen() {
@@ -67,13 +69,13 @@ export default function ProjectOverviewScreen() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Wrench className="h-4 w-4 text-primary" /> Coming next
+            <Wrench className="h-4 w-4 text-primary" /> Project modules
           </CardTitle>
-          <CardDescription>Modules added in upcoming tickets.</CardDescription>
+          <CardDescription>Modules available in this project.</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-            {UPCOMING_MODULES.map((module) => (
+            {PROJECT_MODULES.map((module) => (
               <li key={module}>{module}</li>
             ))}
           </ul>
