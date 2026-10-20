@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import type { Project } from '@/db/types';
 import { lockProject } from '@/lib/projectSession';
 import { PROJECT_NAV_ITEMS, projectNavHref } from '@/screens/projectNav';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 export default function ProjectLayout() {
   const project = useOutletContext<Project>();
@@ -57,6 +58,7 @@ export default function ProjectLayout() {
       <main className="container flex-1 py-5">
         <Outlet context={project} />
       </main>
+      <PWAInstallPrompt />
     </div>
   );
 }
