@@ -125,6 +125,7 @@ export interface PlywoodPlan {
   stock: StockSize;
   sheets: PlywoodSheetPlan[];
   sheetsUsed: number;
+  naiveSheets: number;
   unplacedPanels: UnplacedPanel[];
   oversizedPanels: UnplacedPanel[];
   usedArea: number;

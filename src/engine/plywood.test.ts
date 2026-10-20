@@ -7,7 +7,7 @@ const STOCK_AREA = STOCK.length * STOCK.width;
 const EPS = 1e-6;
 
 function panel(id: string, length: number, width: number, label = id): PlywoodPanel {
-  return { id, label, sourceMemberLabel: label, length, width };
+  return { id, label, length, width };
 }
 
 function first<T>(items: T[]): T {
@@ -183,6 +183,26 @@ describe('optimizePlywood', () => {
       width: 1.5,
       reason: 'oversized',
     });
+  });
+
+  it('reports an unsorted input-order baseline that sorted packing improves on', () => {
+    const panels = [panel('narrow', 1.2, 0.7), panel('wide', 1.2, 0.8)];
+
+    const plan = optimizePlywood(panels, STOCK);
+
+    expect(plan.sheetsUsed).toBe(1);
+    expect(plan.naiveSheets).toBe(2);
+    expect(plan.naiveSheets - plan.sheetsUsed).toBeGreaterThanOrEqual(1);
+  });
+
+  it('excludes oversized panels from the unsorted baseline', () => {
+    const panels = [panel('narrow', 1.2, 0.7), panel('wide', 1.2, 0.8), panel('big', 3, 1.5)];
+
+    const plan = optimizePlywood(panels, STOCK);
+
+    expect(plan.sheetsUsed).toBe(1);
+    expect(plan.naiveSheets).toBe(2);
+    expect(plan.oversizedPanels.map((entry) => entry.panelId)).toEqual(['big']);
   });
 
   it('returns an empty plan for empty requirements', () => {

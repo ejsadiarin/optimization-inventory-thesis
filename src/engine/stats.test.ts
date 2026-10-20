@@ -6,7 +6,6 @@ import {
   calculatePlywoodStats,
   calculateSavings,
   calculateStats,
-  naiveSheetBaseline,
 } from './stats';
 import type { PlywoodPanel } from './types';
 
@@ -16,7 +15,7 @@ const COSTS = { phenolicPerSheet: 850, lumberPerPiece: 120 };
 const LUMBER_STOCK = [2.4, 3.0, 3.6, 4.8, 6.0];
 
 function panel(id: string, length: number, width: number): PlywoodPanel {
-  return { id, label: id, sourceMemberLabel: id, length, width };
+  return { id, label: id, length, width };
 }
 
 function first<T>(items: T[]): T {
@@ -24,19 +23,6 @@ function first<T>(items: T[]): T {
   if (item === undefined) throw new Error('expected at least one item');
   return item;
 }
-
-describe('naiveSheetBaseline', () => {
-  it('rounds the panel area up to whole stock sheets', () => {
-    expect(naiveSheetBaseline(STOCK_AREA, STOCK_AREA)).toBe(1);
-    expect(naiveSheetBaseline(STOCK_AREA + 0.0001, STOCK_AREA)).toBe(2);
-    expect(naiveSheetBaseline(STOCK_AREA * 2, STOCK_AREA)).toBe(2);
-  });
-
-  it('returns zero when there is nothing to cut', () => {
-    expect(naiveSheetBaseline(0, STOCK_AREA)).toBe(0);
-    expect(naiveSheetBaseline(1, 0)).toBe(0);
-  });
-});
 
 describe('calculateSavings', () => {
   it('credits every sheet saved at the configured unit cost', () => {
@@ -84,29 +70,30 @@ describe('calculatePlywoodStats', () => {
     expect(stats.waste).toBeCloseTo(100 - stats.utilization);
   });
 
-  it('uses one sheet per placed panel as the unoptimized baseline', () => {
-    const panels = Array.from({ length: 4 }, (_, index) => panel(`p${index}`, 1.2, 1.2));
+  it('credits savings when sorting packs one fewer sheet than input order', () => {
+    const panels = [panel('narrow', 1.2, 0.7), panel('wide', 1.2, 0.8)];
     const plan = optimizePlywood(panels, STOCK);
     const stats = calculatePlywoodStats(plan, COSTS.phenolicPerSheet);
 
-    expect(stats.sheetsUsed).toBe(2);
-    expect(stats.naiveSheets).toBe(4);
-    expect(stats.sheetsSaved).toBe(2);
-    expect(stats.estimatedSavings).toBe(2 * COSTS.phenolicPerSheet);
+    expect(stats.sheetsUsed).toBe(1);
+    expect(stats.naiveSheets).toBe(2);
+    expect(stats.sheetsSaved).toBe(1);
+    expect(stats.estimatedSavings).toBe(COSTS.phenolicPerSheet);
   });
 
   it('excludes oversized panels from the unoptimized baseline', () => {
     const panels = [
-      ...Array.from({ length: 4 }, (_, index) => panel(`p${index}`, 1.2, 1.2)),
+      panel('narrow', 1.2, 0.7),
+      panel('wide', 1.2, 0.8),
       panel('big', 3, 1.5),
     ];
     const plan = optimizePlywood(panels, STOCK);
     const stats = calculatePlywoodStats(plan, COSTS.phenolicPerSheet);
 
-    expect(stats.sheetsUsed).toBe(2);
-    expect(stats.naiveSheets).toBe(4);
-    expect(stats.sheetsSaved).toBe(2);
-    expect(stats.estimatedSavings).toBe(2 * COSTS.phenolicPerSheet);
+    expect(stats.sheetsUsed).toBe(1);
+    expect(stats.naiveSheets).toBe(2);
+    expect(stats.sheetsSaved).toBe(1);
+    expect(stats.estimatedSavings).toBe(COSTS.phenolicPerSheet);
   });
 
   it('returns zeroed stats for an empty plan', () => {

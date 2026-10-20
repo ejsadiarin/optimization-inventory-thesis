@@ -13,16 +13,6 @@ export interface CuttingCosts {
   lumberPerPiece: number;
 }
 
-/**
- * @deprecated Area-based baseline retained for backward compatibility. It
- * understates savings for layouts whose panels fit several per sheet. Stats now
- * use one sheet per placed panel as the unoptimized baseline.
- */
-export function naiveSheetBaseline(totalPanelArea: number, stockArea: number): number {
-  if (!(totalPanelArea > 0) || !(stockArea > 0)) return 0;
-  return Math.ceil(totalPanelArea / stockArea - EPS);
-}
-
 export function calculateSavings(
   naiveSheets: number,
   optimizedSheets: number,
@@ -32,7 +22,7 @@ export function calculateSavings(
 }
 
 export function calculatePlywoodStats(plan: PlywoodPlan, costPerSheet: number): PlywoodStats {
-  const naiveSheets = plan.sheets.reduce((count, sheet) => count + sheet.panels.length, 0);
+  const naiveSheets = plan.naiveSheets;
   const sheetsSaved = Math.max(0, naiveSheets - plan.sheetsUsed);
 
   return {
