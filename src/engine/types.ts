@@ -38,19 +38,32 @@ export interface MatchPiece {
   crossSection?: CrossSection;
   condition: PieceCondition;
   retired: boolean;
+  usageCount?: number;
 }
 
-export interface MatchCandidate {
+export interface MatchRequirement {
+  id: string;
+  materialType: MaterialType;
+  label: string;
+  length: number;
+  width?: number;
+  crossSection?: CrossSection;
+}
+
+export interface InventoryMatch {
   pieceId: string;
   piece: MatchPiece;
   requiresCutting: boolean;
   surplusArea: number;
+  surplusMaxDimension: number;
 }
 
+export type MatchCandidate = InventoryMatch;
+
 export interface MatchGroup {
-  requirement: PanelRequirement | LumberRequirementInput;
-  candidates: MatchCandidate[];
-  bestMatch: MatchCandidate | null;
+  requirement: MatchRequirement;
+  candidates: InventoryMatch[];
+  bestMatch: InventoryMatch | null;
 }
 
 export interface StockSize {
