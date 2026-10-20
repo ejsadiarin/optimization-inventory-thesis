@@ -71,6 +71,24 @@ export interface StockSize {
   width: number;
 }
 
+export interface PlywoodPanel {
+  id: string;
+  label?: string;
+  sourceMemberLabel?: string;
+  length: number;
+  width: number;
+}
+
+export type UnplacedReason = 'oversized' | 'no-fit';
+
+export interface UnplacedPanel {
+  panelId: string;
+  label: string;
+  length: number;
+  width: number;
+  reason: UnplacedReason;
+}
+
 export interface PlacedPanel {
   panelId: string;
   label: string;
@@ -96,6 +114,24 @@ export interface PlywoodSheetPlan {
   panels: PlacedPanel[];
   offcuts: Offcut[];
   usedArea: number;
+  offcutArea: number;
+  reusableOffcutArea: number;
+  wasteArea: number;
+  utilization: number;
+  waste: number;
+}
+
+export interface PlywoodPlan {
+  stock: StockSize;
+  sheets: PlywoodSheetPlan[];
+  sheetsUsed: number;
+  unplacedPanels: UnplacedPanel[];
+  oversizedPanels: UnplacedPanel[];
+  usedArea: number;
+  stockArea: number;
+  offcutArea: number;
+  reusableOffcutArea: number;
+  wasteArea: number;
   utilization: number;
   waste: number;
 }
@@ -112,8 +148,69 @@ export interface LumberStockPlan {
   crossSection: CrossSection;
   stockLength: number;
   cuts: LumberCut[];
+  usedLength: number;
   offcutLength: number;
   utilization: number;
+  waste: number;
+}
+
+export interface LumberUnplaced {
+  requirementId: string;
+  label: string;
+  length: number;
+  crossSection: CrossSection;
+  reason: 'oversized';
+}
+
+export interface LumberGroupPlan {
+  crossSection: CrossSection;
+  stocks: LumberStockPlan[];
+  stockPiecesUsed: number;
+  totalStockLength: number;
+  totalCutLength: number;
+  totalOffcutLength: number;
+  utilization: number;
+  waste: number;
+}
+
+export interface LumberPlan {
+  groups: LumberGroupPlan[];
+  stocks: LumberStockPlan[];
+  stockPiecesUsed: number;
+  totalStockLength: number;
+  totalCutLength: number;
+  totalOffcutLength: number;
+  utilization: number;
+  waste: number;
+  unplacedRequirements: LumberUnplaced[];
+}
+
+export interface PlywoodStats {
+  sheetsUsed: number;
+  naiveSheets: number;
+  sheetsSaved: number;
+  totalPanelArea: number;
+  totalStockArea: number;
+  utilization: number;
+  waste: number;
+  reusableOffcutArea: number;
+  estimatedSavings: number;
+}
+
+export interface LumberStats {
+  stockPiecesUsed: number;
+  totalStockLength: number;
+  totalCutLength: number;
+  totalOffcutLength: number;
+  utilization: number;
+  waste: number;
+  estimatedCost: number;
+}
+
+export interface CuttingStats {
+  plywood: PlywoodStats;
+  lumber: LumberStats;
+  estimatedSavings: number;
 }
 
 export interface OptimizationStats {
