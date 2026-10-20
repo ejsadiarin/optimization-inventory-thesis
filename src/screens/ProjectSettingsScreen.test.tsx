@@ -34,6 +34,28 @@ describe('ProjectSettingsScreen', () => {
     expect(screen.getByRole('spinbutton', { name: /lumber stock length 5/i })).toHaveValue(6);
   });
 
+  it('applies saved costs and stock to other project screens without a reload', async () => {
+    const user = userEvent.setup();
+    const project = await createProject({ name: 'Settings Site' });
+    await renderSettings(project.id);
+
+    const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
+    await user.clear(phenolicCost);
+    await user.type(phenolicCost, '920');
+
+    const sheetLength = screen.getByLabelText(/stock sheet length/i);
+    await user.clear(sheetLength);
+    await user.type(sheetLength, '3');
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+    expect(await screen.findByText(/settings saved/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'Overview' }));
+
+    expect(await screen.findByText(/₱920 \/ sheet/i)).toBeInTheDocument();
+    expect(screen.getByText(/3\.00 m × 1\.22 m/i)).toBeInTheDocument();
+  });
+
   it('saves edited material costs and stock sizes to the project', async () => {
     const user = userEvent.setup();
     const project = await createProject({ name: 'Settings Site' });
