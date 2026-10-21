@@ -129,9 +129,10 @@ describe('downloadSvgAsPng', () => {
     const drawImage = vi.fn();
     const fillRect = vi.fn();
     const getContext = vi.fn(() => ({ fillStyle: '', fillRect, drawImage }));
-    const toDataURL = vi.fn(() => 'data:image/png;base64,abc');
+    const pngBlob = new Blob(['png'], { type: 'image/png' });
+    const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob));
     Object.defineProperty(canvas, 'getContext', { configurable: true, value: getContext });
-    Object.defineProperty(canvas, 'toDataURL', { configurable: true, value: toDataURL });
+    Object.defineProperty(canvas, 'toBlob', { configurable: true, value: toBlob });
 
     const originalCreateElement = document.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation(
@@ -157,15 +158,18 @@ describe('downloadSvgAsPng', () => {
 
     await downloadSvgAsPng('site-sheet-1.png', svg, 1600);
 
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-    const blob = createObjectURL.mock.calls[0]![0] as Blob;
-    expect(blob.type).toBe('image/svg+xml;charset=utf-8');
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    const svgBlob = createObjectURL.mock.calls[0]![0] as Blob;
+    expect(svgBlob.type).toBe('image/svg+xml;charset=utf-8');
+    const downloadedBlob = createObjectURL.mock.calls[1]![0] as Blob;
+    expect(downloadedBlob).toBe(pngBlob);
     expect(canvas.width).toBe(1600);
     expect(canvas.height).toBe(800);
     expect(drawImage).toHaveBeenCalledTimes(1);
-    expect(toDataURL).toHaveBeenCalledWith('image/png');
+    expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/png');
     expect(downloadedFilename).toBe('site-sheet-1.png');
-    expect(downloadedHref).toBe('data:image/png;base64,abc');
+    expect(downloadedHref).toBe(CREATE_URL);
+    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
     expect(revokeObjectURL).toHaveBeenCalledWith(CREATE_URL);
   });
 });

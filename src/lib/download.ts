@@ -88,13 +88,28 @@ export async function downloadSvgAsPng(
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
 
-    const anchor = document.createElement('a');
-    anchor.href = canvas.toDataURL('image/png');
-    anchor.download = filename;
-    anchor.style.display = 'none';
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Could not create the PNG export.'));
+        }
+      }, 'image/png');
+    });
+    const pngUrl = URL.createObjectURL(pngBlob);
+
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = pngUrl;
+      anchor.download = filename;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } finally {
+      URL.revokeObjectURL(pngUrl);
+    }
   } finally {
     URL.revokeObjectURL(url);
   }
