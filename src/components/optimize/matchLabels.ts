@@ -1,18 +1,26 @@
 import type { MatchPiece, MatchRequirement } from '@/engine/types';
 import { crossSectionLabel, formatMeters } from '@/lib/format';
 
-export function requirementDimensions(requirement: MatchRequirement): string {
-  if (requirement.materialType === 'lumber') {
-    return `${formatMeters(requirement.length)} · ${crossSectionLabel(requirement.crossSection ?? '—')}`;
+interface MatchDimensions {
+  materialType: MatchPiece['materialType'];
+  length: number;
+  width?: number;
+  crossSection?: MatchPiece['crossSection'];
+}
+
+function materialDimensions(item: MatchDimensions): string {
+  if (item.materialType === 'lumber') {
+    return `${formatMeters(item.length)} · ${crossSectionLabel(item.crossSection ?? '—')}`;
   }
-  return `${formatMeters(requirement.length)} × ${formatMeters(requirement.width ?? 0)}`;
+  return `${formatMeters(item.length)} × ${formatMeters(item.width ?? 0)}`;
+}
+
+export function requirementDimensions(requirement: MatchRequirement): string {
+  return materialDimensions(requirement);
 }
 
 export function candidateDimensions(piece: MatchPiece): string {
-  if (piece.materialType === 'lumber') {
-    return `${formatMeters(piece.length)} · ${crossSectionLabel(piece.crossSection ?? '—')}`;
-  }
-  return `${formatMeters(piece.length)} × ${formatMeters(piece.width)}`;
+  return materialDimensions(piece);
 }
 
 export function declinedKey(requirementId: string, pieceId: string): string {
