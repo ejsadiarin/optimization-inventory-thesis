@@ -124,12 +124,3 @@ export function matchInventory(
     };
   });
 }
-
-export function remainingRequirements(
-  groups: MatchGroup[],
-  satisfiedRequirementIds: ReadonlySet<string>,
-): MatchRequirement[] {
-  return groups
-    .filter((group) => !satisfiedRequirementIds.has(group.requirement.id))
-    .map((group) => group.requirement);
-}

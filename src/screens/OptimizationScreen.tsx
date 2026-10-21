@@ -17,7 +17,6 @@ import {
 import type { Piece, Project } from '@/db/types';
 import { optimizeProject } from '@/engine';
 import { decomposeMember } from '@/engine/decompose';
-import { remainingRequirements } from '@/engine/match';
 import type {
   InventoryMatch,
   LumberRequirementInput,
@@ -141,7 +140,8 @@ export default function OptimizationScreen() {
   );
 
   const groups = optimization.matches;
-  const remaining = remainingRequirements(groups, satisfiedRequirementIds);
+  const remainingCount =
+    optimization.remainingPanels.length + optimization.remainingLumberRequirements.length;
 
   const memberColors = useMemo(
     () =>
@@ -343,7 +343,7 @@ export default function OptimizationScreen() {
                 {satisfiedRequirementIds.size} of {groups.length} requirements satisfied
               </span>
               <span className="text-muted-foreground">
-                {remaining.length} remaining for cutting
+                {remainingCount} remaining for cutting
               </span>
             </CardContent>
           </Card>
@@ -453,7 +453,7 @@ export default function OptimizationScreen() {
               </p>
             </div>
 
-            {remaining.length === 0 ? (
+            {remainingCount === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center">
                   <p className="font-medium">All requirements satisfied by reused pieces.</p>
