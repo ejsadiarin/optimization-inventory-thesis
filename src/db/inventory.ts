@@ -1,6 +1,7 @@
 import { db } from './db';
 import type { CrossSection, MaterialType, Piece, PieceCondition } from './types';
 import { generateId } from '@/lib/ids';
+import { normalizePieceDimensions } from '@/lib/pieces';
 
 export interface AddPieceInput {
   projectId: string;
@@ -41,14 +42,13 @@ function validateDimensions(input: {
 }
 
 export async function addPiece(input: AddPieceInput): Promise<Piece> {
+  const dimensions = normalizePieceDimensions(input);
   const piece: Piece = {
     id: generateId(),
     projectId: input.projectId,
     materialType: input.materialType,
     length: input.length,
-    width: input.materialType === 'lumber' ? 0 : (input.width ?? 0),
-    thickness: input.materialType === 'lumber' ? 0 : (input.thickness ?? 0),
-    crossSection: input.materialType === 'lumber' ? input.crossSection : undefined,
+    ...dimensions,
     condition: input.condition ?? 'Good',
     usageCount: 0,
     storageLocation: input.storageLocation?.trim() ?? '',
@@ -102,13 +102,16 @@ export async function updatePiece(id: string, input: UpdatePieceInput): Promise<
   const piece = await getPiece(id);
   if (!piece) return undefined;
 
+  const dimensions = normalizePieceDimensions({
+    materialType: piece.materialType,
+    width: input.width ?? piece.width,
+    thickness: input.thickness ?? piece.thickness,
+    crossSection: input.crossSection ?? piece.crossSection,
+  });
   const merged: Piece = {
     ...piece,
     length: input.length ?? piece.length,
-    width: piece.materialType === 'lumber' ? 0 : (input.width ?? piece.width),
-    thickness: piece.materialType === 'lumber' ? 0 : (input.thickness ?? piece.thickness),
-    crossSection:
-      piece.materialType === 'lumber' ? (input.crossSection ?? piece.crossSection) : undefined,
+    ...dimensions,
     condition: input.condition ?? piece.condition,
     storageLocation: input.storageLocation?.trim() ?? piece.storageLocation,
   };
@@ -147,7 +150,8 @@ export async function recordUsage(
   if (piece.retired || piece.condition === 'Retired') throw new Error('Retired pieces cannot be used.');
 
   const usageCount = piece.usageCount + 1;
-  const condition: PieceCondition = usageCount >= 5 ? 'For Inspection' : piece.condition;
+  const crossedInspectionThreshold = piece.usageCount < 5 && usageCount >= 5;
+  const condition: PieceCondition = crossedInspectionThreshold ? 'For Inspection' : piece.condition;
   const now = new Date().toISOString();
 
   await db.transaction('rw', db.pieces, db.usageLog, async () => {

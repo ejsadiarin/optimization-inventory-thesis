@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildDatedFilename,
   downloadSvgAsFile,
+  downloadSvgAsPng,
   downloadTextFile,
   serializeSvg,
 } from './download';
@@ -38,6 +39,7 @@ function mockObjectUrls() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('buildDatedFilename', () => {
@@ -105,5 +107,69 @@ describe('downloadSvgAsFile', () => {
     const text = await blobText(blob);
     expect(text).toContain('xmlns="http://www.w3.org/2000/svg"');
     expect(text).toContain('cut-plan-sheet-2');
+  });
+});
+
+describe('downloadSvgAsPng', () => {
+  it('rasterizes the SVG on a canvas and downloads a PNG', async () => {
+    const { createObjectURL, revokeObjectURL } = mockObjectUrls();
+    let downloadedFilename = '';
+    let downloadedHref = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloadedFilename = this.download;
+      downloadedHref = this.href;
+    });
+
+    const canvas = document.createElementNS(
+      'http://www.w3.org/1999/xhtml',
+      'canvas',
+    ) as HTMLCanvasElement;
+    const drawImage = vi.fn();
+    const fillRect = vi.fn();
+    const getContext = vi.fn(() => ({ fillStyle: '', fillRect, drawImage }));
+    const pngBlob = new Blob(['png'], { type: 'image/png' });
+    const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob));
+    Object.defineProperty(canvas, 'getContext', { configurable: true, value: getContext });
+    Object.defineProperty(canvas, 'toBlob', { configurable: true, value: toBlob });
+
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(
+      (tagName: string, options?: ElementCreationOptions) => {
+        if (tagName === 'canvas') return canvas;
+        return originalCreateElement(tagName, options);
+      },
+    );
+
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', MockImage);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('id', 'cut-plan-sheet-0');
+    svg.setAttribute('viewBox', '0 0 2.44 1.22');
+    svg.innerHTML = '<rect width="1" height="1" />';
+
+    await downloadSvgAsPng('site-sheet-1.png', svg, 1600);
+
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    const svgBlob = createObjectURL.mock.calls[0]![0] as Blob;
+    expect(svgBlob.type).toBe('image/svg+xml;charset=utf-8');
+    const downloadedBlob = createObjectURL.mock.calls[1]![0] as Blob;
+    expect(downloadedBlob).toBe(pngBlob);
+    expect(canvas.width).toBe(1600);
+    expect(canvas.height).toBe(800);
+    expect(drawImage).toHaveBeenCalledTimes(1);
+    expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/png');
+    expect(downloadedFilename).toBe('site-sheet-1.png');
+    expect(downloadedHref).toBe(CREATE_URL);
+    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
+    expect(revokeObjectURL).toHaveBeenCalledWith(CREATE_URL);
   });
 });

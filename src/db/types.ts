@@ -3,6 +3,8 @@ export type PieceCondition = 'Good' | 'For Inspection' | 'Retired';
 export type StructuralMemberType = 'column' | 'beam' | 'slab';
 export type CrossSection = '2x2' | '2x3' | '2x4';
 
+export const LUMBER_CROSS_SECTIONS: CrossSection[] = ['2x2', '2x3', '2x4'];
+
 export interface ProjectCosts {
   phenolicPerSheet: number;
   lumberPerPiece: number;

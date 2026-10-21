@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchInventory, remainingRequirements } from './match';
+import { matchInventory } from './match';
 import type { MatchPiece, MatchRequirement } from './types';
 
 function requirement(overrides: Partial<MatchRequirement> = {}): MatchRequirement {
@@ -215,16 +215,5 @@ describe('matchInventory groups', () => {
     expect(groups.map((group) => group.requirement.id)).toEqual(['req-a', 'req-b']);
     expect(groups[1]!.candidates).toEqual([]);
     expect(groups[1]!.bestMatch).toBeNull();
-  });
-
-  it('lists requirements still awaiting an accepted match', () => {
-    const groups = matchInventory(
-      [requirement({ id: 'req-a' }), requirement({ id: 'req-b' })],
-      [piece()],
-    );
-
-    expect(remainingRequirements(groups, new Set(['req-a'])).map((item) => item.id)).toEqual([
-      'req-b',
-    ]);
   });
 });

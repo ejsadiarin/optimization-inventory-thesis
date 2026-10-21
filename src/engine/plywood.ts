@@ -37,6 +37,12 @@ interface WorkItem {
   preferred: Orientation;
 }
 
+interface PackingResult {
+  sheets: SheetState[];
+  unplacedPanels: UnplacedPanel[];
+  oversizedPanels: UnplacedPanel[];
+}
+
 function orientationsFor(panel: PlywoodPanel, stock: StockSize): Orientation[] {
   const candidates: Orientation[] = [
     { length: panel.length, width: panel.width, rotated: false },
@@ -81,7 +87,6 @@ function placePanel(
   return {
     panelId: panel.id,
     label: panel.label ?? panel.id,
-    sourceMemberLabel: panel.sourceMemberLabel ?? panel.label ?? panel.id,
     x,
     y,
     length: orientation.length,
@@ -157,10 +162,11 @@ function buildSheetPlan(sheet: SheetState, stock: StockSize): PlywoodSheetPlan {
   };
 }
 
-export function optimizePlywood(
+function packSheets(
   panels: readonly PlywoodPanel[],
   stockSize: StockSize,
-): PlywoodPlan {
+  sortWork: boolean,
+): PackingResult {
   const sheets: SheetState[] = [];
   const unplacedPanels: UnplacedPanel[] = [];
   const oversizedPanels: UnplacedPanel[] = [];
@@ -178,15 +184,17 @@ export function optimizePlywood(
     work.push({ panel, orientations, preferred: preferredOrientation(orientations) });
   }
 
-  work.sort((a, b) => {
-    if (Math.abs(a.preferred.width - b.preferred.width) > EPS) {
-      return b.preferred.width - a.preferred.width;
-    }
-    if (Math.abs(a.preferred.length - b.preferred.length) > EPS) {
-      return b.preferred.length - a.preferred.length;
-    }
-    return a.panel.id < b.panel.id ? -1 : a.panel.id > b.panel.id ? 1 : 0;
-  });
+  if (sortWork) {
+    work.sort((a, b) => {
+      if (Math.abs(a.preferred.width - b.preferred.width) > EPS) {
+        return b.preferred.width - a.preferred.width;
+      }
+      if (Math.abs(a.preferred.length - b.preferred.length) > EPS) {
+        return b.preferred.length - a.preferred.length;
+      }
+      return a.panel.id < b.panel.id ? -1 : a.panel.id > b.panel.id ? 1 : 0;
+    });
+  }
 
   for (const item of work) {
     const ordered = [
@@ -229,6 +237,17 @@ export function optimizePlywood(
     addShelf(sheet, item.preferred, item.panel);
   }
 
+  return { sheets, unplacedPanels, oversizedPanels };
+}
+
+export function optimizePlywood(
+  panels: readonly PlywoodPanel[],
+  stockSize: StockSize,
+): PlywoodPlan {
+  const packed = packSheets(panels, stockSize, true);
+  const naiveSheets = packSheets(panels, stockSize, false).sheets.length;
+  const { sheets, unplacedPanels, oversizedPanels } = packed;
+
   const sheetPlans = sheets.map((sheet) => buildSheetPlan(sheet, stockSize));
   const usedArea = sheetPlans.reduce((area, sheet) => area + sheet.usedArea, 0);
   const stockArea = sheetPlans.reduce((area, sheet) => area + sheet.stock.length * sheet.stock.width, 0);
@@ -243,6 +262,7 @@ export function optimizePlywood(
     stock: stockSize,
     sheets: sheetPlans,
     sheetsUsed: sheetPlans.length,
+    naiveSheets,
     unplacedPanels,
     oversizedPanels,
     usedArea,

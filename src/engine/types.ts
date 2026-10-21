@@ -15,8 +15,6 @@ export interface PanelRequirement {
   label: string;
   memberType: StructuralMemberType;
   materialType: 'phenolic';
-  sourceMemberLabel: string;
-  sourceMemberType: StructuralMemberType;
   length: number;
   width: number;
   quantity: number;
@@ -58,8 +56,6 @@ export interface InventoryMatch {
   surplusMaxDimension: number;
 }
 
-export type MatchCandidate = InventoryMatch;
-
 export interface MatchGroup {
   requirement: MatchRequirement;
   candidates: InventoryMatch[];
@@ -74,12 +70,11 @@ export interface StockSize {
 export interface PlywoodPanel {
   id: string;
   label?: string;
-  sourceMemberLabel?: string;
   length: number;
   width: number;
 }
 
-export type UnplacedReason = 'oversized' | 'no-fit';
+export type UnplacedReason = 'oversized';
 
 export interface UnplacedPanel {
   panelId: string;
@@ -92,7 +87,6 @@ export interface UnplacedPanel {
 export interface PlacedPanel {
   panelId: string;
   label: string;
-  sourceMemberLabel: string;
   x: number;
   y: number;
   length: number;
@@ -125,6 +119,7 @@ export interface PlywoodPlan {
   stock: StockSize;
   sheets: PlywoodSheetPlan[];
   sheetsUsed: number;
+  naiveSheets: number;
   unplacedPanels: UnplacedPanel[];
   oversizedPanels: UnplacedPanel[];
   usedArea: number;
@@ -210,15 +205,6 @@ export interface LumberStats {
 export interface CuttingStats {
   plywood: PlywoodStats;
   lumber: LumberStats;
-  estimatedSavings: number;
-}
-
-export interface OptimizationStats {
-  sheetsUsed: number;
-  naiveSheets: number;
-  sheetsSaved: number;
-  utilization: number;
-  waste: number;
   estimatedSavings: number;
 }
 

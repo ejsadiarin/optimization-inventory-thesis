@@ -166,7 +166,7 @@ describe('inventory usage lifecycle', () => {
     ]);
   });
 
-  it('allows an engineer to return an inspected piece to Good, then re-flags on further use', async () => {
+  it('flags For Inspection only when usage crosses five, not on every later use', async () => {
     const project = await makeProject();
     const piece = await addPiece({
       projectId: project.id,
@@ -175,15 +175,21 @@ describe('inventory usage lifecycle', () => {
       crossSection: '2x2',
     });
 
-    for (let use = 1; use <= 5; use += 1) {
+    for (let use = 1; use <= 4; use += 1) {
       await recordUsage(piece.id, project.id, `C${use}`);
     }
+
+    const fifth = await recordUsage(piece.id, project.id, 'C5');
+    expect(fifth).toMatchObject({ condition: 'For Inspection', usageCount: 5 });
 
     const inspected = await updatePiece(piece.id, { condition: 'Good' });
     expect(inspected).toMatchObject({ condition: 'Good', usageCount: 5 });
 
     const reused = await recordUsage(piece.id, project.id, 'B9');
-    expect(reused).toMatchObject({ condition: 'For Inspection', usageCount: 6 });
+    expect(reused).toMatchObject({ condition: 'Good', usageCount: 6 });
+    const log = await getUsageLog(piece.id);
+    expect(log).toHaveLength(6);
+    expect(log[0]!.structuralMemberLabel).toBe('B9');
   });
 
   it('does not record usage against a retired piece', async () => {

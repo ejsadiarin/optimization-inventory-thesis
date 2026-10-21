@@ -43,10 +43,6 @@ function pieceToRow(piece: Piece): string {
     .join(',');
 }
 
-/**
- * Serializes inventory pieces to RFC 4180 CSV. All persisted Piece fields are
- * included so thesis exports preserve retired records and cross-sections.
- */
 export function piecesToCsv(pieces: readonly Piece[]): string {
   return [COLUMNS.join(','), ...pieces.map(pieceToRow), ''].join(ROW_SEPARATOR);
 }

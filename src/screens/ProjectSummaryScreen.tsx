@@ -5,26 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
-import type { Piece, Project } from '@/db/types';
+import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
+import type { Project } from '@/db/types';
 import { decomposeMember } from '@/engine/decompose';
 import { buildProjectSummary, type ProjectSummary } from '@/engine/report';
-import type { LumberRequirementInput, MatchPiece } from '@/engine/types';
+import type { LumberRequirementInput } from '@/engine/types';
 import { piecesToCsv } from '@/lib/csv';
 import { buildDatedFilename, downloadTextFile } from '@/lib/download';
 import { formatPeso } from '@/lib/format';
-
-function toMatchPiece(piece: Piece): MatchPiece {
-  return {
-    id: piece.id,
-    materialType: piece.materialType,
-    length: piece.length,
-    width: piece.width,
-    crossSection: piece.crossSection,
-    condition: piece.condition,
-    retired: piece.retired,
-    usageCount: piece.usageCount,
-  };
-}
+import { toMatchPiece } from '@/lib/pieces';
 
 function percent(value: number): string {
   return `${value.toFixed(1)}%`;
@@ -79,10 +68,11 @@ export default function ProjectSummaryScreen() {
     setLoading(true);
     setError('');
     try {
-      const [members, lumberRequirements, pieces] = await Promise.all([
+      const [members, lumberRequirements, pieces, savedPlan] = await Promise.all([
         listStructuralMembers(project.id),
         listLumberRequirements(project.id),
         listPieces(project.id),
+        getLatestCuttingPlan(project.id),
       ]);
 
       const panels = members.flatMap((member) => decomposeMember(member));
@@ -92,6 +82,14 @@ export default function ProjectSummaryScreen() {
         length: requirement.length,
         crossSection: requirement.crossSection,
       }));
+      const requirementIds = new Set([
+        ...panels.map((panel) => panel.id),
+        ...lumberInputs.map((requirement) => requirement.id),
+      ]);
+      const satisfiedRequirementIds = savedPlan
+        ? filterCuttingPlanSnapshot(savedPlan.snapshot, requirementIds)
+            .satisfiedRequirementIds
+        : [];
 
       setSummary(
         buildProjectSummary({
@@ -100,6 +98,7 @@ export default function ProjectSummaryScreen() {
           stock: project.stock,
           costs: project.costs,
           pieces: pieces.map(toMatchPiece),
+          satisfiedRequirementIds: new Set(satisfiedRequirementIds),
         }),
       );
     } catch {
@@ -165,24 +164,18 @@ export default function ProjectSummaryScreen() {
         </p>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Cutting performance">
+      <section className="grid gap-3 sm:grid-cols-2" aria-label="Cutting performance">
         <Metric
           label="Overall utilization"
           value={percent(summary.utilization)}
-          hint="Share of new plywood stock area used by panels."
+          hint="Cost-weighted share of new plywood and lumber stock used."
           testId="summary-utilization"
         />
         <Metric
           label="Cutting waste"
           value={percent(summary.waste)}
-          hint="Plywood area too small to reuse."
+          hint="Cost-weighted share of new stock that cannot be reused."
           testId="summary-waste"
-        />
-        <Metric
-          label="Reusable offcuts"
-          value={percent(summary.reusableOffcutPercent)}
-          hint="Share of stock area kept for future use."
-          testId="summary-reusable-offcuts"
         />
       </section>
 
@@ -192,8 +185,7 @@ export default function ProjectSummaryScreen() {
             <Recycle className="h-4 w-4 text-primary" /> Reuse and new materials
           </CardTitle>
           <CardDescription>
-            Reuse counts come from recorded inventory usage. Accepted matches on the Optimize
-            screen are session state until inventory usage is recorded.
+            Reuse counts come from the accepted optimization plan for this project.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -202,7 +194,7 @@ export default function ProjectSummaryScreen() {
           <Metric
             label="New sheets required"
             value={String(summary.newSheetsRequired)}
-            hint="Plywood sheets still to be cut."
+            hint={`${percent(summary.plywoodUtilization)} of new plywood stock utilized.`}
             testId="summary-new-sheets"
           />
           <Metric
@@ -250,7 +242,7 @@ export default function ProjectSummaryScreen() {
           <div className="border-t pt-3">
             <BreakdownRow
               label="Estimated savings"
-              detail="Sheets avoided compared with cutting one panel per sheet."
+              detail="Sheets avoided compared with unsorted, unoptimized cutting."
               value={formatPeso(procurement.totalEstimatedSavings)}
               emphasis
             />
@@ -264,13 +256,18 @@ export default function ProjectSummaryScreen() {
             <BarChart3 className="h-4 w-4 text-primary" /> How this is calculated
           </CardTitle>
           <CardDescription>
-            Utilization and waste use the current plywood cutting plan. Reuse reflects usage
-            already recorded against inventory pieces, not matches merely accepted in a session.
+            Utilization and waste are weighted by the cost of the plywood and lumber stock
+            each material requires.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Layers className="h-4 w-4" />
-          Savings count only phenolic sheets avoided; lumber is reported as a purchase cost.
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            Plywood utilization {percent(summary.plywoodUtilization)} · waste{' '}
+            {percent(summary.plywoodWaste)} · lumber utilization{' '}
+            {percent(summary.lumberUtilization)} · waste {percent(summary.lumberWaste)}.
+          </p>
+          <p>Savings count only phenolic sheets avoided; lumber is reported as a purchase cost.</p>
         </CardContent>
       </Card>
     </div>
