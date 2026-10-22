@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, FolderPlus, KeyRound, Plus } from 'lucide-react';
+import { CalendarDays, Database, FolderPlus, KeyRound, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createProject, listProjects } from '@/db/projects';
+import { seedDemoProject } from '@/db/seed';
 import type { Project } from '@/db/types';
 import { formatDate } from '@/lib/format';
 
@@ -25,6 +26,8 @@ export default function ProjectsScreen() {
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState('');
 
   async function refresh() {
     setProjects(await listProjects());
@@ -50,6 +53,20 @@ export default function ProjectsScreen() {
     await refresh();
   }
 
+  async function handleSeedDemo() {
+    setSeedError('');
+    setSeeding(true);
+    try {
+      const project = await seedDemoProject();
+      setCreatedProject(project);
+      await refresh();
+    } catch {
+      setSeedError('Could not load demo data.');
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="flex items-center justify-between gap-3">
@@ -57,11 +74,23 @@ export default function ProjectsScreen() {
           <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
           <p className="text-sm text-muted-foreground">Construction sites tracked on this device.</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" disabled={seeding} onClick={() => void handleSeedDemo()}>
+            <Database className="h-4 w-4" />
+            {seeding ? 'Loading demo…' : 'Load demo data'}
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       </div>
+
+      {seedError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {seedError}
+        </p>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading projects…</p>

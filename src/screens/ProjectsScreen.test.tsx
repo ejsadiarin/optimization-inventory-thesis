@@ -44,4 +44,17 @@ describe('ProjectsScreen', () => {
 
     expect(await screen.findByText(/no projects yet/i)).toBeInTheDocument();
   });
+
+  it('loads a demo project and reveals its access code', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: /load demo data/i }));
+
+    expect(await screen.findByTestId('access-code')).toHaveTextContent('DEMO01');
+    await user.click(screen.getByRole('button', { name: /saved the code/i }));
+
+    expect(await screen.findByText('Demo — Two-Storey Residence')).toBeInTheDocument();
+    await expect(listProjects()).resolves.toHaveLength(1);
+  });
 });

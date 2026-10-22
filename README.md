@@ -1,4 +1,51 @@
-# (UPDATE 2026-10-19) Deprecated (for history only) 
+# Formwork Cutting Optimization System
+
+Offline-first PWA for planning formwork cuts, matching reusable inventory, and tracking phenolic board and lumber usage across construction projects. All data stays on the device in IndexedDB; there is no backend.
+
+## Quick start
+
+Requirements: Node.js 22+ and npm 10+.
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:5173.
+
+1. Create a project and save the one-time access code shown after creation (it cannot be recovered). Or click **Load demo data** to populate a realistic project; its access code is `DEMO01`.
+2. Add structural members (columns, beams, slabs) and any manual lumber requirements.
+3. Add reusable phenolic boards and lumber pieces to inventory.
+4. Open **Optimize** to accept reuse matches, review SVG cut plans, and keep reusable offcuts.
+5. Open **Summary** to review utilization, waste, reuse, and PHP savings, then export inventory CSV or cutting-plan images.
+
+The app is installable and works offline after the first successful load. Data is local to the browser profile; clearing site data removes projects.
+
+## Verification
+
+```bash
+npm test              # Vitest unit and component tests
+npm run lint
+npm run build         # TypeScript + production build
+npm run verify:pwa    # checks manifest, service worker, and icons
+```
+
+To test the production/PWA build locally:
+
+```bash
+npm run build
+npm run preview
+```
+
+## Project docs
+
+- [GLOSSARY.md](./GLOSSARY.md) — canonical domain terms
+- [docs/adr/](./docs/adr/) — architecture decisions
+- [docs/spec.md](./docs/spec.md) — product spec
+
+---
+
+# Historical README (deprecated, kept for context)
 
 ```md
 # Offcut Utilization Inventory System
