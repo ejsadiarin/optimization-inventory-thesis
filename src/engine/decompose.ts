@@ -35,8 +35,9 @@ function panelsFor(member: MemberInput): Array<{ length: number; width: number }
 
 export function decomposeMember(member: MemberInput): PanelRequirement[] {
   const memberKey = member.id ?? member.label;
+  const panels = panelsFor(member);
 
-  return panelsFor(member).map((panel, index) => ({
+  return panels.map((panel, index) => ({
     id: `${memberKey}-panel-${index + 1}`,
     memberId: member.id ?? '',
     label: member.label,
@@ -46,6 +47,8 @@ export function decomposeMember(member: MemberInput): PanelRequirement[] {
     width: panel.width,
     quantity: 1,
     exceedsStock: false,
+    panelIndex: index + 1,
+    panelCount: panels.length,
   }));
 }
 

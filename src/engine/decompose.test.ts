@@ -70,6 +70,13 @@ describe('decomposeMember', () => {
     }
   });
 
+  it('numbers each panel within its structural member', () => {
+    const panels = decomposeMember(member());
+
+    expect(panels.map((panel) => panel.panelIndex)).toEqual([1, 2, 3, 4]);
+    expect(panels.every((panel) => panel.panelCount === 4)).toBe(true);
+  });
+
   it('keeps realistic decimal dimensions intact', () => {
     const panels = decomposeMember(
       member({ type: 'beam', length: 3.75, width: 0.2, height: 0.45 }),

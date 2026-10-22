@@ -41,12 +41,20 @@ export default function MatchGroups({
         return (
           <Card key={requirement.id}>
             <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <CardTitle className="text-base">{requirement.label}</CardTitle>
-                  <CardDescription>{requirementDimensions(requirement)}</CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="flex flex-wrap items-baseline gap-1.5 text-base">
+                      <span>{requirement.label}</span>
+                      {requirement.panelIndex !== undefined &&
+                        requirement.panelCount !== undefined && (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            Panel {requirement.panelIndex} of {requirement.panelCount}
+                          </span>
+                        )}
+                    </CardTitle>
+                    <CardDescription>{requirementDimensions(requirement)}</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
                   <Badge variant="outline">{materialTypeLabel(requirement.materialType)}</Badge>
                   {satisfied && (
                     <Badge className="border-emerald-600/30 bg-emerald-50 text-emerald-700">

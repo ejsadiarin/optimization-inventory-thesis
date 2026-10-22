@@ -49,6 +49,7 @@ describe('OptimizationScreen matching', () => {
     await renderOptimize(project.id);
 
     expect(screen.getAllByText('C1').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/panel 1 of 4/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/0\.50 m × 3\.00 m/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/0\.30 m × 3\.00 m/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/requires cutting/i).length).toBeGreaterThan(0);

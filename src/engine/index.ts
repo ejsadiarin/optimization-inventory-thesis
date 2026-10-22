@@ -24,6 +24,8 @@ function toMatchRequirements(
       label: panel.label,
       length: panel.length,
       width: panel.width,
+      panelIndex: panel.panelIndex,
+      panelCount: panel.panelCount,
     })),
     ...lumberRequirements.map((requirement) => ({
       id: requirement.id,

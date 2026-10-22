@@ -19,6 +19,8 @@ export interface PanelRequirement {
   width: number;
   quantity: number;
   exceedsStock: boolean;
+  panelIndex?: number;
+  panelCount?: number;
 }
 
 export interface LumberRequirementInput {
@@ -46,6 +48,8 @@ export interface MatchRequirement {
   length: number;
   width?: number;
   crossSection?: CrossSection;
+  panelIndex?: number;
+  panelCount?: number;
 }
 
 export interface InventoryMatch {
