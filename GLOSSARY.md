@@ -37,12 +37,28 @@ The number of times a material piece has been used as formwork. At 5 uses the sy
 _Avoid_: Reuse count, number of uses (in prose — use "usage count" consistently)
 
 **Project**:
-A single construction project with its own set of structural members, inventory, and cutting plans. Protected by a one-time access code shown at creation.
+A single construction project with its own set of structural members, inventory, and cutting plans. Owned by an Account, listed in the Project Marketplace, and protected by an Access Code.
 _Avoid_: Site, job
 
 **Access Code**:
-A locally-generated code shown once at project creation, used to open the project on the device. Not a security mechanism — just prevents accidental access.
+A six-letter code shown once at project creation and required each session by everyone, including the Owner, to open the project. It is a client-side gate, not a security boundary — it prevents accidental access, not access by a signed-in Account using the database directly.
 _Avoid_: Passcode, password, PIN
+
+**Account**:
+An authenticated identity (email and password) that signs in to the system, browses the Project Marketplace, and opens projects with an Access Code.
+_Avoid_: User (in domain prose), login, profile
+
+**Owner**:
+The Account that created a Project. Ownership does not bypass the Access Code.
+_Avoid_: Creator, author, admin
+
+**Project Marketplace**:
+The global list of all Projects visible to every signed-in Account.
+_Avoid_: Directory, catalog, shared workspace
+
+**Sync**:
+The process of reconciling this device's local copy of the data with the online database. Changes made offline are queued and applied when the device reconnects; conflicting edits to the same record are resolved last-write-wins.
+_Avoid_: Replication, backup
 
 **Column**:
 A vertical structural member with length, width, and height. Decomposes into 4 formwork panels (the 4 sides).
