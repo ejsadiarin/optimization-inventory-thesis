@@ -1,6 +1,6 @@
 # Formwork Cutting Optimization System
 
-Offline-first PWA for planning formwork cuts, matching reusable inventory, and tracking phenolic board and lumber usage across construction projects. All data stays on the device in IndexedDB; there is no backend.
+Offline-first PWA for planning formwork cuts, matching reusable inventory, and tracking phenolic board and lumber usage across construction projects. Sign-in uses Firebase Authentication, and local project data still lives in IndexedDB while cloud sync is rolled out.
 
 ## Quick start
 
@@ -8,12 +8,25 @@ Requirements: Node.js 22+ and npm 10+.
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173. Sign in with `demo@example.com` / `demo1234`.
 
-1. Create a project and save the one-time access code shown after creation (it cannot be recovered). Or click **Load demo data** to populate a realistic project; its access code is `DEMO01`.
+### Local development with the Firebase emulator
+
+The default `.env.example` sets `VITE_USE_FIREBASE_EMULATOR=true` and leaves the
+`VITE_FIREBASE_*` values blank, so no real Firebase project is required. Start the
+emulators, seed the demo account, then run the app:
+
+```bash
+npx firebase emulators:start --only auth,firestore --project demo-test
+npm run seed:emulator
+npm run dev
+```
+
+1. Sign in, then create a project and save the one-time access code shown after creation (it cannot be recovered). Or click **Load demo data** to populate a realistic project; its access code is `DEMO01`.
 2. Add structural members (columns, beams, slabs) and any manual lumber requirements.
 3. Add reusable phenolic boards and lumber pieces to inventory.
 4. Open **Optimize** to accept reuse matches, review SVG cut plans, and keep reusable offcuts.
@@ -25,6 +38,8 @@ The app is installable and works offline after the first successful load. Data i
 
 ```bash
 npm test              # Vitest unit and component tests
+npm run test:emulator # Firebase Auth/Firestore emulator tests
+npm run test:all      # both suites
 npm run lint
 npm run build         # TypeScript + production build
 npm run verify:pwa    # checks manifest, service worker, and icons

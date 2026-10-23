@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
 import { createProject } from '@/db/projects';
@@ -17,7 +18,9 @@ describe('ProjectOverviewScreen', () => {
 
     render(
       <MemoryRouter initialEntries={[`/projects/${project.id}`]}>
-        <App />
+        <TestAuthProvider user={testUser}>
+          <App />
+        </TestAuthProvider>
       </MemoryRouter>,
     );
 

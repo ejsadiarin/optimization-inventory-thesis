@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
 import { addPiece, recordUsage, retirePiece } from '@/db/inventory';
@@ -16,7 +17,9 @@ async function renderInventory(projectId: string) {
   unlockProject(projectId);
   render(
     <MemoryRouter initialEntries={[`/projects/${projectId}/inventory`]}>
-      <App />
+      <TestAuthProvider user={testUser}>
+        <App />
+      </TestAuthProvider>
     </MemoryRouter>,
   );
   await screen.findByRole('heading', { name: /^inventory$/i });

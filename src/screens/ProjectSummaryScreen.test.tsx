@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
 import { addPiece } from '@/db/inventory';
@@ -18,7 +19,9 @@ async function renderSummary(projectId: string) {
   unlockProject(projectId);
   render(
     <MemoryRouter initialEntries={[`/projects/${projectId}/summary`]}>
-      <App />
+      <TestAuthProvider user={testUser}>
+        <App />
+      </TestAuthProvider>
     </MemoryRouter>,
   );
   await screen.findByRole('heading', { name: /^summary$/i });

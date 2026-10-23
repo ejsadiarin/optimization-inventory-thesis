@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
 import { createProject, getProject } from '@/db/projects';
@@ -15,7 +16,9 @@ async function renderSettings(projectId: string) {
   unlockProject(projectId);
   render(
     <MemoryRouter initialEntries={[`/projects/${projectId}/settings`]}>
-      <App />
+      <TestAuthProvider user={testUser}>
+        <App />
+      </TestAuthProvider>
     </MemoryRouter>,
   );
   await screen.findByLabelText(/phenolic board cost/i);
