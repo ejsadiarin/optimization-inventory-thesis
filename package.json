@@ -9,6 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --only auth,firestore --project demo-test \"vitest run --config vitest.emulator.config.ts\"",
+    "test:all": "npm test && npm run test:emulator",
+    "seed:emulator": "node scripts/seed-emulator.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "verify:pwa": "node scripts/verify-pwa.mjs"
@@ -56,5 +59,8 @@
     "vite": "^6.1.0",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^3.0.5"
+  },
+  "overrides": {
+    "@firebase/app": "0.16.4"
   }
 }

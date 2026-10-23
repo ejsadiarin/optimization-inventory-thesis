@@ -2,6 +2,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.env.local
+.env.*.local
+service-account*.json
+*-firebase-adminsdk-*.json
 coverage
 .vite
 .DS_Store

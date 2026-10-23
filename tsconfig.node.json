@@ -19,5 +19,11 @@
     "noUncheckedSideEffectImports": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "eslint.config.js", "postcss.config.js", "tailwind.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "vitest.emulator.config.ts",
+    "eslint.config.js",
+    "postcss.config.js",
+    "tailwind.config.ts"
+  ]
 }
