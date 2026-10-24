@@ -61,7 +61,7 @@ export default function LoginScreen() {
     : '/';
 
   if (!loading && user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={target} replace />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

@@ -115,6 +115,12 @@ describe('LoginScreen', () => {
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
   });
 
+  it('keeps the deep link when the account is already signed in', () => {
+    renderLogin({ user: testUser, from: { pathname: '/projects/abc' } });
+
+    expect(screen.getByText('Requested project')).toBeInTheDocument();
+  });
+
   it('shows the unconfigured state instead of crashing', () => {
     firebaseMock.firebaseConfigured = false;
     renderLogin();
