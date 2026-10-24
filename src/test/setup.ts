@@ -3,6 +3,10 @@ import 'fake-indexeddb/auto';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
+if (!('self' in globalThis)) {
+  Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true });
+}
+
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
 }
