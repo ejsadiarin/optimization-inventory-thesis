@@ -1,41 +1,13 @@
 import { generateId } from '@/lib/ids';
 import { LUMBER_CROSS_SECTIONS } from '@/db/types';
+import type { LumberRequirement, StructuralMember } from '@/db/types';
 import type {
-  CrossSection,
-  LumberRequirement,
-  StructuralMember,
-  StructuralMemberType,
-} from '@/db/types';
-
-interface StructuralMemberInput {
-  projectId: string;
-  type: StructuralMemberType;
-  label: string;
-  length: number;
-  width: number;
-  height: number;
-}
-
-interface StructuralMemberFields {
-  type: StructuralMemberType;
-  label: string;
-  length: number;
-  width: number;
-  height: number;
-}
-
-interface LumberRequirementInput {
-  projectId: string;
-  label: string;
-  length: number;
-  crossSection: CrossSection;
-}
-
-interface LumberRequirementFields {
-  label: string;
-  length: number;
-  crossSection: CrossSection;
-}
+  LumberRequirementFields,
+  LumberRequirementGroup,
+  LumberRequirementInput,
+  StructuralMemberFields,
+  StructuralMemberInput,
+} from '@/db/members';
 
 let members: StructuralMember[] = [];
 let requirements: LumberRequirement[] = [];
@@ -170,7 +142,7 @@ export { LUMBER_CROSS_SECTIONS };
 
 export function groupLumberRequirementsByCrossSection(
   requirementList: LumberRequirement[],
-) {
+): LumberRequirementGroup[] {
   return LUMBER_CROSS_SECTIONS.map((crossSection) => ({
     crossSection,
     items: requirementList.filter(

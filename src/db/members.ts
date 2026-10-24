@@ -73,6 +73,20 @@ function byCreatedAt<T extends { createdAt: string }>(left: T, right: T): number
   return left.createdAt.localeCompare(right.createdAt);
 }
 
+async function listSubcollection<T extends { createdAt: string }>(
+  projectId: string,
+  name: string,
+): Promise<T[]> {
+  const snapshot = await getDocs(projectCollection(projectId, name));
+
+  const entities: T[] = [];
+  for (const document of snapshot.docs) {
+    const entity = dataWithId<T>(document);
+    if (entity) entities.push(entity);
+  }
+  return entities.sort(byCreatedAt);
+}
+
 export async function createStructuralMember(
   input: StructuralMemberInput,
 ): Promise<StructuralMember> {
@@ -89,16 +103,10 @@ export async function createStructuralMember(
 }
 
 export async function listStructuralMembers(projectId: string): Promise<StructuralMember[]> {
-  const snapshot = await getDocs(
-    projectCollection(requireProjectId(projectId), 'structuralMembers'),
+  return listSubcollection<StructuralMember>(
+    requireProjectId(projectId),
+    'structuralMembers',
   );
-
-  const members: StructuralMember[] = [];
-  for (const document of snapshot.docs) {
-    const member = dataWithId<StructuralMember>(document);
-    if (member) members.push(member);
-  }
-  return members.sort(byCreatedAt);
 }
 
 export async function updateStructuralMember(
@@ -136,16 +144,10 @@ export async function createLumberRequirement(
 }
 
 export async function listLumberRequirements(projectId: string): Promise<LumberRequirement[]> {
-  const snapshot = await getDocs(
-    projectCollection(requireProjectId(projectId), 'lumberRequirements'),
+  return listSubcollection<LumberRequirement>(
+    requireProjectId(projectId),
+    'lumberRequirements',
   );
-
-  const requirements: LumberRequirement[] = [];
-  for (const document of snapshot.docs) {
-    const requirement = dataWithId<LumberRequirement>(document);
-    if (requirement) requirements.push(requirement);
-  }
-  return requirements.sort(byCreatedAt);
 }
 
 export async function updateLumberRequirement(
