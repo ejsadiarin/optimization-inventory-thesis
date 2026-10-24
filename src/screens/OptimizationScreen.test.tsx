@@ -8,11 +8,14 @@ import { db } from '@/db/db';
 import { addPiece, getPiece, getUsageLog, listPieces, recordUsage } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { seedProject } from '@/test/fixtures';
+import { resetMembersMock } from '@/test/membersMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
+vi.mock('@/db/members', () => import('@/test/membersMock'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
+  resetMembersMock();
   await Promise.all(db.tables.map((table) => table.clear()));
 });
 
