@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -10,7 +10,9 @@ import {
   createStructuralMember,
   listStructuralMembers,
 } from '@/db/members';
-import { createProject } from '@/db/projects';
+import { seedProject } from '@/test/fixtures';
+
+vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
@@ -32,7 +34,7 @@ async function renderMembers(projectId: string) {
 describe('StructuralMembersScreen', () => {
   it('adds a column and shows its decomposed panels', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Members Site' });
+    const project = await seedProject({ name: 'Members Site' });
     await renderMembers(project.id);
 
     await user.click(screen.getByRole('button', { name: /add member/i }));
@@ -57,7 +59,7 @@ describe('StructuralMembersScreen', () => {
 
   it('edits an existing member', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Members Site' });
+    const project = await seedProject({ name: 'Members Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'beam',
@@ -89,7 +91,7 @@ describe('StructuralMembersScreen', () => {
 
   it('deletes a member', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Members Site' });
+    const project = await seedProject({ name: 'Members Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -107,7 +109,7 @@ describe('StructuralMembersScreen', () => {
   });
 
   it('warns when a decomposed panel exceeds the stock sheet', async () => {
-    const project = await createProject({ name: 'Members Site' });
+    const project = await seedProject({ name: 'Members Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -124,7 +126,7 @@ describe('StructuralMembersScreen', () => {
   });
 
   it('uses the project stock override when checking oversized panels', async () => {
-    const project = await createProject({
+    const project = await seedProject({
       name: 'Members Site',
       stock: { phenolic: { length: 6, width: 3.5 } },
     });
@@ -144,7 +146,7 @@ describe('StructuralMembersScreen', () => {
 
   it('adds lumber requirements and groups them by cross-section', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Members Site' });
+    const project = await seedProject({ name: 'Members Site' });
     await createLumberRequirement({
       projectId: project.id,
       label: 'Existing brace',

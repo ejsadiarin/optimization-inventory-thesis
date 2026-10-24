@@ -11,7 +11,7 @@ import {
   updateLumberRequirement,
   updateStructuralMember,
 } from './members';
-import { createProject } from './projects';
+import { seedProject } from '@/test/fixtures';
 
 beforeEach(async () => {
   await Promise.all(db.tables.map((table) => table.clear()));
@@ -19,8 +19,8 @@ beforeEach(async () => {
 
 describe('structural member CRUD', () => {
   it('creates and lists members for a single project', async () => {
-    const project = await createProject({ name: 'Sample Site' });
-    const otherProject = await createProject({ name: 'Other Site' });
+    const project = await seedProject({ name: 'Sample Site' });
+    const otherProject = await seedProject({ name: 'Other Site' });
 
     const column = await createStructuralMember({
       projectId: project.id,
@@ -55,7 +55,7 @@ describe('structural member CRUD', () => {
   });
 
   it('updates a member and clears slab height', async () => {
-    const project = await createProject({ name: 'Sample Site' });
+    const project = await seedProject({ name: 'Sample Site' });
     const member = await createStructuralMember({
       projectId: project.id,
       type: 'column',
@@ -83,7 +83,7 @@ describe('structural member CRUD', () => {
   });
 
   it('deletes a member without touching other records', async () => {
-    const project = await createProject({ name: 'Sample Site' });
+    const project = await seedProject({ name: 'Sample Site' });
     const first = await createStructuralMember({
       projectId: project.id,
       type: 'beam',
@@ -109,7 +109,7 @@ describe('structural member CRUD', () => {
 
 describe('lumber requirement CRUD and grouping', () => {
   it('creates, updates, and deletes lumber requirements', async () => {
-    const project = await createProject({ name: 'Sample Site' });
+    const project = await seedProject({ name: 'Sample Site' });
     const created = await createLumberRequirement({
       projectId: project.id,
       label: 'Brace 1',
@@ -135,7 +135,7 @@ describe('lumber requirement CRUD and grouping', () => {
   });
 
   it('groups requirements by cross-section in canonical order', async () => {
-    const project = await createProject({ name: 'Sample Site' });
+    const project = await seedProject({ name: 'Sample Site' });
     const first = await createLumberRequirement({
       projectId: project.id,
       label: 'Brace 1',

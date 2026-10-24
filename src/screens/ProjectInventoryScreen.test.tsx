@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -6,7 +6,9 @@ import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
 import { addPiece, recordUsage, retirePiece } from '@/db/inventory';
-import { createProject } from '@/db/projects';
+import { seedProject } from '@/test/fixtures';
+
+vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
@@ -28,7 +30,7 @@ async function renderInventory(projectId: string) {
 describe('ProjectInventoryScreen', () => {
   it('adds a phenolic piece through the form and lists it with its details', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Inventory Site' });
+    const project = await seedProject({ name: 'Inventory Site' });
     await renderInventory(project.id);
 
     await user.click(screen.getByRole('button', { name: /add piece/i }));
@@ -58,7 +60,7 @@ describe('ProjectInventoryScreen', () => {
 
 describe('ProjectInventoryScreen lifecycle and history', () => {
   async function seedUsedPiece(label = 'C1') {
-    const project = await createProject({ name: 'Lifecycle Site' });
+    const project = await seedProject({ name: 'Lifecycle Site' });
     const piece = await addPiece({
       projectId: project.id,
       materialType: 'lumber',
@@ -132,7 +134,7 @@ describe('ProjectInventoryScreen lifecycle and history', () => {
 
 describe('ProjectInventoryScreen search, filter, and sort', () => {
   async function seedInventory() {
-    const project = await createProject({ name: 'Browse Site' });
+    const project = await seedProject({ name: 'Browse Site' });
     const phenolic = await addPiece({
       projectId: project.id,
       materialType: 'phenolic',
@@ -163,7 +165,7 @@ describe('ProjectInventoryScreen search, filter, and sort', () => {
 
   it('adds a lumber piece with length and cross-section', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Lumber Site' });
+    const project = await seedProject({ name: 'Lumber Site' });
     await renderInventory(project.id);
 
     await user.click(screen.getByRole('button', { name: /add piece/i }));

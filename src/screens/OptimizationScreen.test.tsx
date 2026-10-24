@@ -7,7 +7,9 @@ import App from '@/App';
 import { db } from '@/db/db';
 import { addPiece, getPiece, getUsageLog, listPieces, recordUsage } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
-import { createProject } from '@/db/projects';
+import { seedProject } from '@/test/fixtures';
+
+vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
@@ -32,7 +34,7 @@ async function renderOptimize(projectId: string) {
 
 describe('OptimizationScreen matching', () => {
   it('renders decomposed member panels as match requirements', async () => {
-    const project = await createProject({ name: 'Optimize Site' });
+    const project = await seedProject({ name: 'Optimize Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'column',
@@ -60,7 +62,7 @@ describe('OptimizationScreen matching', () => {
 
   it('accepts a match, increments usage, logs the member, and satisfies the requirement', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Optimize Site' });
+    const project = await seedProject({ name: 'Optimize Site' });
     await createLumberRequirement({
       projectId: project.id,
       label: 'Brace A',
@@ -97,7 +99,7 @@ describe('OptimizationScreen matching', () => {
 
   it('flags a piece for inspection when acceptance is its fifth use', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Optimize Site' });
+    const project = await seedProject({ name: 'Optimize Site' });
     await createLumberRequirement({
       projectId: project.id,
       label: 'Brace A',
@@ -127,7 +129,7 @@ describe('OptimizationScreen matching', () => {
 
   it('restores accepted matches after unmount and remount', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Persisted Site' });
+    const project = await seedProject({ name: 'Persisted Site' });
     await createLumberRequirement({
       projectId: project.id,
       label: 'Brace A',
@@ -160,7 +162,7 @@ describe('OptimizationScreen matching', () => {
 
   it('prevents one physical piece from satisfying a second requirement', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'One Piece Site' });
+    const project = await seedProject({ name: 'One Piece Site' });
     await createLumberRequirement({
       projectId: project.id,
       label: 'Brace A',
@@ -193,7 +195,7 @@ describe('OptimizationScreen matching', () => {
 
   it('declines a candidate without consuming it or satisfying the requirement', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Optimize Site' });
+    const project = await seedProject({ name: 'Optimize Site' });
     await createLumberRequirement({
       projectId: project.id,
       label: 'Brace A',
@@ -222,7 +224,7 @@ describe('OptimizationScreen matching', () => {
 
 describe('OptimizationScreen cutting plans', () => {
   it('renders plywood SVG plans and grouped lumber cuts for remaining requirements', async () => {
-    const project = await createProject({ name: 'Plan Site' });
+    const project = await seedProject({ name: 'Plan Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -260,7 +262,7 @@ describe('OptimizationScreen cutting plans', () => {
 
   it('recomputes plans and shows the all-satisfied state after accepting a reuse match', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Replan Site' });
+    const project = await seedProject({ name: 'Replan Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -290,7 +292,7 @@ describe('OptimizationScreen cutting plans', () => {
 
   it('adds selected reusable offcuts to inventory as Good pieces with zero uses', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Offcut Site' });
+    const project = await seedProject({ name: 'Offcut Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -334,7 +336,7 @@ describe('OptimizationScreen cutting plans', () => {
   });
 
   it('flags panels that are larger than the stock sheet', async () => {
-    const project = await createProject({ name: 'Oversized Site' });
+    const project = await seedProject({ name: 'Oversized Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -380,7 +382,7 @@ describe('OptimizationScreen SVG export', () => {
 
   it('downloads a generated sheet as an SVG with the required namespace and filename', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Export Plan Site' });
+    const project = await seedProject({ name: 'Export Plan Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -412,7 +414,7 @@ describe('OptimizationScreen SVG export', () => {
 
   it('exports every generated sheet at once', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Export All Site' });
+    const project = await seedProject({ name: 'Export All Site' });
     for (let index = 0; index < 4; index += 1) {
       await createStructuralMember({
         projectId: project.id,

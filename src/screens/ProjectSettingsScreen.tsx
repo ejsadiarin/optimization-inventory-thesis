@@ -24,9 +24,11 @@ export default function ProjectSettingsScreen() {
     project.stock.lumberLengths.map(String),
   );
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   function markDirty() {
     if (saved) setSaved(false);
+    if (saveError) setSaveError('');
   }
 
   function updateLumberLength(index: number, value: string) {
@@ -41,21 +43,33 @@ export default function ProjectSettingsScreen() {
       .map((value) => Number.parseFloat(value))
       .filter((value) => Number.isFinite(value) && value > 0);
 
-    await updateProjectSettings(project.id, {
-      costs: {
-        phenolicPerSheet: toNumber(phenolicCost, project.costs.phenolicPerSheet),
-        lumberPerPiece: toNumber(lumberCost, project.costs.lumberPerPiece),
-      },
-      stock: {
-        phenolic: {
-          length: toNumber(sheetLength, project.stock.phenolic.length),
-          width: toNumber(sheetWidth, project.stock.phenolic.width),
+    try {
+      const updated = await updateProjectSettings(project.id, {
+        costs: {
+          phenolicPerSheet: toNumber(phenolicCost, project.costs.phenolicPerSheet),
+          lumberPerPiece: toNumber(lumberCost, project.costs.lumberPerPiece),
         },
-        lumberLengths: parsedLengths.length > 0 ? parsedLengths : DEFAULT_STOCK.lumberLengths,
-      },
-    });
+        stock: {
+          phenolic: {
+            length: toNumber(sheetLength, project.stock.phenolic.length),
+            width: toNumber(sheetWidth, project.stock.phenolic.width),
+          },
+          lumberLengths: parsedLengths.length > 0 ? parsedLengths : DEFAULT_STOCK.lumberLengths,
+        },
+      });
 
-    setSaved(true);
+      if (!updated) {
+        setSaved(false);
+        setSaveError('Could not save settings because the project is not available online.');
+        return;
+      }
+
+      setSaveError('');
+      setSaved(true);
+    } catch {
+      setSaved(false);
+      setSaveError('Could not save settings. Check your connection and try again.');
+    }
   }
 
   function restoreDefaults() {
@@ -206,11 +220,16 @@ export default function ProjectSettingsScreen() {
           <Button type="button" variant="ghost" onClick={restoreDefaults}>
             <RotateCcw className="h-4 w-4" /> Restore defaults
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-end gap-1">
             {saved && (
               <span role="status" className="text-sm font-medium text-primary">
                 Settings saved
               </span>
+            )}
+            {saveError && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {saveError}
+              </p>
             )}
             <Button type="submit">Save settings</Button>
           </div>

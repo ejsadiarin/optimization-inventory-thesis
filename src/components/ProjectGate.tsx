@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Outlet, useParams } from 'react-router-dom';
-import { liveQuery } from 'dexie';
 import { Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,20 +21,25 @@ export default function ProjectGate() {
 
   useEffect(() => {
     if (!projectId) return;
+
+    let cancelled = false;
     setState('loading');
     setUnlocked(isProjectUnlocked(projectId));
-    const subscription = liveQuery(() => getProject(projectId)).subscribe({
-      next: (found) => {
+
+    void getProject(projectId)
+      .then((found) => {
+        if (cancelled) return;
         setProject(found ?? null);
         setState(found ? 'ready' : 'missing');
-      },
-      error: () => {
+      })
+      .catch(() => {
+        if (cancelled) return;
         setProject(null);
         setState('missing');
-      },
-    });
+      });
+
     return () => {
-      subscription.unsubscribe();
+      cancelled = true;
     };
   }, [projectId]);
 
@@ -61,7 +65,7 @@ export default function ProjectGate() {
         <Card className="w-full max-w-sm text-center">
           <CardHeader>
             <CardTitle>Project not found</CardTitle>
-            <CardDescription>This project no longer exists on this device.</CardDescription>
+            <CardDescription>This project is not available online.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">

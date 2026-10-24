@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
-import { createProject } from '@/db/projects';
+import { seedProject } from '@/test/fixtures';
+
+vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
@@ -13,7 +15,7 @@ beforeEach(async () => {
 
 describe('ProjectOverviewScreen', () => {
   it('describes the modules that are available in the project', async () => {
-    const project = await createProject({ name: 'Overview Site' });
+    const project = await seedProject({ name: 'Overview Site' });
     unlockProject(project.id);
 
     render(

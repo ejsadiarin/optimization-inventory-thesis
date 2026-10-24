@@ -11,14 +11,14 @@ import {
   retirePiece,
   updatePiece,
 } from './inventory';
-import { createProject } from './projects';
+import { seedProject } from '@/test/fixtures';
 
 beforeEach(async () => {
   await Promise.all(db.tables.map((table) => table.clear()));
 });
 
 async function makeProject() {
-  return createProject({ name: 'Inventory Site' });
+  return seedProject({ name: 'Inventory Site' });
 }
 
 describe('inventory store', () => {

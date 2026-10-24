@@ -5,7 +5,7 @@ import {
   getLatestCuttingPlan,
   saveCuttingPlanSnapshot,
 } from './plans';
-import { createProject } from './projects';
+import { seedProject } from '@/test/fixtures';
 import type { CuttingPlanSnapshot } from './plans';
 
 beforeEach(async () => {
@@ -22,14 +22,14 @@ function snapshot(overrides: Partial<CuttingPlanSnapshot> = {}): CuttingPlanSnap
 
 describe('cutting plan snapshots', () => {
   it('returns null when a project has no saved plan', async () => {
-    const project = await createProject({ name: 'Empty Site' });
+    const project = await seedProject({ name: 'Empty Site' });
 
     await expect(getLatestCuttingPlan(project.id)).resolves.toBeNull();
   });
 
   it('saves and restores the latest acceptance snapshot per project', async () => {
-    const project = await createProject({ name: 'Snapshot Site' });
-    const other = await createProject({ name: 'Other Site' });
+    const project = await seedProject({ name: 'Snapshot Site' });
+    const other = await seedProject({ name: 'Other Site' });
     const first = snapshot();
     const second = snapshot({
       satisfiedRequirementIds: ['req-2'],

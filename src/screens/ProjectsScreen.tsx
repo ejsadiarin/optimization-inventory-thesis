@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Database, FolderPlus, KeyRound, Plus } from 'lucide-react';
+import { CalendarDays, FolderPlus, KeyRound, Plus, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,24 +14,31 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/auth/AuthProvider';
 import { createProject, listProjects } from '@/db/projects';
-import { seedDemoProject } from '@/db/seed';
-import type { Project } from '@/db/types';
+import type { CreatedProject, Project } from '@/db/types';
 import { formatDate } from '@/lib/format';
 
 export default function ProjectsScreen() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
-  const [createdProject, setCreatedProject] = useState<Project | null>(null);
-  const [seeding, setSeeding] = useState(false);
-  const [seedError, setSeedError] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [createdProject, setCreatedProject] = useState<CreatedProject | null>(null);
 
   async function refresh() {
-    setProjects(await listProjects());
-    setLoading(false);
+    try {
+      setProjects(await listProjects());
+      setLoadError('');
+    } catch {
+      setLoadError('Could not load projects. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -44,27 +51,35 @@ export default function ProjectsScreen() {
       setNameError('Project name is required.');
       return;
     }
+    if (!user) {
+      setNameError('Sign in to create a project.');
+      return;
+    }
 
-    const project = await createProject({ name });
-    setCreateOpen(false);
-    setName('');
-    setNameError('');
-    setCreatedProject(project);
-    await refresh();
-  }
-
-  async function handleSeedDemo() {
-    setSeedError('');
-    setSeeding(true);
     try {
-      const project = await seedDemoProject();
-      setCreatedProject(project);
+      const created = await createProject(
+        { name },
+        { uid: user.uid, name: user.displayName },
+      );
+      setCreateOpen(false);
+      setName('');
+      setNameError('');
+      setCreateError('');
+      setCreatedProject(created);
       await refresh();
     } catch {
-      setSeedError('Could not load demo data.');
-    } finally {
-      setSeeding(false);
+      setCreateError('Could not create the project. Please try again.');
     }
+  }
+
+  function closeCreateDialog() {
+    setCreateOpen(false);
+    setCreateError('');
+  }
+
+  function closeCodeDialog() {
+    setCreatedProject(null);
+    void refresh();
   }
 
   return (
@@ -72,23 +87,17 @@ export default function ProjectsScreen() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
-          <p className="text-sm text-muted-foreground">Construction sites tracked on this device.</p>
+          <p className="text-sm text-muted-foreground">Shared with every signed-in account.</p>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" disabled={seeding} onClick={() => void handleSeedDemo()}>
-            <Database className="h-4 w-4" />
-            {seeding ? 'Loading demo…' : 'Load demo data'}
-          </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
-        </div>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4" />
+          New Project
+        </Button>
       </div>
 
-      {seedError && (
+      {loadError && (
         <p role="alert" className="text-sm font-medium text-destructive">
-          {seedError}
+          {loadError}
         </p>
       )}
 
@@ -117,11 +126,20 @@ export default function ProjectsScreen() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="truncate">{project.name}</CardTitle>
-                      <Badge variant="secondary">Locked</Badge>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {project.ownerId === user?.uid && <Badge>Mine</Badge>}
+                        <Badge variant="secondary">Locked</Badge>
+                      </div>
                     </div>
-                    <CardDescription className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {formatDate(project.createdAt)}
+                    <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="flex items-center gap-1.5">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {formatDate(project.createdAt)}
+                      </span>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <UserRound className="h-3.5 w-3.5" />
+                        <span className="truncate">{project.ownerName}</span>
+                      </span>
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -131,7 +149,13 @@ export default function ProjectsScreen() {
         </ul>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setCreateError('');
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Project</DialogTitle>
@@ -149,6 +173,7 @@ export default function ProjectsScreen() {
                 onChange={(event) => {
                   setName(event.target.value);
                   if (nameError) setNameError('');
+                  if (createError) setCreateError('');
                 }}
               />
               {nameError && (
@@ -156,9 +181,14 @@ export default function ProjectsScreen() {
                   {nameError}
                 </p>
               )}
+              {createError && (
+                <p role="alert" className="text-sm font-medium text-destructive">
+                  {createError}
+                </p>
+              )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+              <Button type="button" variant="outline" onClick={closeCreateDialog}>
                 Cancel
               </Button>
               <Button type="submit">Create Project</Button>
@@ -167,7 +197,12 @@ export default function ProjectsScreen() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createdProject !== null} onOpenChange={(open) => !open && setCreatedProject(null)}>
+      <Dialog
+        open={createdProject !== null}
+        onOpenChange={(open) => {
+          if (!open) closeCodeDialog();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -175,7 +210,8 @@ export default function ProjectsScreen() {
             </div>
             <DialogTitle>Save this access code</DialogTitle>
             <DialogDescription>
-              This code is shown only once. You will need it to open this project on this device.
+              This code is shown only once. Everyone, including you, needs it to open{' '}
+              {createdProject?.project.name ?? 'this project'}.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/50 py-5 text-center">
@@ -184,7 +220,7 @@ export default function ProjectsScreen() {
             </p>
           </div>
           <DialogFooter>
-            <Button type="button" className="w-full" onClick={() => setCreatedProject(null)}>
+            <Button type="button" className="w-full" onClick={closeCodeDialog}>
               I&apos;ve saved the code
             </Button>
           </DialogFooter>

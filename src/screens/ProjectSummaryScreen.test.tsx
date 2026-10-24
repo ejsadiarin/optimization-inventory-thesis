@@ -8,7 +8,9 @@ import { db } from '@/db/db';
 import { addPiece } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { saveCuttingPlanSnapshot } from '@/db/plans';
-import { createProject } from '@/db/projects';
+import { seedProject } from '@/test/fixtures';
+
+vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
@@ -41,7 +43,7 @@ function blobText(blob: Blob): Promise<string> {
 
 describe('ProjectSummaryScreen', () => {
   it('shows cost-weighted utilization, waste, reuse counts, and new material requirements', async () => {
-    const project = await createProject({ name: 'Summary Site' });
+    const project = await seedProject({ name: 'Summary Site' });
     for (let index = 0; index < 4; index += 1) {
       await createStructuralMember({
         projectId: project.id,
@@ -84,7 +86,7 @@ describe('ProjectSummaryScreen', () => {
   });
 
   it('loads the accepted plan and excludes reused requirements from new stock', async () => {
-    const project = await createProject({ name: 'Accepted Site' });
+    const project = await seedProject({ name: 'Accepted Site' });
     const reused = await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -125,7 +127,7 @@ describe('ProjectSummaryScreen', () => {
   });
 
   it('shows the PHP procurement breakdown', async () => {
-    const project = await createProject({ name: 'Savings Site' });
+    const project = await seedProject({ name: 'Savings Site' });
     await createStructuralMember({
       projectId: project.id,
       type: 'slab',
@@ -160,7 +162,7 @@ describe('ProjectSummaryScreen', () => {
 
   it('exports the full inventory, including retired pieces, as CSV', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Export Site' });
+    const project = await seedProject({ name: 'Export Site' });
     const active = await addPiece({
       projectId: project.id,
       materialType: 'phenolic',

@@ -1,21 +1,41 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { db } from '@/db/db';
-import { createProject, getProject } from '@/db/projects';
+import { makeProject } from '@/test/fixtures';
+import type { Project } from '@/db/types';
 import { unlockProject } from '@/lib/projectSession';
 
-beforeEach(async () => {
-  await Promise.all(db.tables.map((table) => table.clear()));
+const mocks = vi.hoisted(() => ({
+  getProject: vi.fn(),
+  updateProjectSettings: vi.fn(),
+}));
+
+vi.mock('@/db/projects', async () => {
+  const { DEFAULT_TEST_COSTS, DEFAULT_TEST_STOCK } = await import('@/test/fixtures');
+  return {
+    DEFAULT_COSTS: DEFAULT_TEST_COSTS,
+    DEFAULT_STOCK: DEFAULT_TEST_STOCK,
+    createProject: vi.fn(),
+    listProjects: vi.fn().mockResolvedValue([]),
+    getProject: mocks.getProject,
+    verifyProjectAccess: vi.fn(),
+    updateProjectSettings: mocks.updateProjectSettings,
+  };
 });
 
-async function renderSettings(projectId: string) {
-  unlockProject(projectId);
+beforeEach(() => {
+  mocks.getProject.mockReset();
+  mocks.updateProjectSettings.mockReset();
+});
+
+async function renderSettings(project: Project) {
+  mocks.getProject.mockResolvedValue(project);
+  unlockProject(project.id);
   render(
-    <MemoryRouter initialEntries={[`/projects/${projectId}/settings`]}>
+    <MemoryRouter initialEntries={[`/projects/${project.id}/settings`]}>
       <TestAuthProvider user={testUser}>
         <App />
       </TestAuthProvider>
@@ -26,8 +46,8 @@ async function renderSettings(projectId: string) {
 
 describe('ProjectSettingsScreen', () => {
   it('shows the standard default costs and stock sizes', async () => {
-    const project = await createProject({ name: 'Settings Site' });
-    await renderSettings(project.id);
+    const project = makeProject({ name: 'Settings Site' });
+    await renderSettings(project);
 
     expect(screen.getByLabelText(/phenolic board cost/i)).toHaveValue(850);
     expect(screen.getByLabelText(/lumber cost/i)).toHaveValue(120);
@@ -37,10 +57,15 @@ describe('ProjectSettingsScreen', () => {
     expect(screen.getByRole('spinbutton', { name: /lumber stock length 5/i })).toHaveValue(6);
   });
 
-  it('applies saved costs and stock to other project screens without a reload', async () => {
+  it('saves edited material costs and stock sizes to the Firestore project', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Settings Site' });
-    await renderSettings(project.id);
+    const project = makeProject({ name: 'Settings Site' });
+    mocks.updateProjectSettings.mockImplementation(async (_id: string, settings: Project) => ({
+      ...project,
+      costs: settings.costs,
+      stock: settings.stock,
+    }));
+    await renderSettings(project);
 
     const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
     await user.clear(phenolicCost);
@@ -51,27 +76,34 @@ describe('ProjectSettingsScreen', () => {
     await user.type(sheetLength, '3');
 
     await user.click(screen.getByRole('button', { name: /save settings/i }));
+
     expect(await screen.findByText(/settings saved/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('link', { name: 'Overview' }));
-
-    expect(await screen.findByText(/₱920 \/ sheet/i)).toBeInTheDocument();
-    expect(screen.getByText(/3\.00 m × 1\.22 m/i)).toBeInTheDocument();
+    expect(mocks.updateProjectSettings).toHaveBeenCalledWith(project.id, {
+      costs: { phenolicPerSheet: 920, lumberPerPiece: 120 },
+      stock: { phenolic: { length: 3, width: 1.22 }, lumberLengths: [2.4, 3.0, 3.6, 4.8, 6.0] },
+    });
   });
 
-  it('saves edited material costs and stock sizes to the project', async () => {
+  it('shows a save error instead of silently swallowing a failed write', async () => {
     const user = userEvent.setup();
-    const project = await createProject({ name: 'Settings Site' });
-    await renderSettings(project.id);
-
-    const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
-    await user.clear(phenolicCost);
-    await user.type(phenolicCost, '920');
+    const project = makeProject({ name: 'Settings Site' });
+    mocks.updateProjectSettings.mockRejectedValue(new Error('offline'));
+    await renderSettings(project);
 
     await user.click(screen.getByRole('button', { name: /save settings/i }));
 
-    expect(await screen.findByText(/settings saved/i)).toBeInTheDocument();
-    const updated = await getProject(project.id);
-    expect(updated?.costs.phenolicPerSheet).toBe(920);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not save settings/i);
+    expect(screen.queryByText(/settings saved/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a save error when the project no longer exists online', async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: 'Settings Site' });
+    mocks.updateProjectSettings.mockResolvedValue(undefined);
+    await renderSettings(project);
+
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not available online/i);
   });
 });
