@@ -61,6 +61,7 @@
     "vitest": "^3.0.5"
   },
   "overrides": {
-    "@firebase/app": "0.16.4"
+    "@firebase/app": "0.16.4",
+    "@firebase/app-compat": "0.5.20"
   }
 }
