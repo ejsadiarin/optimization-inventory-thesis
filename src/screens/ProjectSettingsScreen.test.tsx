@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { makeProject } from '@/test/fixtures';
-import type { Project } from '@/db/types';
+import type { Project, ProjectCosts, ProjectStock } from '@/db/types';
 import { unlockProject } from '@/lib/projectSession';
 
 const mocks = vi.hoisted(() => ({
@@ -60,11 +60,13 @@ describe('ProjectSettingsScreen', () => {
   it('saves edited material costs and stock sizes to the Firestore project', async () => {
     const user = userEvent.setup();
     const project = makeProject({ name: 'Settings Site' });
-    mocks.updateProjectSettings.mockImplementation(async (_id: string, settings: Project) => ({
-      ...project,
-      costs: settings.costs,
-      stock: settings.stock,
-    }));
+    mocks.updateProjectSettings.mockImplementation(
+      async (_id: string, settings: { costs: ProjectCosts; stock: ProjectStock }) => ({
+        ...project,
+        costs: settings.costs,
+        stock: settings.stock,
+      }),
+    );
     await renderSettings(project);
 
     const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
