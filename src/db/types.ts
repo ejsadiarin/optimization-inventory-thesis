@@ -23,10 +23,22 @@ export interface ProjectStock {
 export interface Project {
   id: string;
   name: string;
-  accessCode: string;
+  ownerId: string;
+  ownerName: string;
+  schemaVersion: number;
   createdAt: string;
   costs: ProjectCosts;
   stock: ProjectStock;
+}
+
+export interface ProjectOwner {
+  uid: string;
+  name: string;
+}
+
+export interface CreatedProject {
+  project: Project;
+  accessCode: string;
 }
 
 export interface StructuralMember {

@@ -21,7 +21,7 @@ const REQUIRED_ENV_KEYS = [
 
 const env = import.meta.env;
 const APP_NAME = 'formwork-optimizer';
-const emulatorMode = env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const emulatorMode = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 
 const EMULATOR_CONFIG = {
   apiKey: 'demo-test-api-key',

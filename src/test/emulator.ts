@@ -2,6 +2,8 @@ import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   connectAuthEmulator,
   getAuth,
+  signInWithEmailAndPassword,
+  signOut,
   type Auth,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
@@ -152,4 +154,21 @@ export async function ensureEmulatorUser(
     throw new Error('Auth emulator did not return a user id');
   }
   return body.localId;
+}
+
+export async function signInDemoUser(): Promise<string> {
+  await ensureEmulatorUser();
+  const { auth: globalAuth } = await import('@/lib/firebase');
+  if (!globalAuth) {
+    throw new Error('The global Firebase auth instance is not configured.');
+  }
+  const credential = await signInWithEmailAndPassword(globalAuth, DEMO_EMAIL, DEMO_PASSWORD);
+  return credential.user.uid;
+}
+
+export async function signOutDemoUser(): Promise<void> {
+  const { auth: globalAuth } = await import('@/lib/firebase');
+  if (globalAuth) {
+    await signOut(globalAuth);
+  }
 }
