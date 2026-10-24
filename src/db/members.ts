@@ -1,5 +1,11 @@
+import { getDoc, getDocs, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { generateId } from '@/lib/ids';
-import { db } from './db';
+import {
+  dataWithId,
+  projectCollection,
+  projectDoc,
+  requireProjectId,
+} from '@/lib/firestore-helpers';
 import { LUMBER_CROSS_SECTIONS } from './types';
 import type {
   CrossSection,
@@ -63,66 +69,102 @@ function normalizeLumberFields(fields: LumberRequirementFields): LumberRequireme
   };
 }
 
+function byCreatedAt<T extends { createdAt: string }>(left: T, right: T): number {
+  return left.createdAt.localeCompare(right.createdAt);
+}
+
 export async function createStructuralMember(
   input: StructuralMemberInput,
 ): Promise<StructuralMember> {
+  const projectId = requireProjectId(input.projectId);
   const member: StructuralMember = {
     id: generateId(),
-    projectId: input.projectId,
+    projectId,
     ...normalizeMemberFields(input),
     createdAt: new Date().toISOString(),
   };
 
-  await db.structuralMembers.add(member);
+  await setDoc(projectDoc(projectId, 'structuralMembers', member.id), member);
   return member;
 }
 
 export async function listStructuralMembers(projectId: string): Promise<StructuralMember[]> {
-  return db.structuralMembers.where('projectId').equals(projectId).sortBy('createdAt');
+  const snapshot = await getDocs(
+    projectCollection(requireProjectId(projectId), 'structuralMembers'),
+  );
+
+  const members: StructuralMember[] = [];
+  for (const document of snapshot.docs) {
+    const member = dataWithId<StructuralMember>(document);
+    if (member) members.push(member);
+  }
+  return members.sort(byCreatedAt);
 }
 
 export async function updateStructuralMember(
+  projectId: string,
   id: string,
   fields: StructuralMemberFields,
 ): Promise<StructuralMember | undefined> {
-  const updated = await db.structuralMembers.update(id, normalizeMemberFields(fields));
-  if (!updated) return undefined;
-  return db.structuralMembers.get(id);
+  const reference = projectDoc(requireProjectId(projectId), 'structuralMembers', id);
+  const existing = await getDoc(reference);
+  if (!existing.exists()) return undefined;
+
+  await updateDoc(reference, { ...normalizeMemberFields(fields) });
+
+  const updated = await getDoc(reference);
+  return dataWithId<StructuralMember>(updated);
 }
 
-export async function deleteStructuralMember(id: string): Promise<void> {
-  await db.structuralMembers.delete(id);
+export async function deleteStructuralMember(projectId: string, id: string): Promise<void> {
+  await deleteDoc(projectDoc(requireProjectId(projectId), 'structuralMembers', id));
 }
 
 export async function createLumberRequirement(
   input: LumberRequirementInput,
 ): Promise<LumberRequirement> {
+  const projectId = requireProjectId(input.projectId);
   const requirement: LumberRequirement = {
     id: generateId(),
-    projectId: input.projectId,
+    projectId,
     ...normalizeLumberFields(input),
     createdAt: new Date().toISOString(),
   };
 
-  await db.lumberRequirements.add(requirement);
+  await setDoc(projectDoc(projectId, 'lumberRequirements', requirement.id), requirement);
   return requirement;
 }
 
 export async function listLumberRequirements(projectId: string): Promise<LumberRequirement[]> {
-  return db.lumberRequirements.where('projectId').equals(projectId).sortBy('createdAt');
+  const snapshot = await getDocs(
+    projectCollection(requireProjectId(projectId), 'lumberRequirements'),
+  );
+
+  const requirements: LumberRequirement[] = [];
+  for (const document of snapshot.docs) {
+    const requirement = dataWithId<LumberRequirement>(document);
+    if (requirement) requirements.push(requirement);
+  }
+  return requirements.sort(byCreatedAt);
 }
 
 export async function updateLumberRequirement(
+  projectId: string,
   id: string,
   fields: LumberRequirementFields,
 ): Promise<LumberRequirement | undefined> {
-  const updated = await db.lumberRequirements.update(id, normalizeLumberFields(fields));
-  if (!updated) return undefined;
-  return db.lumberRequirements.get(id);
+  const reference = projectDoc(requireProjectId(projectId), 'lumberRequirements', id);
+  const existing = await getDoc(reference);
+  if (!existing.exists()) return undefined;
+
+  await updateDoc(reference, { ...normalizeLumberFields(fields) });
+
+  const updated = await getDoc(reference);
+  return dataWithId<LumberRequirement>(updated);
 }
 
-export async function deleteLumberRequirement(id: string): Promise<void> {
-  await db.lumberRequirements.delete(id);
+export async function deleteLumberRequirement(projectId: string, id: string): Promise<void> {
+  await deleteDoc(projectDoc(requireProjectId(projectId), 'lumberRequirements', id));
 }
 
 export function groupLumberRequirementsByCrossSection(

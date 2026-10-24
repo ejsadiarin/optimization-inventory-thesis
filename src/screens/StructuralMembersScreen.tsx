@@ -372,7 +372,7 @@ export default function StructuralMembersScreen() {
 
   async function handleMemberSubmit(fields: StructuralMemberFields) {
     if (memberDialog.member) {
-      await updateStructuralMember(memberDialog.member.id, fields);
+      await updateStructuralMember(project.id, memberDialog.member.id, fields);
     } else {
       await createStructuralMember({ projectId: project.id, ...fields });
     }
@@ -381,7 +381,7 @@ export default function StructuralMembersScreen() {
   }
 
   async function handleMemberDelete(member: StructuralMember) {
-    await deleteStructuralMember(member.id);
+    await deleteStructuralMember(project.id, member.id);
     await refresh();
   }
 
@@ -396,7 +396,7 @@ export default function StructuralMembersScreen() {
   }
 
   async function handleLumberDelete(requirement: LumberRequirement) {
-    await deleteLumberRequirement(requirement.id);
+    await deleteLumberRequirement(project.id, requirement.id);
     await refresh();
   }
 
