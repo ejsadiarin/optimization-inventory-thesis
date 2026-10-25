@@ -22,7 +22,7 @@ emulators, seed the demo account, then run the app:
 
 ```bash
 npx firebase emulators:start --only auth,firestore --project demo-test
-npm run seed:emulator
+npm run seed:emulator   # or: npm run seed:demo
 npm run dev
 ```
 
