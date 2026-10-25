@@ -186,8 +186,22 @@ describe('importLegacyData', () => {
   });
 
   it('is idempotent: a second run is a no-op because the flag is set', async () => {
-    const count = await importLegacyData(owner);
-    expect(count).toBe(0);
+    storage.clear();
+    await clearLegacy();
+    const legacyProject: LegacyProject = {
+      id: 'legacy-idempotent',
+      name: 'Idempotent Site',
+      accessCode: 'ABCDEF',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      costs: { phenolicPerSheet: 850, lumberPerPiece: 120 },
+      stock: { phenolic: { length: 2.44, width: 1.22 }, lumberLengths: [2.4] },
+    };
+    await legacyDb.projects.add(legacyProject);
+
+    const first = await importLegacyData(owner);
+    expect(first).toBe(1);
+    const second = await importLegacyData(owner);
+    expect(second).toBe(0);
   });
 
   it('generates a code and warns when legacy project has no access code', async () => {
