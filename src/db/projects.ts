@@ -1,6 +1,7 @@
 import { collection, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateAccessCode, generateId } from '@/lib/ids';
+import { queueWrite } from '@/lib/syncStatus';
 import {
   generateAccessCodeSalt,
   hashAccessCode,
@@ -84,15 +85,6 @@ function toStoredProject(id: string, data: Record<string, unknown>): StoredProje
   return { ...data, id } as StoredProject;
 }
 
-function isNotFoundError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === 'not-found'
-  );
-}
-
 async function getStoredProject(id: string): Promise<StoredProject | undefined> {
   const snapshot = await getDoc(projectRef(requireProjectId(id)));
   if (!snapshot.exists()) return undefined;
@@ -118,11 +110,13 @@ export async function createProject(
     stock: copyStock(input.stock),
   };
 
-  await setDoc(projectRef(project.id), {
-    ...project,
-    accessCodeHash,
-    accessCodeSalt,
-  });
+  queueWrite(
+    setDoc(projectRef(project.id), {
+      ...project,
+      accessCodeHash,
+      accessCodeSalt,
+    }),
+  );
 
   return { project, accessCode };
 }
@@ -153,15 +147,12 @@ export async function updateProjectSettings(
   const existing = await getStoredProject(projectId);
   if (!existing) return undefined;
 
-  try {
-    await updateDoc(projectRef(projectId), {
+  queueWrite(
+    updateDoc(projectRef(projectId), {
       costs: copyCosts(settings.costs),
       stock: copyStock(settings.stock),
-    });
-  } catch (error) {
-    if (isNotFoundError(error)) return undefined;
-    throw error;
-  }
+    }),
+  );
 
   return getProject(projectId);
 }

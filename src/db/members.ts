@@ -1,5 +1,6 @@
 import { getDoc, getDocs, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { generateId } from '@/lib/ids';
+import { queueWrite } from '@/lib/syncStatus';
 import {
   dataWithId,
   projectCollection,
@@ -98,7 +99,7 @@ export async function createStructuralMember(
     createdAt: new Date().toISOString(),
   };
 
-  await setDoc(projectDoc(projectId, 'structuralMembers', member.id), member);
+  queueWrite(setDoc(projectDoc(projectId, 'structuralMembers', member.id), member));
   return member;
 }
 
@@ -118,14 +119,14 @@ export async function updateStructuralMember(
   const existing = await getDoc(reference);
   if (!existing.exists()) return undefined;
 
-  await updateDoc(reference, { ...normalizeMemberFields(fields) });
+  queueWrite(updateDoc(reference, { ...normalizeMemberFields(fields) }));
 
   const updated = await getDoc(reference);
   return dataWithId<StructuralMember>(updated);
 }
 
 export async function deleteStructuralMember(projectId: string, id: string): Promise<void> {
-  await deleteDoc(projectDoc(requireProjectId(projectId), 'structuralMembers', id));
+  queueWrite(deleteDoc(projectDoc(requireProjectId(projectId), 'structuralMembers', id)));
 }
 
 export async function createLumberRequirement(
@@ -139,7 +140,7 @@ export async function createLumberRequirement(
     createdAt: new Date().toISOString(),
   };
 
-  await setDoc(projectDoc(projectId, 'lumberRequirements', requirement.id), requirement);
+  queueWrite(setDoc(projectDoc(projectId, 'lumberRequirements', requirement.id), requirement));
   return requirement;
 }
 
@@ -159,14 +160,14 @@ export async function updateLumberRequirement(
   const existing = await getDoc(reference);
   if (!existing.exists()) return undefined;
 
-  await updateDoc(reference, { ...normalizeLumberFields(fields) });
+  queueWrite(updateDoc(reference, { ...normalizeLumberFields(fields) }));
 
   const updated = await getDoc(reference);
   return dataWithId<LumberRequirement>(updated);
 }
 
 export async function deleteLumberRequirement(projectId: string, id: string): Promise<void> {
-  await deleteDoc(projectDoc(requireProjectId(projectId), 'lumberRequirements', id));
+  queueWrite(deleteDoc(projectDoc(requireProjectId(projectId), 'lumberRequirements', id)));
 }
 
 export function groupLumberRequirementsByCrossSection(

@@ -24,6 +24,7 @@ import type {
 } from './types';
 import { generateId } from '@/lib/ids';
 import { normalizePieceDimensions } from '@/lib/pieces';
+import { queueWrite } from '@/lib/syncStatus';
 
 export interface AddPieceInput {
   projectId: string;
@@ -82,9 +83,11 @@ export async function addPiece(input: AddPieceInput): Promise<Piece> {
 
   validateDimensions(piece);
   const { crossSection, ...rest } = piece;
-  await setDoc(
-    projectDoc(projectId, 'pieces', piece.id),
-    crossSection ? { ...rest, crossSection } : rest,
+  queueWrite(
+    setDoc(
+      projectDoc(projectId, 'pieces', piece.id),
+      crossSection ? { ...rest, crossSection } : rest,
+    ),
   );
   return piece;
 }
@@ -182,15 +185,17 @@ export async function updatePiece(
   merged.retired = merged.condition === 'Retired';
 
   validateDimensions(merged);
-  await updateDoc(reference, {
-    length: merged.length,
-    width: merged.width,
-    thickness: merged.thickness,
-    ...(merged.crossSection ? { crossSection: merged.crossSection } : {}),
-    condition: merged.condition,
-    storageLocation: merged.storageLocation,
-    retired: merged.retired,
-  });
+  queueWrite(
+    updateDoc(reference, {
+      length: merged.length,
+      width: merged.width,
+      thickness: merged.thickness,
+      ...(merged.crossSection ? { crossSection: merged.crossSection } : {}),
+      condition: merged.condition,
+      storageLocation: merged.storageLocation,
+      retired: merged.retired,
+    }),
+  );
 
   const updated = await getDoc(reference);
   return dataWithId<Piece>(updated);
@@ -204,7 +209,7 @@ export async function retirePiece(
   const existing = await getDoc(reference);
   if (!existing.exists()) return undefined;
 
-  await updateDoc(reference, { condition: 'Retired', retired: true });
+  queueWrite(updateDoc(reference, { condition: 'Retired', retired: true }));
 
   const updated = await getDoc(reference);
   return dataWithId<Piece>(updated);
@@ -255,9 +260,7 @@ export async function recordUsage(
     date,
     createdAt: now,
   });
-  void batch.commit().catch((error: unknown) => {
-    console.error('Could not sync the recorded usage.', error);
-  });
+  queueWrite(batch.commit());
 
   const updated = await getPiece(scopedProjectId, pieceId);
   if (!updated) throw new Error('Piece not found after recording usage.');

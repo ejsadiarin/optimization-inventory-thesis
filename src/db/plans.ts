@@ -7,6 +7,7 @@ import {
 } from '@/lib/firestore-helpers';
 import type { CuttingPlanRecord, JsonValue } from './types';
 import { generateId } from '@/lib/ids';
+import { queueWrite } from '@/lib/syncStatus';
 
 export interface CuttingPlanSnapshot {
   satisfiedRequirementIds: string[];
@@ -72,11 +73,7 @@ export async function saveCuttingPlanSnapshot(
     createdAt,
     payload: snapshot as unknown as JsonValue,
   };
-  void setDoc(projectDoc(scopedProjectId, 'cuttingPlans', record.id), record).catch(
-    (error: unknown) => {
-      console.error('Could not sync the saved cutting plan.', error);
-    },
-  );
+  queueWrite(setDoc(projectDoc(scopedProjectId, 'cuttingPlans', record.id), record));
   return record;
 }
 
