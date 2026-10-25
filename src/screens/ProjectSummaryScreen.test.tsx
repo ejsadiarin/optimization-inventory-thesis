@@ -130,8 +130,11 @@ describe('ProjectSummaryScreen', () => {
     });
     const reusedPanelId = `${reused.id}-panel-1`;
     await saveCuttingPlanSnapshot(project.id, {
-      satisfiedRequirementIds: [reusedPanelId],
-      acceptedByRequirement: { [reusedPanelId]: 'reused-piece' },
+      satisfiedRequirementIds: [reusedPanelId, 'removed-requirement'],
+      acceptedByRequirement: {
+        [reusedPanelId]: 'reused-piece',
+        'removed-requirement': 'removed-piece',
+      },
     });
 
     await renderSummary(project.id);
