@@ -11,6 +11,7 @@ import { saveCuttingPlanSnapshot } from '@/db/plans';
 import { seedProject } from '@/test/fixtures';
 import { resetInventoryMock } from '@/test/inventoryMock';
 import { resetMembersMock } from '@/test/membersMock';
+import { resetPlansMock } from '@/test/plansMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
@@ -19,11 +20,17 @@ vi.mock('@/db/inventory', async (importOriginal) => {
   const mock = await import('@/test/inventoryMock');
   return { ...actual, ...mock };
 });
+vi.mock('@/db/plans', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/plans')>();
+  const mock = await import('@/test/plansMock');
+  return { ...actual, ...mock };
+});
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetMembersMock();
   resetInventoryMock();
+  resetPlansMock();
   await Promise.all(db.tables.map((table) => table.clear()));
 });
 
