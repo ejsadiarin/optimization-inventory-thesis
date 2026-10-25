@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/auth/AuthProvider';
 import { createProject, listProjects } from '@/db/projects';
+import { importLegacyData } from '@/migration/importLegacyData';
 import type { CreatedProject, Project } from '@/db/types';
 import { formatDate } from '@/lib/format';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
@@ -31,6 +32,10 @@ export default function ProjectsScreen() {
   const [nameError, setNameError] = useState('');
   const [createError, setCreateError] = useState('');
   const [createdProject, setCreatedProject] = useState<CreatedProject | null>(null);
+  const [importing, setImporting] = useState(
+    () => localStorage.getItem('formwork.firestore-migration.v1') !== 'done',
+  );
+  const [importError, setImportError] = useState('');
 
   async function refresh() {
     try {
@@ -44,8 +49,39 @@ export default function ProjectsScreen() {
   }
 
   useEffect(() => {
-    void refresh();
-  }, [refreshSignal]);
+    if (!user) return;
+    if (localStorage.getItem('formwork.firestore-migration.v1') === 'done') {
+      setImporting(false);
+      void refresh();
+      return;
+    }
+    setImporting(true);
+    setImportError('');
+    void importLegacyData({ uid: user.uid, name: user.displayName })
+      .then(() => {
+        setImporting(false);
+        void refresh();
+      })
+      .catch(() => {
+        setImportError('Could not import local projects. Please try again.');
+        setImporting(false);
+      });
+  }, [user, refreshSignal]);
+
+  function retryImport() {
+    if (!user) return;
+    setImportError('');
+    setImporting(true);
+    void importLegacyData({ uid: user.uid, name: user.displayName })
+      .then(() => {
+        setImporting(false);
+        void refresh();
+      })
+      .catch(() => {
+        setImportError('Could not import local projects. Please try again.');
+        setImporting(false);
+      });
+  }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,6 +137,19 @@ export default function ProjectsScreen() {
         <p role="alert" className="text-sm font-medium text-destructive">
           {loadError}
         </p>
+      )}
+
+      {importing && (
+        <p className="text-sm text-muted-foreground">Importing local projects…</p>
+      )}
+
+      {importError && (
+        <div role="alert" className="space-y-2">
+          <p className="text-sm font-medium text-destructive">{importError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={retryImport}>
+            Retry import
+          </Button>
+        </div>
       )}
 
       {loading ? (
