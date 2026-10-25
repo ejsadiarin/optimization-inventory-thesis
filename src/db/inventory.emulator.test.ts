@@ -144,6 +144,7 @@ describe('inventory pieces on Firestore', () => {
 
   it('retires a piece softly, hiding it from active inventory but preserving it', async () => {
     const projectId = await createTestProject();
+    const otherProjectId = await createTestProject('Other Site');
     const active = await addPhenolicPiece(projectId);
     const retired = await addPiece({
       projectId,
@@ -153,6 +154,8 @@ describe('inventory pieces on Firestore', () => {
     });
 
     await recordUsage(retired.id, projectId, 'B1', '2026-01-02T00:00:00.000Z');
+    await expect(retirePiece(otherProjectId, retired.id)).resolves.toBeUndefined();
+    await expect(getUsageLog(otherProjectId, retired.id)).resolves.toHaveLength(0);
     const result = await retirePiece(projectId, retired.id);
 
     expect(result).toMatchObject({ condition: 'Retired', retired: true });
