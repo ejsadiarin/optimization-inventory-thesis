@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, FolderPlus, KeyRound, Plus, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +40,7 @@ export default function ProjectsScreen() {
   );
   const [importError, setImportError] = useState('');
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
       setProjects(await listProjects());
       setLoadError('');
@@ -49,9 +49,9 @@ export default function ProjectsScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function runImport() {
+  const runImport = useCallback(async () => {
     if (!user) return;
     if (localStorage.getItem('formwork.firestore-migration.v1') === 'done') {
       setImporting(false);
@@ -68,17 +68,16 @@ export default function ProjectsScreen() {
       setImportError('Could not import local projects. Please try again.');
       setImporting(false);
     }
-  }
+  }, [user, refresh]);
 
   useEffect(() => {
     if (!user) return;
     void runImport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, refreshSignal]);
+  }, [user, refreshSignal, runImport]);
 
-  function retryImport() {
+  const retryImport = useCallback(() => {
     void runImport();
-  }
+  }, [runImport]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

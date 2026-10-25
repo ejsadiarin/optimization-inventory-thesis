@@ -12,8 +12,6 @@ import type { ProjectOwner } from '@/db/types';
 const FLAG = 'formwork.firestore-migration.v1';
 const BATCH_SIZE = 400;
 
-type MigrationUser = ProjectOwner;
-
 function requireDb() {
   if (!db) {
     throw new Error('Firestore is not configured.');
@@ -21,7 +19,7 @@ function requireDb() {
   return db;
 }
 
-async function runImport(user: MigrationUser): Promise<number> {
+async function runImport(user: ProjectOwner): Promise<number> {
   const firestore = requireDb();
 
   const legacyProjects = await legacyDb.projects.toArray();
@@ -122,7 +120,7 @@ async function runImport(user: MigrationUser): Promise<number> {
 
 let inFlight: Promise<number> | null = null;
 
-export function importLegacyData(user: MigrationUser): Promise<number> {
+export function importLegacyData(user: ProjectOwner): Promise<number> {
   if (globalThis.localStorage.getItem(FLAG) === 'done') {
     return Promise.resolve(0);
   }

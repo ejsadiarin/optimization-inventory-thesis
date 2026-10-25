@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { LogOut, ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, Lock, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/auth/AuthProvider';
 import { auth } from '@/lib/firebase';
