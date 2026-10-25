@@ -51,7 +51,7 @@ export default function ProjectsScreen() {
     }
   }
 
-  useEffect(() => {
+  async function runImport() {
     if (!user) return;
     if (localStorage.getItem('formwork.firestore-migration.v1') === 'done') {
       setImporting(false);
@@ -60,30 +60,24 @@ export default function ProjectsScreen() {
     }
     setImporting(true);
     setImportError('');
-    void importLegacyData({ uid: user.uid, name: user.displayName })
-      .then(() => {
-        setImporting(false);
-        void refresh();
-      })
-      .catch(() => {
-        setImportError('Could not import local projects. Please try again.');
-        setImporting(false);
-      });
+    try {
+      await importLegacyData({ uid: user.uid, name: user.displayName });
+      setImporting(false);
+      void refresh();
+    } catch {
+      setImportError('Could not import local projects. Please try again.');
+      setImporting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    void runImport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, refreshSignal]);
 
   function retryImport() {
-    if (!user) return;
-    setImportError('');
-    setImporting(true);
-    void importLegacyData({ uid: user.uid, name: user.displayName })
-      .then(() => {
-        setImporting(false);
-        void refresh();
-      })
-      .catch(() => {
-        setImportError('Could not import local projects. Please try again.');
-        setImporting(false);
-      });
+    void runImport();
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {

@@ -7,15 +7,12 @@ import {
 } from '@/lib/access-code';
 import { projectDoc } from '@/lib/firestore-helpers';
 import { db as legacyDb } from '@/migration/legacyDb';
-
+import type { ProjectOwner } from '@/db/types';
 
 const FLAG = 'formwork.firestore-migration.v1';
 const BATCH_SIZE = 400;
 
-interface MigrationUser {
-  uid: string;
-  name: string;
-}
+type MigrationUser = ProjectOwner;
 
 function requireDb() {
   if (!db) {
