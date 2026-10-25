@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/auth/AuthProvider';
 import { createProject, listProjects } from '@/db/projects';
+import { seedDemoProject } from '@/db/seed';
 import { importLegacyData } from '@/migration/importLegacyData';
 import type { CreatedProject, Project } from '@/db/types';
 import { formatDate } from '@/lib/format';
@@ -32,6 +33,8 @@ export default function ProjectsScreen() {
   const [nameError, setNameError] = useState('');
   const [createError, setCreateError] = useState('');
   const [createdProject, setCreatedProject] = useState<CreatedProject | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState('');
   const [importing, setImporting] = useState(
     () => localStorage.getItem('formwork.firestore-migration.v1') !== 'done',
   );
@@ -110,6 +113,21 @@ export default function ProjectsScreen() {
     }
   }
 
+  async function handleSeedDemo() {
+    if (!user) return;
+    setSeeding(true);
+    setSeedError('');
+    try {
+      const result = await seedDemoProject({ uid: user.uid, name: user.displayName });
+      setCreatedProject({ project: result.project, accessCode: result.accessCode });
+      await refresh();
+    } catch {
+      setSeedError('Could not load demo data. Please try again.');
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   function closeCreateDialog() {
     setCreateOpen(false);
     setCreateError('');
@@ -127,15 +145,26 @@ export default function ProjectsScreen() {
           <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
           <p className="text-sm text-muted-foreground">Shared with every signed-in account.</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleSeedDemo} disabled={seeding}>
+            {seeding ? 'Loading…' : 'Load demo data'}
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       {loadError && (
         <p role="alert" className="text-sm font-medium text-destructive">
           {loadError}
+        </p>
+      )}
+
+      {seedError && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          {seedError}
         </p>
       )}
 
