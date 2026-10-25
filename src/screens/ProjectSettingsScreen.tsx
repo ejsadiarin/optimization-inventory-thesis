@@ -66,6 +66,9 @@ export default function ProjectSettingsScreen() {
 
       setSaveError('');
       setSaved(true);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('focus'));
+      }
     } catch {
       setSaved(false);
       setSaveError('Could not save settings. Check your connection and try again.');
