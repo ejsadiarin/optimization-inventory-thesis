@@ -12,6 +12,7 @@
     "test:emulator": "firebase emulators:exec --only auth,firestore --project demo-test \"vitest run --config vitest.emulator.config.ts\"",
     "test:all": "npm test && npm run test:emulator",
     "seed:emulator": "node scripts/seed-emulator.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "verify:pwa": "node scripts/verify-pwa.mjs"
