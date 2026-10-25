@@ -9,6 +9,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 import { auth, firebaseConfigured } from '@/lib/firebase';
+import { startSyncStatus } from '@/lib/syncStatus';
 
 export interface AuthUser {
   uid: string;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }));
 
   useEffect(() => {
+    startSyncStatus();
     if (!auth) return;
 
     return onAuthStateChanged(
