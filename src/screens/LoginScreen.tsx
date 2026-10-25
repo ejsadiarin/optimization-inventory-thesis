@@ -93,8 +93,7 @@ export default function LoginScreen() {
           </div>
           <CardTitle>Sign in</CardTitle>
           <CardDescription>
-            Sign in to open the shared formwork project workspace.
-          </CardDescription>
+            Sign in to browse the Project Marketplace.          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>

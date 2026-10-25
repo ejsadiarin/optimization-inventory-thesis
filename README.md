@@ -1,6 +1,6 @@
 # Formwork Cutting Optimization System
 
-Offline-first PWA for planning formwork cuts, matching reusable inventory, and tracking phenolic board and lumber usage across construction projects. Sign-in uses Firebase Authentication, and local project data still lives in IndexedDB while cloud sync is rolled out.
+Offline-first PWA for planning formwork cuts, matching reusable inventory, and tracking phenolic board and lumber usage across construction projects. Sign-in uses Firebase Authentication; Cloud Firestore is the source of truth, with a persistent local cache for offline use. Legacy IndexedDB data is imported once on first sign-in.
 
 ## Quick start
 
