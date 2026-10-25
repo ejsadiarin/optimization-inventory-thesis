@@ -1,25 +1,17 @@
 import { writeBatch, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { generateAccessCode } from '@/lib/ids';
 import {
   generateAccessCodeSalt,
   hashAccessCode,
 } from '@/lib/access-code';
-import { projectDoc } from '@/lib/firestore-helpers';
+import { projectDoc, requireDb } from '@/lib/firestore-helpers';
 import { db as legacyDb } from '@/migration/legacyDb';
 import type { ProjectOwner } from '@/db/types';
 
 const FLAG = 'formwork.firestore-migration.v1';
 const BATCH_SIZE = 400;
 
-function requireDb() {
-  if (!db) {
-    throw new Error('Firestore is not configured.');
-  }
-  return db;
-}
-
-async function runImport(user: ProjectOwner): Promise<number> {
+async function runImport(owner: ProjectOwner): Promise<number> {
   const firestore = requireDb();
 
   const legacyProjects = await legacyDb.projects.toArray();
@@ -51,8 +43,8 @@ async function runImport(user: ProjectOwner): Promise<number> {
     const projectData: Record<string, unknown> = {
       id: legacy.id,
       name: legacy.name,
-      ownerId: user.uid,
-      ownerName: user.name,
+      ownerId: owner.uid,
+      ownerName: owner.name,
       schemaVersion: 1,
       createdAt: legacy.createdAt,
       costs: legacy.costs,
@@ -120,14 +112,14 @@ async function runImport(user: ProjectOwner): Promise<number> {
 
 let inFlight: Promise<number> | null = null;
 
-export function importLegacyData(user: ProjectOwner): Promise<number> {
+export function importLegacyData(owner: ProjectOwner): Promise<number> {
   if (globalThis.localStorage.getItem(FLAG) === 'done') {
     return Promise.resolve(0);
   }
   if (inFlight) {
     return inFlight;
   }
-  inFlight = runImport(user)
+  inFlight = runImport(owner)
     .catch((error) => {
       inFlight = null;
       throw error;

@@ -183,8 +183,9 @@ async function main() {
 
   // cutting plan
   const reusedPanelRequirementId = `${c1.id}-panel-1`;
-  await projectCol('cuttingPlans').doc(randomId()).set({
-    id: randomId(),
+  const planId = randomId();
+  await projectCol('cuttingPlans').doc(planId).set({
+    id: planId,
     projectId: DEMO_PROJECT_ID,
     createdAt: new Date().toISOString(),
     payload: {

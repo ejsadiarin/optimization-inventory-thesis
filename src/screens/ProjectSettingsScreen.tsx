@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DEFAULT_COSTS, DEFAULT_STOCK, updateProjectSettings } from '@/db/projects';
 import type { Project } from '@/db/types';
+import { triggerRefresh } from '@/lib/useRefreshSignal';
 
 function toNumber(value: string, fallback: number): number {
   const parsed = Number.parseFloat(value);
@@ -66,9 +67,7 @@ export default function ProjectSettingsScreen() {
 
       setSaveError('');
       setSaved(true);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('focus'));
-      }
+      triggerRefresh();
     } catch {
       setSaved(false);
       setSaveError('Could not save settings. Check your connection and try again.');

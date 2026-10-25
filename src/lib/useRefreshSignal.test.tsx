@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { useRefreshSignal } from './useRefreshSignal';
+import { triggerRefresh, useRefreshSignal } from './useRefreshSignal';
 
 afterEach(() => {
   Object.defineProperty(document, 'visibilityState', {
@@ -28,6 +28,11 @@ describe('useRefreshSignal', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
     expect(result.current).toBe(3);
+
+    act(() => {
+      triggerRefresh();
+    });
+    expect(result.current).toBe(4);
   });
 
   it('ignores a tab change while the document is hidden', () => {

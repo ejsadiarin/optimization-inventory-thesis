@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -350,7 +350,7 @@ export default function StructuralMembersScreen() {
     requirement: LumberRequirement | null;
   }>({ open: false, requirement: null });
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const [nextMembers, nextLumber] = await Promise.all([
       listStructuralMembers(project.id),
       listLumberRequirements(project.id),
@@ -358,12 +358,11 @@ export default function StructuralMembersScreen() {
     setMembers(nextMembers);
     setLumberRequirements(nextLumber);
     setLoading(false);
-  }
+  }, [project.id]);
 
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, refreshSignal]);
+  }, [refresh, refreshSignal]);
 
   const memberRows = useMemo(
     () => members.map((member) => ({ member, panels: decomposeMember(member) })),

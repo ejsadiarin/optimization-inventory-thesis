@@ -3,6 +3,7 @@ import { generateId } from '@/lib/ids';
 import { queueWrite } from '@/lib/syncStatus';
 import {
   dataWithId,
+  docsWithData,
   projectCollection,
   projectDoc,
   requireProjectId,
@@ -79,13 +80,7 @@ async function listSubcollection<T extends { createdAt: string }>(
   name: string,
 ): Promise<T[]> {
   const snapshot = await getDocs(projectCollection(projectId, name));
-
-  const entities: T[] = [];
-  for (const document of snapshot.docs) {
-    const entity = dataWithId<T>(document);
-    if (entity) entities.push(entity);
-  }
-  return entities.sort(byCreatedAt);
+  return docsWithData<T>(snapshot).sort(byCreatedAt);
 }
 
 export async function createStructuralMember(

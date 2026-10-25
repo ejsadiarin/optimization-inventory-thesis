@@ -11,6 +11,7 @@ import {
 import { db } from '@/lib/firebase';
 import {
   dataWithId,
+  docsWithData,
   projectCollection,
   projectDoc,
   requireProjectId,
@@ -103,13 +104,7 @@ export async function listPieces(projectId: string): Promise<Piece[]> {
   const snapshot = await getDocs(
     projectCollection(requireProjectId(projectId), 'pieces'),
   );
-
-  const pieces: Piece[] = [];
-  for (const document of snapshot.docs) {
-    const piece = dataWithId<Piece>(document);
-    if (piece) pieces.push(piece);
-  }
-  return pieces;
+  return docsWithData<Piece>(snapshot);
 }
 
 export async function getActivePieces(projectId: string): Promise<Piece[]> {
@@ -135,13 +130,7 @@ export async function getUsageLog(
     ),
   );
 
-  const entries: UsageLogEntry[] = [];
-  for (const document of snapshot.docs) {
-    const entry = dataWithId<UsageLogEntry>(document);
-    if (entry) entries.push(entry);
-  }
-
-  return entries.sort(
+  return docsWithData<UsageLogEntry>(snapshot).sort(
     (a, b) =>
       Date.parse(b.date) - Date.parse(a.date) ||
       Date.parse(b.createdAt) - Date.parse(a.createdAt),

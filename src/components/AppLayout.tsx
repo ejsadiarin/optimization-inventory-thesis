@@ -1,19 +1,12 @@
 import { Link, Outlet } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
 import { LogOut, Ruler } from 'lucide-react';
 import { useAuth } from '@/auth/AuthProvider';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import SyncStatusChip from '@/components/SyncStatusChip';
 import { Button } from '@/components/ui/button';
-import { auth } from '@/lib/firebase';
 
 export default function AppLayout() {
-  const { user } = useAuth();
-
-  async function handleSignOut() {
-    if (!auth) return;
-    await signOut(auth);
-  }
+  const { user, signOut } = useAuth();
 
   return (
     <div className="flex min-h-dvh flex-col bg-muted/30">
@@ -37,7 +30,7 @@ export default function AppLayout() {
                 variant="ghost"
                 size="sm"
                 aria-label="Sign out"
-                onClick={() => void handleSignOut()}
+                onClick={() => void signOut()}
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Sign out</span>

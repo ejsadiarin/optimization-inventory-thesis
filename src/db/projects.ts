@@ -1,5 +1,4 @@
 import { collection, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { generateAccessCode, generateId } from '@/lib/ids';
 import { queueWrite } from '@/lib/syncStatus';
 import {
@@ -7,7 +6,7 @@ import {
   hashAccessCode,
   verifyAccessCode,
 } from '@/lib/access-code';
-import { projectRef, requireProjectId } from '@/lib/firestore-helpers';
+import { projectRef, requireDb, requireProjectId } from '@/lib/firestore-helpers';
 import type {
   CreatedProject,
   Project,
@@ -42,13 +41,6 @@ export interface CreateProjectInput {
 export interface ProjectSettingsInput {
   costs: ProjectCosts;
   stock: ProjectStock;
-}
-
-function requireDb() {
-  if (!db) {
-    throw new Error('Firestore is not configured.');
-  }
-  return db;
 }
 
 function copyCosts(costs: Partial<ProjectCosts> = {}): ProjectCosts {
@@ -147,12 +139,12 @@ export async function updateProjectSettings(
   const existing = await getStoredProject(projectId);
   if (!existing) return undefined;
 
-  queueWrite(
-    updateDoc(projectRef(projectId), {
-      costs: copyCosts(settings.costs),
-      stock: copyStock(settings.stock),
-    }),
-  );
+  const writePromise = updateDoc(projectRef(projectId), {
+    costs: copyCosts(settings.costs),
+    stock: copyStock(settings.stock),
+  });
+  queueWrite(writePromise);
+  await writePromise;
 
   return getProject(projectId);
 }

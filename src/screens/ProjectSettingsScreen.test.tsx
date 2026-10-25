@@ -108,4 +108,18 @@ describe('ProjectSettingsScreen', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/not available online/i);
   });
+
+  it('does not overwrite unsaved edits on a background refresh', async () => {
+    const user = userEvent.setup();
+    const project = makeProject({ name: 'Settings Site' });
+    await renderSettings(project);
+
+    const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
+    await user.clear(phenolicCost);
+    await user.type(phenolicCost, '999');
+
+    window.dispatchEvent(new Event('focus'));
+
+    expect(phenolicCost).toHaveValue(999);
+  });
 });

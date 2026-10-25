@@ -1,6 +1,6 @@
 import { getDocs, setDoc } from 'firebase/firestore';
 import {
-  dataWithId,
+  docsWithData,
   projectCollection,
   projectDoc,
   requireProjectId,
@@ -84,11 +84,7 @@ export async function getLatestCuttingPlan(
     projectCollection(requireProjectId(projectId), 'cuttingPlans'),
   );
 
-  const records: CuttingPlanRecord[] = [];
-  for (const document of snapshot.docs) {
-    const record = dataWithId<CuttingPlanRecord>(document);
-    if (record) records.push(record);
-  }
+  const records = docsWithData<CuttingPlanRecord>(snapshot);
   if (records.length === 0) return null;
 
   const latest = records.reduce((current, record) =>

@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-function requireDb() {
+export function requireDb() {
   if (!db) {
     throw new Error('Firestore is not configured.');
   }
@@ -32,6 +32,17 @@ export function dataWithId<T>(
   const data: DocumentData | undefined = snapshot.data();
   if (!data) return undefined;
   return { ...data, id: snapshot.id } as T;
+}
+
+export function docsWithData<T>(snapshot: {
+  docs: (DocumentSnapshot | QueryDocumentSnapshot)[];
+}): T[] {
+  const items: T[] = [];
+  for (const document of snapshot.docs) {
+    const item = dataWithId<T>(document);
+    if (item) items.push(item);
+  }
+  return items;
 }
 
 export function requireProjectId(projectId: string): string {

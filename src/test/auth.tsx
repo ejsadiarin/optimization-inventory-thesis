@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AuthContext, type AuthContextValue, type AuthUser } from '@/auth/AuthProvider';
+import { AuthContext, signOutUser, type AuthContextValue, type AuthUser } from '@/auth/AuthProvider';
 
 export const testUser: AuthUser = {
   uid: 'test-user',
@@ -11,13 +11,15 @@ export function TestAuthProvider({
   user = null,
   loading = false,
   error = null,
+  signOut = signOutUser,
   children,
 }: {
   user?: AuthUser | null;
   loading?: boolean;
   error?: string | null;
+  signOut?: () => Promise<void>;
   children: ReactNode;
 }) {
-  const value: AuthContextValue = { user, loading, error };
+  const value: AuthContextValue = { user, loading, error, signOut };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

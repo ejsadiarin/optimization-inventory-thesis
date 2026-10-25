@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 import { auth, firebaseConfigured } from '@/lib/firebase';
 import { startSyncStatus } from '@/lib/syncStatus';
@@ -21,10 +21,16 @@ export interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   error: string | null;
+  signOut: () => Promise<void>;
 }
 
 export const FIREBASE_NOT_CONFIGURED_MESSAGE =
   'Firebase is not configured. Copy .env.example to .env.local and add the VITE_FIREBASE_* values.';
+
+export async function signOutUser(): Promise<void> {
+  if (!auth) return;
+  await firebaseSignOut(auth);
+}
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -37,7 +43,7 @@ function toAuthUser(user: User): AuthUser {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthContextValue>(() => ({
+  const [state, setState] = useState<Omit<AuthContextValue, 'signOut'>>(() => ({
     user: null,
     loading: firebaseConfigured,
     error: firebaseConfigured ? null : FIREBASE_NOT_CONFIGURED_MESSAGE,
@@ -58,7 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
+  const value: AuthContextValue = {
+    ...state,
+    signOut: signOutUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
