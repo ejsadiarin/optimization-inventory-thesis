@@ -32,6 +32,7 @@ import {
   groupLumberRequirementsByCrossSection,
   listLumberRequirements,
   listStructuralMembers,
+  updateLumberRequirement,
   updateStructuralMember,
   type StructuralMemberFields,
 } from '@/db/members';
@@ -225,14 +226,15 @@ function MemberDialog({ member, onOpenChange, onSubmit }: MemberDialogProps) {
 }
 
 interface LumberDialogProps {
+  requirement?: LumberRequirement | null;
   onOpenChange: (open: boolean) => void;
   onSubmit: (fields: { label: string; length: number; crossSection: CrossSection }) => Promise<void>;
 }
 
-function LumberDialog({ onOpenChange, onSubmit }: LumberDialogProps) {
-  const [label, setLabel] = useState('');
-  const [length, setLength] = useState('');
-  const [crossSection, setCrossSection] = useState<CrossSection>('2x2');
+function LumberDialog({ requirement = null, onOpenChange, onSubmit }: LumberDialogProps) {
+  const [label, setLabel] = useState(requirement?.label ?? '');
+  const [length, setLength] = useState(requirement ? String(requirement.length) : '');
+  const [crossSection, setCrossSection] = useState<CrossSection>(requirement?.crossSection ?? '2x2');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -258,7 +260,7 @@ function LumberDialog({ onOpenChange, onSubmit }: LumberDialogProps) {
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add lumber requirement</DialogTitle>
+          <DialogTitle>{requirement ? 'Edit lumber requirement' : 'Add lumber requirement'}</DialogTitle>
           <DialogDescription>
             Lumber cuts are entered manually and grouped by cross-section.
           </DialogDescription>
@@ -343,7 +345,10 @@ export default function StructuralMembersScreen() {
     open: boolean;
     member: StructuralMember | null;
   }>({ open: false, member: null });
-  const [lumberDialogOpen, setLumberDialogOpen] = useState(false);
+  const [lumberDialog, setLumberDialog] = useState<{
+    open: boolean;
+    requirement: LumberRequirement | null;
+  }>({ open: false, requirement: null });
 
   async function refresh() {
     const [nextMembers, nextLumber] = await Promise.all([
@@ -392,8 +397,12 @@ export default function StructuralMembersScreen() {
     length: number;
     crossSection: CrossSection;
   }) {
-    await createLumberRequirement({ projectId: project.id, ...fields });
-    setLumberDialogOpen(false);
+    if (lumberDialog.requirement) {
+      await updateLumberRequirement(project.id, lumberDialog.requirement.id, fields);
+    } else {
+      await createLumberRequirement({ projectId: project.id, ...fields });
+    }
+    setLumberDialog({ open: false, requirement: null });
     await refresh();
   }
 
@@ -516,7 +525,7 @@ export default function StructuralMembersScreen() {
               Add bracing and support cuts. Requirements are grouped by cross-section.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={() => setLumberDialogOpen(true)}>
+          <Button size="sm" onClick={() => setLumberDialog({ open: true, requirement: null })}>
             <Plus className="h-4 w-4" />
             Add lumber
           </Button>
@@ -545,14 +554,26 @@ export default function StructuralMembersScreen() {
                           <TableCell className="font-medium">{requirement.label}</TableCell>
                           <TableCell>{formatMeters(requirement.length)}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              aria-label={`Delete lumber ${requirement.label}`}
-                              onClick={() => void handleLumberDelete(requirement)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label={`Edit lumber ${requirement.label}`}
+                                onClick={() =>
+                                  setLumberDialog({ open: true, requirement })
+                                }
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label={`Delete lumber ${requirement.label}`}
+                                onClick={() => void handleLumberDelete(requirement)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -575,9 +596,12 @@ export default function StructuralMembersScreen() {
         />
       )}
 
-      {lumberDialogOpen && (
+      {lumberDialog.open && (
         <LumberDialog
-          onOpenChange={setLumberDialogOpen}
+          requirement={lumberDialog.requirement}
+          onOpenChange={(open) => {
+            if (!open) setLumberDialog({ open: false, requirement: null });
+          }}
           onSubmit={handleLumberSubmit}
         />
       )}
