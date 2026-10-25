@@ -5,13 +5,27 @@ import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
-import { addPiece, recordUsage, retirePiece } from '@/db/inventory';
+import {
+  addPiece,
+  getPiece,
+  getUsageLog,
+  listPieces,
+  recordUsage,
+  retirePiece,
+} from '@/db/inventory';
 import { seedProject } from '@/test/fixtures';
+import { resetInventoryMock } from '@/test/inventoryMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
+vi.mock('@/db/inventory', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/inventory')>();
+  const mock = await import('@/test/inventoryMock');
+  return { ...actual, ...mock };
+});
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
+  resetInventoryMock();
   await Promise.all(db.tables.map((table) => table.clear()));
 });
 
@@ -47,7 +61,7 @@ describe('ProjectInventoryScreen', () => {
     expect(within(row).getByText('Good')).toBeInTheDocument();
     expect(within(row).getByText('0')).toBeInTheDocument();
 
-    const pieces = await db.pieces.toArray();
+    const pieces = await listPieces(project.id);
     expect(pieces).toHaveLength(1);
     expect(pieces[0]).toMatchObject({
       projectId: project.id,
@@ -110,7 +124,7 @@ describe('ProjectInventoryScreen lifecycle and history', () => {
     await user.click(screen.getByRole('button', { name: /save piece/i }));
 
     expect(await screen.findByRole('row', { name: /rack c/i })).toHaveTextContent(/good/i);
-    const stored = await db.pieces.get(piece.id);
+    const stored = await getPiece(project.id, piece.id);
     expect(stored?.condition).toBe('Good');
     expect(stored?.usageCount).toBe(5);
   });
@@ -125,10 +139,10 @@ describe('ProjectInventoryScreen lifecycle and history', () => {
     await user.click(await screen.findByRole('button', { name: /retire piece/i }));
 
     expect(await screen.findByText(/no pieces in inventory yet/i)).toBeInTheDocument();
-    const stored = await db.pieces.get(piece.id);
+    const stored = await getPiece(project.id, piece.id);
     expect(stored).toMatchObject({ retired: true, condition: 'Retired', usageCount: 5 });
-    expect(await db.usageLog.where('pieceId').equals(piece.id).count()).toBe(5);
-    expect(await retirePiece(piece.id)).toMatchObject({ retired: true });
+    expect(await getUsageLog(project.id, piece.id)).toHaveLength(5);
+    expect(await retirePiece(project.id, piece.id)).toMatchObject({ retired: true });
   });
 });
 

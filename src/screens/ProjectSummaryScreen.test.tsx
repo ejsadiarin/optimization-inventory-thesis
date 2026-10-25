@@ -5,18 +5,25 @@ import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { db } from '@/db/db';
-import { addPiece } from '@/db/inventory';
+import { addPiece, retirePiece } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { saveCuttingPlanSnapshot } from '@/db/plans';
 import { seedProject } from '@/test/fixtures';
+import { resetInventoryMock } from '@/test/inventoryMock';
 import { resetMembersMock } from '@/test/membersMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
+vi.mock('@/db/inventory', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/inventory')>();
+  const mock = await import('@/test/inventoryMock');
+  return { ...actual, ...mock };
+});
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetMembersMock();
+  resetInventoryMock();
   await Promise.all(db.tables.map((table) => table.clear()));
 });
 
@@ -181,7 +188,7 @@ describe('ProjectSummaryScreen', () => {
       crossSection: '2x3',
       condition: 'For Inspection',
     });
-    await db.pieces.update(retired.id, { condition: 'Retired', retired: true });
+    await retirePiece(project.id, retired.id);
 
     const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:summary-export');
     const revokeObjectURL = vi.fn<(url: string) => void>(() => undefined);

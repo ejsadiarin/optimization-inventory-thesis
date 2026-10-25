@@ -8,14 +8,21 @@ import { db } from '@/db/db';
 import { addPiece, getPiece, getUsageLog, listPieces, recordUsage } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { seedProject } from '@/test/fixtures';
+import { resetInventoryMock } from '@/test/inventoryMock';
 import { resetMembersMock } from '@/test/membersMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
+vi.mock('@/db/inventory', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/inventory')>();
+  const mock = await import('@/test/inventoryMock');
+  return { ...actual, ...mock };
+});
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetMembersMock();
+  resetInventoryMock();
   await Promise.all(db.tables.map((table) => table.clear()));
 });
 
@@ -94,10 +101,10 @@ describe('OptimizationScreen matching', () => {
     expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
 
-    const log = await getUsageLog(piece.id);
+    const log = await getUsageLog(project.id, piece.id);
     expect(log).toHaveLength(1);
     expect(log[0]!.structuralMemberLabel).toBe('Brace A');
-    await expect(getPiece(piece.id)).resolves.toMatchObject({ usageCount: 1, condition: 'Good' });
+    await expect(getPiece(project.id, piece.id)).resolves.toMatchObject({ usageCount: 1, condition: 'Good' });
   });
 
   it('flags a piece for inspection when acceptance is its fifth use', async () => {
@@ -124,7 +131,7 @@ describe('OptimizationScreen matching', () => {
 
     expect(await screen.findByText(/usage 5/i)).toBeInTheDocument();
     expect(await screen.findByText(/for inspection/i)).toBeInTheDocument();
-    await expect(getPiece(piece.id)).resolves.toMatchObject({
+    await expect(getPiece(project.id, piece.id)).resolves.toMatchObject({
       usageCount: 5,
       condition: 'For Inspection',
     });
@@ -160,7 +167,7 @@ describe('OptimizationScreen matching', () => {
       screen.getByText(/all requirements satisfied by reused pieces/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
-    await expect(getUsageLog(piece.id)).resolves.toHaveLength(1);
+    await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
   });
 
   it('prevents one physical piece from satisfying a second requirement', async () => {
@@ -193,7 +200,7 @@ describe('OptimizationScreen matching', () => {
     expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
     expect(screen.getAllByText(/no active inventory pieces match/i)).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
-    await expect(getUsageLog(piece.id)).resolves.toHaveLength(1);
+    await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
   });
 
   it('declines a candidate without consuming it or satisfying the requirement', async () => {
@@ -220,8 +227,8 @@ describe('OptimizationScreen matching', () => {
     });
     expect(screen.getByText(/no active inventory pieces match/i)).toBeInTheDocument();
     expect(screen.queryByText('Satisfied')).not.toBeInTheDocument();
-    await expect(getUsageLog(piece.id)).resolves.toHaveLength(0);
-    await expect(getPiece(piece.id)).resolves.toMatchObject({ usageCount: 0 });
+    await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(0);
+    await expect(getPiece(project.id, piece.id)).resolves.toMatchObject({ usageCount: 0 });
   });
 });
 
