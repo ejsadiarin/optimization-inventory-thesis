@@ -42,6 +42,7 @@ describe('AppLayout', () => {
     renderLayout();
 
     expect(screen.getByText('Demo Engineer')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/synced|offline|syncing|sync error/i);
 
     await user.click(screen.getByRole('button', { name: /sign out/i }));
 

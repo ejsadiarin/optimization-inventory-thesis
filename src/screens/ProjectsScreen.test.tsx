@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import ProjectsScreen from './ProjectsScreen';
@@ -91,6 +91,20 @@ describe('ProjectsScreen', () => {
     renderScreen();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load projects/i);
+  });
+
+  it('refetches the marketplace when the window regains focus', async () => {
+    mocks.listProjects.mockResolvedValue([]);
+    renderScreen();
+    await screen.findByText(/no projects yet/i);
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(mocks.listProjects).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('does not offer the demo-data action', async () => {

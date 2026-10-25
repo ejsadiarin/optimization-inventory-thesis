@@ -330,7 +330,7 @@ describe('OptimizationScreen cutting plans', () => {
     expect(addButton).toBeEnabled();
     await user.click(addButton);
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/added 1 offcut/i);
+    expect(await screen.findByText(/added 1 offcut/i)).toBeInTheDocument();
 
     const pieces = await listPieces(project.id);
     const added = pieces.filter((piece) => piece.source === 'Cut plan offcut');

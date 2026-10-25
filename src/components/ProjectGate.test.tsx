@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ProjectGate from './ProjectGate';
@@ -86,6 +86,34 @@ describe('ProjectGate', () => {
 
     expect(await screen.findByText('Project Dashboard')).toBeInTheDocument();
     expect(screen.queryByLabelText(/access code/i)).not.toBeInTheDocument();
+  });
+
+  it('does not flash the full-screen loader on a background refresh', async () => {
+    const project = makeProject({ name: 'Gated Site' });
+    mocks.getProject.mockResolvedValue(project);
+    renderGate(project.id);
+    await screen.findByLabelText(/access code/i);
+
+    let resolveRefresh: (value: typeof project | undefined) => void = () => undefined;
+    mocks.getProject.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(mocks.getProject).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByText(/loading project/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/access code/i)).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh(project);
+    });
   });
 
   it('reports a missing project as unavailable online', async () => {
