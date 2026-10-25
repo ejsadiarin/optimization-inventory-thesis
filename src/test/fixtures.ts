@@ -37,7 +37,14 @@ export function makeProject(overrides: ProjectOverrides = {}): Project {
 
 export async function seedProject(overrides: ProjectOverrides = {}): Promise<Project> {
   const project = makeProject(overrides);
-  const { db } = await import('@/db/db');
-  await db.projects.add(project);
+  const { db } = await import('@/migration/legacyDb');
+  await db.projects.add({
+    id: project.id,
+    name: project.name,
+    accessCode: 'ABCDEF',
+    createdAt: project.createdAt,
+    costs: project.costs,
+    stock: project.stock,
+  });
   return project;
 }
