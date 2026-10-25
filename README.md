@@ -57,6 +57,7 @@ npm run preview
 - [GLOSSARY.md](./GLOSSARY.md) — canonical domain terms
 - [docs/adr/](./docs/adr/) — architecture decisions
 - [docs/spec.md](./docs/spec.md) — product spec
+- [docs/user-flow.md](./docs/user-flow.md) — user flow and schematic mapping
 
 ---
 
