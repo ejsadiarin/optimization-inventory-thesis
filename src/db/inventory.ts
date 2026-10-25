@@ -1,5 +1,27 @@
-import { db } from './db';
-import type { CrossSection, MaterialType, Piece, PieceCondition } from './types';
+import {
+  getDoc,
+  getDocs,
+  increment,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import {
+  dataWithId,
+  projectCollection,
+  projectDoc,
+  requireProjectId,
+} from '@/lib/firestore-helpers';
+import type {
+  CrossSection,
+  MaterialType,
+  Piece,
+  PieceCondition,
+  UsageLogEntry,
+} from './types';
 import { generateId } from '@/lib/ids';
 import { normalizePieceDimensions } from '@/lib/pieces';
 
@@ -42,10 +64,11 @@ function validateDimensions(input: {
 }
 
 export async function addPiece(input: AddPieceInput): Promise<Piece> {
+  const projectId = requireProjectId(input.projectId);
   const dimensions = normalizePieceDimensions(input);
   const piece: Piece = {
     id: generateId(),
-    projectId: input.projectId,
+    projectId,
     materialType: input.materialType,
     length: input.length,
     ...dimensions,
@@ -58,16 +81,32 @@ export async function addPiece(input: AddPieceInput): Promise<Piece> {
   };
 
   validateDimensions(piece);
-  await db.pieces.add(piece);
+  const { crossSection, ...rest } = piece;
+  await setDoc(
+    projectDoc(projectId, 'pieces', piece.id),
+    crossSection ? { ...rest, crossSection } : rest,
+  );
   return piece;
 }
 
-export async function getPiece(id: string): Promise<Piece | undefined> {
-  return db.pieces.get(id);
+export async function getPiece(projectId: string, id: string): Promise<Piece | undefined> {
+  const snapshot = await getDoc(
+    projectDoc(requireProjectId(projectId), 'pieces', id),
+  );
+  return dataWithId<Piece>(snapshot);
 }
 
 export async function listPieces(projectId: string): Promise<Piece[]> {
-  return db.pieces.where('projectId').equals(projectId).toArray();
+  const snapshot = await getDocs(
+    projectCollection(requireProjectId(projectId), 'pieces'),
+  );
+
+  const pieces: Piece[] = [];
+  for (const document of snapshot.docs) {
+    const piece = dataWithId<Piece>(document);
+    if (piece) pieces.push(piece);
+  }
+  return pieces;
 }
 
 export async function getActivePieces(projectId: string): Promise<Piece[]> {
@@ -82,10 +121,27 @@ export function daysInInventory(dateAdded: string, now: Date = new Date()): numb
   return Math.max(0, Math.floor(milliseconds / 86_400_000));
 }
 
-export async function getUsageLog(pieceId: string) {
-  const entries = await db.usageLog.where('pieceId').equals(pieceId).toArray();
+export async function getUsageLog(
+  projectId: string,
+  pieceId: string,
+): Promise<UsageLogEntry[]> {
+  const snapshot = await getDocs(
+    query(
+      projectCollection(requireProjectId(projectId), 'usageLog'),
+      where('pieceId', '==', pieceId),
+    ),
+  );
+
+  const entries: UsageLogEntry[] = [];
+  for (const document of snapshot.docs) {
+    const entry = dataWithId<UsageLogEntry>(document);
+    if (entry) entries.push(entry);
+  }
+
   return entries.sort(
-    (a, b) => Date.parse(b.date) - Date.parse(a.date) || Date.parse(b.createdAt) - Date.parse(a.createdAt),
+    (a, b) =>
+      Date.parse(b.date) - Date.parse(a.date) ||
+      Date.parse(b.createdAt) - Date.parse(a.createdAt),
   );
 }
 
@@ -98,8 +154,16 @@ export interface UpdatePieceInput {
   storageLocation?: string;
 }
 
-export async function updatePiece(id: string, input: UpdatePieceInput): Promise<Piece | undefined> {
-  const piece = await getPiece(id);
+export async function updatePiece(
+  projectId: string,
+  id: string,
+  input: UpdatePieceInput,
+): Promise<Piece | undefined> {
+  const reference = projectDoc(requireProjectId(projectId), 'pieces', id);
+  const existing = await getDoc(reference);
+  if (!existing.exists()) return undefined;
+
+  const piece = dataWithId<Piece>(existing);
   if (!piece) return undefined;
 
   const dimensions = normalizePieceDimensions({
@@ -118,55 +182,84 @@ export async function updatePiece(id: string, input: UpdatePieceInput): Promise<
   merged.retired = merged.condition === 'Retired';
 
   validateDimensions(merged);
-  await db.pieces.update(id, {
+  await updateDoc(reference, {
     length: merged.length,
     width: merged.width,
     thickness: merged.thickness,
-    crossSection: merged.crossSection,
+    ...(merged.crossSection ? { crossSection: merged.crossSection } : {}),
     condition: merged.condition,
     storageLocation: merged.storageLocation,
     retired: merged.retired,
   });
-  return getPiece(id);
+
+  const updated = await getDoc(reference);
+  return dataWithId<Piece>(updated);
 }
 
-export async function retirePiece(id: string): Promise<Piece | undefined> {
-  const piece = await getPiece(id);
-  if (!piece) return undefined;
+export async function retirePiece(
+  projectId: string,
+  id: string,
+): Promise<Piece | undefined> {
+  const reference = projectDoc(requireProjectId(projectId), 'pieces', id);
+  const existing = await getDoc(reference);
+  if (!existing.exists()) return undefined;
 
-  await db.pieces.update(id, { condition: 'Retired', retired: true });
-  return getPiece(id);
+  await updateDoc(reference, { condition: 'Retired', retired: true });
+
+  const updated = await getDoc(reference);
+  return dataWithId<Piece>(updated);
 }
 
+// Firestore transactions do not work offline, so recording usage uses a queued
+// writeBatch. Write promises only settle after the backend acknowledges them, so
+// committing in the background keeps offline usage responsive; the local cache
+// applies both writes immediately and the SDK flushes them on reconnect.
+// A concurrent offline edit can leave a stale threshold condition; the count
+// still increments, and we accept that rare race per ADR-0006.
 export async function recordUsage(
   pieceId: string,
   projectId: string,
   structuralMemberLabel: string,
   date = new Date().toISOString(),
 ): Promise<Piece> {
-  const piece = await getPiece(pieceId);
+  const scopedProjectId = requireProjectId(projectId);
+  const piece = await getPiece(scopedProjectId, pieceId);
   if (!piece) throw new Error('Piece not found.');
-  if (piece.projectId !== projectId) throw new Error('Piece does not belong to this project.');
-  if (piece.retired || piece.condition === 'Retired') throw new Error('Retired pieces cannot be used.');
+  if (piece.projectId !== scopedProjectId) {
+    throw new Error('Piece does not belong to this project.');
+  }
+  if (piece.retired || piece.condition === 'Retired') {
+    throw new Error('Retired pieces cannot be used.');
+  }
 
   const usageCount = piece.usageCount + 1;
   const crossedInspectionThreshold = piece.usageCount < 5 && usageCount >= 5;
-  const condition: PieceCondition = crossedInspectionThreshold ? 'For Inspection' : piece.condition;
+  const condition: PieceCondition = crossedInspectionThreshold
+    ? 'For Inspection'
+    : piece.condition;
   const now = new Date().toISOString();
+  const entryId = generateId();
+  const firestore = db;
+  if (!firestore) throw new Error('Firestore is not configured.');
 
-  await db.transaction('rw', db.pieces, db.usageLog, async () => {
-    await db.pieces.update(pieceId, { usageCount, condition });
-    await db.usageLog.add({
-      id: generateId(),
-      pieceId,
-      projectId,
-      structuralMemberLabel,
-      date,
-      createdAt: now,
-    });
+  const batch = writeBatch(firestore);
+  batch.update(projectDoc(scopedProjectId, 'pieces', pieceId), {
+    usageCount: increment(1),
+    condition,
+  });
+  batch.set(projectDoc(scopedProjectId, 'usageLog', entryId), {
+    id: entryId,
+    pieceId,
+    projectId: scopedProjectId,
+    structuralMemberLabel,
+    date,
+    createdAt: now,
+  });
+  void batch.commit().catch((error: unknown) => {
+    console.error('Could not sync the recorded usage.', error);
   });
 
-  const updated = await getPiece(pieceId);
+  const updated = await getPiece(scopedProjectId, pieceId);
   if (!updated) throw new Error('Piece not found after recording usage.');
   return updated;
 }

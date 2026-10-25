@@ -78,7 +78,7 @@ export default function PieceFormDialog({
         crossSection,
       });
       const saved = piece
-        ? await updatePiece(piece.id, {
+        ? await updatePiece(projectId, piece.id, {
             length: parsedLength,
             ...dimensions,
             condition,

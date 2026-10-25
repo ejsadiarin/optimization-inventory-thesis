@@ -50,7 +50,7 @@ export default function PieceDetailDialog({
     if (!open || !piece) return;
     let active = true;
     setLog([]);
-    getUsageLog(piece.id).then((entries) => {
+    getUsageLog(piece.projectId, piece.id).then((entries) => {
       if (active) setLog(entries);
     });
     return () => {
@@ -64,7 +64,7 @@ export default function PieceDetailDialog({
     if (!piece) return;
     setRetiring(true);
     try {
-      await retirePiece(piece.id);
+      await retirePiece(piece.projectId, piece.id);
       onRetired(piece.id);
       onOpenChange(false);
     } finally {
