@@ -30,6 +30,7 @@ import {
   materialTypeLabel,
   shortId,
 } from '@/lib/format';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 const SELECT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm';
@@ -52,6 +53,7 @@ function parseUsage(value: string): number | undefined {
 
 export default function ProjectInventoryScreen() {
   const project = useOutletContext<Project>();
+  const refreshSignal = useRefreshSignal();
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +76,7 @@ export default function ProjectInventoryScreen() {
 
   useEffect(() => {
     void loadPieces();
-  }, [loadPieces]);
+  }, [loadPieces, refreshSignal]);
 
   const visiblePieces = queryPieces(pieces, {
     search,

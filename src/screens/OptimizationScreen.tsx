@@ -26,11 +26,13 @@ import type {
 } from '@/engine/types';
 import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
 import { toMatchPiece } from '@/lib/pieces';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 const OFFCUT_THICKNESS = 0.012;
 
 export default function OptimizationScreen() {
   const project = useOutletContext<Project>();
+  const refreshSignal = useRefreshSignal();
   const [panels, setPanels] = useState<PanelRequirement[]>([]);
   const [lumberInputs, setLumberInputs] = useState<LumberRequirementInput[]>([]);
   const [pieces, setPieces] = useState<MatchPiece[]>([]);
@@ -86,7 +88,7 @@ export default function OptimizationScreen() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshSignal]);
 
   const optimization = useMemo(
     () =>

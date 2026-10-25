@@ -3,6 +3,7 @@ import { signOut } from 'firebase/auth';
 import { LogOut, Ruler } from 'lucide-react';
 import { useAuth } from '@/auth/AuthProvider';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import SyncStatusChip from '@/components/SyncStatusChip';
 import { Button } from '@/components/ui/button';
 import { auth } from '@/lib/firebase';
 
@@ -27,6 +28,7 @@ export default function AppLayout() {
 
           {user && (
             <div className="ml-auto flex items-center gap-2">
+              <SyncStatusChip />
               <span className="hidden max-w-48 truncate text-sm text-muted-foreground sm:inline">
                 {user.displayName || user.email}
               </span>

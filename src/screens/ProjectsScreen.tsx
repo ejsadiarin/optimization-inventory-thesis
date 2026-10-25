@@ -18,9 +18,11 @@ import { useAuth } from '@/auth/AuthProvider';
 import { createProject, listProjects } from '@/db/projects';
 import type { CreatedProject, Project } from '@/db/types';
 import { formatDate } from '@/lib/format';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 export default function ProjectsScreen() {
   const { user } = useAuth();
+  const refreshSignal = useRefreshSignal();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -43,7 +45,7 @@ export default function ProjectsScreen() {
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refreshSignal]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -45,6 +45,7 @@ import type {
 import { decomposeMember, panelsExceedingStock } from '@/engine/decompose';
 import type { PanelRequirement } from '@/engine/types';
 import { crossSectionLabel, formatMeters } from '@/lib/format';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 const MEMBER_TYPE_LABELS: Record<StructuralMemberType, string> = {
   column: 'Column',
@@ -334,6 +335,7 @@ function LumberDialog({ onOpenChange, onSubmit }: LumberDialogProps) {
 
 export default function StructuralMembersScreen() {
   const project = useOutletContext<Project>();
+  const refreshSignal = useRefreshSignal();
   const [members, setMembers] = useState<StructuralMember[]>([]);
   const [lumberRequirements, setLumberRequirements] = useState<LumberRequirement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -356,7 +358,7 @@ export default function StructuralMembersScreen() {
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
+  }, [project.id, refreshSignal]);
 
   const memberRows = useMemo(
     () => members.map((member) => ({ member, panels: decomposeMember(member) })),

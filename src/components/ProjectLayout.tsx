@@ -5,6 +5,7 @@ import type { Project } from '@/db/types';
 import { lockProject } from '@/lib/projectSession';
 import { PROJECT_NAV_ITEMS, projectNavHref } from '@/screens/projectNav';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import SyncStatusChip from '@/components/SyncStatusChip';
 
 export default function ProjectLayout() {
   const project = useOutletContext<Project>();
@@ -23,19 +24,22 @@ export default function ProjectLayout() {
             </Button>
             <span className="truncate text-sm font-semibold sm:text-base">{project.name}</span>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              if (!projectId) return;
-              lockProject(projectId);
-              navigate('/');
-            }}
-            type="button"
-          >
-            <Lock className="h-4 w-4" />
-            <span className="hidden sm:inline">Lock</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <SyncStatusChip />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                if (!projectId) return;
+                lockProject(projectId);
+                navigate('/');
+              }}
+              type="button"
+            >
+              <Lock className="h-4 w-4" />
+              <span className="hidden sm:inline">Lock</span>
+            </Button>
+          </div>
         </div>
         <nav className="container flex gap-1 overflow-x-auto pb-2">
           {PROJECT_NAV_ITEMS.map((item) => (

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, Outlet, useParams } from 'react-router-dom';
 import { Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,14 @@ import { Label } from '@/components/ui/label';
 import { getProject, verifyProjectAccess } from '@/db/projects';
 import type { Project } from '@/db/types';
 import { isProjectUnlocked, unlockProject } from '@/lib/projectSession';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 type LoadState = 'loading' | 'ready' | 'missing';
 
 export default function ProjectGate() {
   const { projectId } = useParams();
+  const refreshSignal = useRefreshSignal();
+  const loadedProjectId = useRef<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [code, setCode] = useState('');
@@ -23,17 +26,19 @@ export default function ProjectGate() {
     if (!projectId) return;
 
     let cancelled = false;
-    setState('loading');
+    const backgroundRefresh = loadedProjectId.current === projectId;
+    if (!backgroundRefresh) setState('loading');
     setUnlocked(isProjectUnlocked(projectId));
 
     void getProject(projectId)
       .then((found) => {
         if (cancelled) return;
+        loadedProjectId.current = projectId;
         setProject(found ?? null);
         setState(found ? 'ready' : 'missing');
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled || backgroundRefresh) return;
         setProject(null);
         setState('missing');
       });
@@ -41,7 +46,7 @@ export default function ProjectGate() {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, refreshSignal]);
 
   if (!projectId) {
     return (

@@ -14,6 +14,7 @@ import { piecesToCsv } from '@/lib/csv';
 import { buildDatedFilename, downloadTextFile } from '@/lib/download';
 import { formatPeso } from '@/lib/format';
 import { toMatchPiece } from '@/lib/pieces';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 function percent(value: number): string {
   return `${value.toFixed(1)}%`;
@@ -59,6 +60,7 @@ function BreakdownRow({ label, detail, value, emphasis }: BreakdownRowProps) {
 
 export default function ProjectSummaryScreen() {
   const project = useOutletContext<Project>();
+  const refreshSignal = useRefreshSignal();
   const [summary, setSummary] = useState<ProjectSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -110,7 +112,7 @@ export default function ProjectSummaryScreen() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshSignal]);
 
   async function handleExportCsv() {
     setExportError('');
