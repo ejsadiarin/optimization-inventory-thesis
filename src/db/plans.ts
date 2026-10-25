@@ -1,4 +1,10 @@
-import { db } from './db';
+import { getDocs, setDoc } from 'firebase/firestore';
+import {
+  dataWithId,
+  projectCollection,
+  projectDoc,
+  requireProjectId,
+} from '@/lib/firestore-helpers';
 import type { CuttingPlanRecord, JsonValue } from './types';
 import { generateId } from '@/lib/ids';
 
@@ -50,37 +56,54 @@ export function filterCuttingPlanSnapshot(
   };
 }
 
+// Firestore write promises only settle after the backend acknowledges them, so
+// awaiting setDoc would hang while offline. The local cache applies the write
+// immediately and the SDK flushes it on reconnect, so queue it in the
+// background and return the record right away.
 export async function saveCuttingPlanSnapshot(
   projectId: string,
   snapshot: CuttingPlanSnapshot,
   createdAt = new Date().toISOString(),
 ): Promise<CuttingPlanRecord> {
+  const scopedProjectId = requireProjectId(projectId);
   const record: CuttingPlanRecord = {
     id: generateId(),
-    projectId,
+    projectId: scopedProjectId,
     createdAt,
     payload: snapshot as unknown as JsonValue,
   };
-  await db.cuttingPlans.add(record);
+  void setDoc(projectDoc(scopedProjectId, 'cuttingPlans', record.id), record).catch(
+    (error: unknown) => {
+      console.error('Could not sync the saved cutting plan.', error);
+    },
+  );
   return record;
 }
 
 export async function getLatestCuttingPlan(
   projectId: string,
 ): Promise<LatestCuttingPlan | null> {
-  const records = await db.cuttingPlans.where('projectId').equals(projectId).toArray();
+  const snapshot = await getDocs(
+    projectCollection(requireProjectId(projectId), 'cuttingPlans'),
+  );
+
+  const records: CuttingPlanRecord[] = [];
+  for (const document of snapshot.docs) {
+    const record = dataWithId<CuttingPlanRecord>(document);
+    if (record) records.push(record);
+  }
   if (records.length === 0) return null;
 
   const latest = records.reduce((current, record) =>
     Date.parse(record.createdAt) >= Date.parse(current.createdAt) ? record : current,
   );
-  const snapshot = parseSnapshot(latest.payload);
-  if (!snapshot) return null;
+  const parsed = parseSnapshot(latest.payload);
+  if (!parsed) return null;
 
   return {
     id: latest.id,
     projectId: latest.projectId,
     createdAt: latest.createdAt,
-    snapshot,
+    snapshot: parsed,
   };
 }
