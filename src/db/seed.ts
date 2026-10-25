@@ -1,4 +1,5 @@
 import { setDoc } from 'firebase/firestore';
+import { queueWrite } from '@/lib/syncStatus';
 import { generateAccessCodeSalt, hashAccessCode } from '@/lib/access-code';
 import { projectRef, requireProjectId } from '@/lib/firestore-helpers';
 import { DEFAULT_COSTS, DEFAULT_STOCK, getProject } from './projects';
@@ -44,11 +45,13 @@ export async function seedDemoProject(owner: ProjectOwner): Promise<CreatedProje
     },
   };
 
-  await setDoc(projectRef(requireProjectId(project.id)), {
-    ...project,
-    accessCodeHash,
-    accessCodeSalt: salt,
-  });
+  queueWrite(
+    setDoc(projectRef(requireProjectId(project.id)), {
+      ...project,
+      accessCodeHash,
+      accessCodeSalt: salt,
+    }),
+  );
 
   const c1 = await createStructuralMember({
     projectId: project.id,
