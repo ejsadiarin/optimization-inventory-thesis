@@ -10,3 +10,4 @@ coverage
 .vite
 .DS_Store
 *.log
+.playwright-mcp
