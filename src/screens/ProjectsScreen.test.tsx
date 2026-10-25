@@ -10,6 +10,7 @@ import type { Project } from '@/db/types';
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   listProjects: vi.fn(),
+  seedDemoProject: vi.fn(),
 }));
 
 vi.mock('@/db/projects', () => ({
@@ -17,9 +18,14 @@ vi.mock('@/db/projects', () => ({
   listProjects: mocks.listProjects,
 }));
 
+vi.mock('@/db/seed', () => ({
+  seedDemoProject: mocks.seedDemoProject,
+}));
+
 beforeEach(() => {
   mocks.createProject.mockReset();
   mocks.listProjects.mockReset();
+  mocks.seedDemoProject.mockReset();
   localStorage.setItem('formwork.firestore-migration.v1', 'done');
 });
 
@@ -108,12 +114,24 @@ describe('ProjectsScreen', () => {
     });
   });
 
-  it('does not offer the demo-data action', async () => {
+  it('loads demo data, calls seedDemoProject, and reveals DEMO01', async () => {
+    const user = userEvent.setup();
+    const created = project({ name: 'Demo — Two-Storey Residence', ownerName: testUser.displayName });
     mocks.listProjects.mockResolvedValue([]);
+    mocks.seedDemoProject.mockResolvedValue({ project: created, accessCode: 'DEMO01' });
+
     renderScreen();
 
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /load demo data/i })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /load demo data/i }));
+
+    expect(mocks.seedDemoProject).toHaveBeenCalledWith({
+      uid: testUser.uid,
+      name: testUser.displayName,
     });
+    expect(await screen.findByTestId('access-code')).toHaveTextContent('DEMO01');
+
+    await user.click(screen.getByRole('button', { name: /saved the code/i }));
+
+    expect(mocks.listProjects).toHaveBeenCalled();
   });
 });
