@@ -2,8 +2,7 @@ import { setDoc } from 'firebase/firestore';
 import { generateAccessCodeSalt, hashAccessCode } from '@/lib/access-code';
 import { projectRef, requireProjectId } from '@/lib/firestore-helpers';
 import { DEFAULT_COSTS, DEFAULT_STOCK, getProject } from './projects';
-import { createStructuralMember } from './members';
-import { createLumberRequirement } from './members';
+import { createStructuralMember, createLumberRequirement } from './members';
 import { addPiece, recordUsage, retirePiece } from './inventory';
 import { saveCuttingPlanSnapshot } from './plans';
 import { decomposeMember } from '@/engine/decompose';
@@ -20,6 +19,9 @@ function daysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
+// Partial-failure note: if a seed fails midway, the fixed id may leave an
+// incomplete demo project. There is no automatic repair in v1; delete the
+// demo-project document's subcollections in the console to retry.
 export async function seedDemoProject(owner: ProjectOwner): Promise<CreatedProject> {
   const existing = await getProject(DEMO_PROJECT_ID);
   if (existing) {
