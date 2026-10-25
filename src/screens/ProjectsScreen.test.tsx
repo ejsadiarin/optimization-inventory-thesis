@@ -20,6 +20,7 @@ vi.mock('@/db/projects', () => ({
 beforeEach(() => {
   mocks.createProject.mockReset();
   mocks.listProjects.mockReset();
+  localStorage.setItem('formwork.firestore-migration.v1', 'done');
 });
 
 function renderScreen() {

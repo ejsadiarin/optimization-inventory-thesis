@@ -1,10 +1,10 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { db } from '@/db/db';
 import {
   createLumberRequirement,
   createStructuralMember,
@@ -19,7 +19,6 @@ import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetMembersMock();
-  await Promise.all(db.tables.map((table) => table.clear()));
 });
 
 async function renderMembers(projectId: string) {

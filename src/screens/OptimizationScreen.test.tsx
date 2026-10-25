@@ -1,10 +1,10 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { db } from '@/db/db';
 import { addPiece, getPiece, getUsageLog, listPieces, recordUsage } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { seedProject } from '@/test/fixtures';
@@ -30,7 +30,6 @@ beforeEach(async () => {
   resetMembersMock();
   resetInventoryMock();
   resetPlansMock();
-  await Promise.all(db.tables.map((table) => table.clear()));
 });
 
 async function renderOptimize(projectId: string) {

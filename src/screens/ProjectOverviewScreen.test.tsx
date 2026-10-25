@@ -1,16 +1,15 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { db } from '@/db/db';
 import { seedProject } from '@/test/fixtures';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
-  await Promise.all(db.tables.map((table) => table.clear()));
 });
 
 describe('ProjectOverviewScreen', () => {
