@@ -1,4 +1,66 @@
-# (UPDATE 2026-10-19) Deprecated (for history only) 
+# Formwork Cutting Optimization System
+
+Offline-first PWA for planning formwork cuts, matching reusable inventory, and tracking phenolic board and lumber usage across construction projects. Sign-in uses Firebase Authentication; Cloud Firestore is the source of truth, with a persistent local cache for offline use. Legacy IndexedDB data is imported once on first sign-in.
+
+## Quick start
+
+Requirements: Node.js 22+ and npm 10+.
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open http://localhost:5173. Sign in with `demo@example.com` / `demo1234`.
+
+### Local development with the Firebase emulator
+
+The default `.env.example` sets `VITE_USE_FIREBASE_EMULATOR=true` and leaves the
+`VITE_FIREBASE_*` values blank, so no real Firebase project is required. Start the
+emulators, seed the demo account, then run the app:
+
+```bash
+npx firebase emulators:start --only auth,firestore --project demo-test
+npm run seed:emulator   # or: npm run seed:demo
+npm run dev
+```
+
+1. Sign in, then create a project and save the one-time access code shown after creation (it cannot be recovered). Or click **Load demo data** to populate a realistic project; its access code is `DEMO01`.
+2. Add structural members (columns, beams, slabs) and any manual lumber requirements.
+3. Add reusable phenolic boards and lumber pieces to inventory.
+4. Open **Optimize** to accept reuse matches, review SVG cut plans, and keep reusable offcuts.
+5. Open **Summary** to review utilization, waste, reuse, and PHP savings, then export inventory CSV or cutting-plan images.
+
+The app is installable and works offline after the first successful load. Data is local to the browser profile; clearing site data removes projects.
+
+## Verification
+
+```bash
+npm test              # Vitest unit and component tests
+npm run test:emulator # Firebase Auth/Firestore emulator tests
+npm run test:all      # both suites
+npm run lint
+npm run build         # TypeScript + production build
+npm run verify:pwa    # checks manifest, service worker, and icons
+```
+
+To test the production/PWA build locally:
+
+```bash
+npm run build
+npm run preview
+```
+
+## Project docs
+
+- [GLOSSARY.md](./GLOSSARY.md) — canonical domain terms
+- [docs/adr/](./docs/adr/) — architecture decisions
+- [docs/spec.md](./docs/spec.md) — product spec
+
+---
+
+# Historical README (deprecated, kept for context)
 
 ```md
 # Offcut Utilization Inventory System
