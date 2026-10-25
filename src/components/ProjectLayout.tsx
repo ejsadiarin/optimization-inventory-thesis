@@ -1,6 +1,9 @@
 import { Link, NavLink, Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { LogOut, ArrowLeft, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/auth/AuthProvider';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 import type { Project } from '@/db/types';
 import { lockProject } from '@/lib/projectSession';
 import { PROJECT_NAV_ITEMS, projectNavHref } from '@/screens/projectNav';
@@ -11,6 +14,12 @@ export default function ProjectLayout() {
   const project = useOutletContext<Project>();
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  async function handleSignOut() {
+    if (!auth) return;
+    await signOut(auth);
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-muted/30">
@@ -25,7 +34,22 @@ export default function ProjectLayout() {
             <span className="truncate text-sm font-semibold sm:text-base">{project.name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {user && (
+              <span className="hidden max-w-32 truncate text-xs text-muted-foreground sm:inline">
+                {user.displayName || user.email}
+              </span>
+            )}
             <SyncStatusChip />
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="Sign out"
+              onClick={() => void handleSignOut()}
+              type="button"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
             <Button
               size="sm"
               variant="ghost"
