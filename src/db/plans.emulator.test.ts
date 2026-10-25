@@ -15,6 +15,7 @@ import type { CuttingPlanSnapshot } from './plans';
 import {
   clearAuth,
   clearFirestore,
+  flushPendingWrites,
   signInDemoUser,
   signOutDemoUser,
 } from '@/test/emulator';
@@ -27,6 +28,7 @@ function requireDb(): Firestore {
 }
 
 beforeAll(async () => {
+  await flushPendingWrites();
   await clearAuth();
   await clearFirestore();
   const uid = await signInDemoUser();
@@ -34,10 +36,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await flushPendingWrites();
   await clearFirestore();
 });
 
 afterAll(async () => {
+  await flushPendingWrites();
   await signOutDemoUser();
 });
 

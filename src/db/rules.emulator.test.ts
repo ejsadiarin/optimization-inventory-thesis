@@ -7,6 +7,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
+import { flushPendingWrites } from '@/test/emulator';
 
 const PROJECT_ID = 'demo-test';
 let testEnv: RulesTestEnvironment;
@@ -44,6 +45,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await flushPendingWrites();
   await testEnv.clearFirestore();
 });
 
@@ -52,6 +54,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  await flushPendingWrites();
   await testEnv.cleanup();
 });
 

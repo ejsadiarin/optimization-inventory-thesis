@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   disableNetwork,
   enableNetwork,
+  getDocFromServer,
   setDoc,
   waitForPendingWrites,
   type Firestore,
@@ -24,6 +25,7 @@ import type { ProjectOwner } from './types';
 import {
   clearAuth,
   clearFirestore,
+  flushPendingWrites,
   signInDemoUser,
   signOutDemoUser,
 } from '@/test/emulator';
@@ -36,6 +38,7 @@ function requireDb(): Firestore {
 }
 
 beforeAll(async () => {
+  await flushPendingWrites();
   await clearAuth();
   await clearFirestore();
   const uid = await signInDemoUser();
@@ -43,10 +46,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await flushPendingWrites();
   await clearFirestore();
 });
 
 afterAll(async () => {
+  await flushPendingWrites();
   await signOutDemoUser();
 });
 
@@ -182,6 +187,37 @@ describe('inventory pieces on Firestore', () => {
     await expect(recordUsage('piece-1', '', 'C1')).rejects.toThrow(
       /project id is required/i,
     );
+  });
+
+  it('queues offline add and update writes and persists them after reconnecting', async () => {
+    const projectId = await createTestProject('Offline CRUD Site');
+    const firestore = requireDb();
+    await disableNetwork(firestore);
+
+    let pieceId = '';
+    try {
+      const piece = await addPhenolicPiece(projectId, {
+        storageLocation: 'Rack Offline',
+      });
+      pieceId = piece.id;
+
+      const updated = await updatePiece(projectId, piece.id, {
+        storageLocation: 'Rack Synced',
+      });
+      expect(updated).toMatchObject({ storageLocation: 'Rack Synced' });
+      await expect(getPiece(projectId, piece.id)).resolves.toMatchObject({
+        storageLocation: 'Rack Synced',
+      });
+    } finally {
+      await enableNetwork(firestore);
+    }
+
+    await waitForPendingWrites(firestore);
+    const persisted = await getDocFromServer(
+      projectDoc(projectId, 'pieces', pieceId),
+    );
+    expect(persisted.exists()).toBe(true);
+    expect(persisted.data()).toMatchObject({ storageLocation: 'Rack Synced' });
   });
 });
 

@@ -15,6 +15,7 @@ import type { ProjectOwner } from './types';
 import {
   clearAuth,
   clearFirestore,
+  flushPendingWrites,
   signInDemoUser,
   signOutDemoUser,
 } from '@/test/emulator';
@@ -22,6 +23,7 @@ import {
 let owner: ProjectOwner = { uid: 'demo-user', name: 'Demo Engineer' };
 
 beforeAll(async () => {
+  await flushPendingWrites();
   await clearAuth();
   await clearFirestore();
   const uid = await signInDemoUser();
@@ -29,10 +31,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await flushPendingWrites();
   await clearFirestore();
 });
 
 afterAll(async () => {
+  await flushPendingWrites();
   await signOutDemoUser();
 });
 

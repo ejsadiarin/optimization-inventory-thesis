@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { getDoc } from 'firebase/firestore';
+import {
+  disableNetwork,
+  enableNetwork,
+  getDoc,
+  getDocFromServer,
+  waitForPendingWrites,
+  type Firestore,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import {
   DEFAULT_COSTS,
   DEFAULT_STOCK,
@@ -15,13 +23,20 @@ import { projectRef } from '@/lib/firestore-helpers';
 import {
   clearAuth,
   clearFirestore,
+  flushPendingWrites,
   signInDemoUser,
   signOutDemoUser,
 } from '@/test/emulator';
 
 let owner: ProjectOwner = { uid: 'demo-user', name: 'Demo Engineer' };
 
+function requireDb(): Firestore {
+  if (!db) throw new Error('Firestore is not configured.');
+  return db;
+}
+
 beforeAll(async () => {
+  await flushPendingWrites();
   await clearAuth();
   await clearFirestore();
   const uid = await signInDemoUser();
@@ -29,10 +44,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await flushPendingWrites();
   await clearFirestore();
 });
 
 afterAll(async () => {
+  await flushPendingWrites();
   await signOutDemoUser();
 });
 
@@ -123,6 +140,27 @@ describe('projects on Firestore', () => {
     await expect(getProject(created.project.id)).resolves.toMatchObject({
       costs: { phenolicPerSheet: 920, lumberPerPiece: 145 },
     });
+  });
+
+  it('creates a project offline and persists it after reconnecting', async () => {
+    const firestore = requireDb();
+    await disableNetwork(firestore);
+
+    let created;
+    try {
+      created = await createProject({ name: 'Offline Site' }, owner);
+      expect(created.project).toMatchObject({ name: 'Offline Site', ownerId: owner.uid });
+      await expect(getProject(created.project.id)).resolves.toMatchObject({
+        name: 'Offline Site',
+      });
+    } finally {
+      await enableNetwork(firestore);
+    }
+
+    await waitForPendingWrites(firestore);
+    const persisted = await getDocFromServer(projectRef(created.project.id));
+    expect(persisted.exists()).toBe(true);
+    expect(persisted.data()).toMatchObject({ name: 'Offline Site' });
   });
 
   it('returns undefined when updating a project that does not exist', async () => {

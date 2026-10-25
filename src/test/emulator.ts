@@ -6,7 +6,12 @@ import {
   signOut,
   type Auth,
 } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
+import {
+  connectFirestoreEmulator,
+  getFirestore,
+  waitForPendingWrites,
+  type Firestore,
+} from 'firebase/firestore';
 
 export const EMULATOR_PROJECT_ID = 'demo-test';
 export const DEMO_EMAIL = 'demo@example.com';
@@ -56,6 +61,13 @@ async function expectOk(response: Response, action: string): Promise<unknown> {
     throw new Error(`${action} failed with ${response.status}: ${await response.text()}`);
   }
   return response.json();
+}
+
+export async function flushPendingWrites(): Promise<void> {
+  const { db } = await import('@/lib/firebase');
+  if (db) {
+    await waitForPendingWrites(db);
+  }
 }
 
 export async function clearAuth(): Promise<void> {
