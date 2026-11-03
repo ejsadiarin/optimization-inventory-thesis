@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DEFAULT_COSTS, DEFAULT_STOCK, updateProjectSettings } from '@/db/projects';
@@ -85,12 +86,10 @@ export default function ProjectSettingsScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Project settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Configure material costs and stock sizes. Defaults follow standard Philippine sizes.
-        </p>
-      </div>
+      <PageHeader
+        title="Project settings"
+        description="Configure material costs and stock sizes. Defaults follow standard Philippine sizes."
+      />
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         <Card>

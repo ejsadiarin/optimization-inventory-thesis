@@ -7,6 +7,8 @@ import { declinedKey } from '@/components/optimize/matchLabels';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
 import { offcutKey, type ReusableOffcutEntry } from '@/components/optimize/offcuts';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
 import { addPiece, getActivePieces, recordUsage } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import {
@@ -266,12 +268,10 @@ export default function OptimizationScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Optimization</h1>
-        <p className="text-sm text-muted-foreground">
-          Review reusable inventory pieces before planning cuts on new stock.
-        </p>
-      </div>
+      <PageHeader
+        title="Optimization"
+        description="Review reusable inventory pieces before planning cuts on new stock."
+      />
 
       {error && (
         <p role="alert" className="text-sm font-medium text-destructive">
@@ -284,15 +284,11 @@ export default function OptimizationScreen() {
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading matches…
         </div>
       ) : groups.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
-            <PackageSearch className="h-8 w-8 text-muted-foreground" />
-            <p className="font-medium">No formwork requirements yet</p>
-            <p className="text-sm text-muted-foreground">
-              Add structural members or lumber requirements to see reuse matches.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={PackageSearch}
+          title="No formwork requirements yet"
+          description="Add structural members or lumber requirements to see reuse matches."
+        />
       ) : (
         <>
           <Card>

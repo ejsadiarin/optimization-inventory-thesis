@@ -1,6 +1,7 @@
 import { useOutletContext } from 'react-router-dom';
 import { Coins, Ruler, Wrench } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import type { Project } from '@/db/types';
 import { formatMeters, formatPeso } from '@/lib/format';
 
@@ -17,10 +18,7 @@ export default function ProjectOverviewScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{project.name}</h1>
-        <p className="text-sm text-muted-foreground">Project overview and configuration.</p>
-      </div>
+      <PageHeader title={project.name} description="Project overview and configuration." />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Card>

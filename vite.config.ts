@@ -13,7 +13,7 @@ export default defineConfig({
       manifestFilename: PWA_MANIFEST_FILENAME,
       manifest: PWA_MANIFEST,
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff,woff2}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
       },

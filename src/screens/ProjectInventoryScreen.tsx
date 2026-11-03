@@ -6,6 +6,7 @@ import PieceFormDialog from '@/components/inventory/PieceFormDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -110,17 +111,15 @@ export default function ProjectInventoryScreen() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Inventory</h1>
-          <p className="text-sm text-muted-foreground">
-            Track every phenolic board and lumber piece across its lifecycle.
-          </p>
-        </div>
-        <Button type="button" onClick={openAddForm}>
-          <Plus className="h-4 w-4" /> Add piece
-        </Button>
-      </div>
+      <PageHeader
+        title="Inventory"
+        description="Track every phenolic board and lumber piece across its lifecycle."
+        actions={
+          <Button type="button" onClick={openAddForm}>
+            <Plus className="h-4 w-4" /> Add piece
+          </Button>
+        }
+      />
 
       <div className="grid gap-2 rounded-lg border bg-card p-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-1 sm:col-span-2">

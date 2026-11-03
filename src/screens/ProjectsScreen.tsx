@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import { CalendarDays, FolderPlus, KeyRound, Plus, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   Dialog,
   DialogContent,
@@ -133,27 +136,23 @@ export default function ProjectsScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
-          <p className="text-sm text-muted-foreground">Shared with every signed-in account.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleSeedDemo} disabled={seeding}>
-            {seeding ? 'Loading…' : 'Load demo data'}
-          </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Projects"
+        description="Shared with every signed-in account."
+        actions={
+          <>
+            <Button variant="outline" onClick={handleSeedDemo} disabled={seeding}>
+              {seeding ? 'Loading…' : 'Load demo data'}
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          </>
+        }
+      />
 
-      {loadError && (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {loadError}
-        </p>
-      )}
+      {loadError && <ErrorState message={loadError} onRetry={() => void refresh()} />}
 
       {seedError && (
         <p role="alert" className="text-sm font-medium text-destructive">
@@ -166,30 +165,22 @@ export default function ProjectsScreen() {
       )}
 
       {importError && (
-        <div role="alert" className="space-y-2">
-          <p className="text-sm font-medium text-destructive">{importError}</p>
-          <Button type="button" variant="outline" size="sm" onClick={retryImport}>
-            Retry import
-          </Button>
-        </div>
+        <ErrorState
+          title="Could not import local projects"
+          message={importError}
+          onRetry={retryImport}
+          retryLabel="Retry import"
+        />
       )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading projects…</p>
       ) : projects.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <FolderPlus className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="font-medium">No projects yet</p>
-              <p className="text-sm text-muted-foreground">
-                Create your first project to start planning cuts.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={FolderPlus}
+          title="No projects yet"
+          description="Create your first project to start planning cuts."
+        />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {projects.map((project) => (

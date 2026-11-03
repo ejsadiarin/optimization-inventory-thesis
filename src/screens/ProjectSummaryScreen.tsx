@@ -3,6 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import { BarChart3, Coins, Download, Layers, Loader2, Recycle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/error-state';
+import { PageHeader } from '@/components/ui/page-header';
 import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
@@ -138,9 +140,12 @@ export default function ProjectSummaryScreen() {
 
   if (error || !summary) {
     return (
-      <p role="alert" className="text-sm font-medium text-destructive">
-        {error || 'Could not build the project summary.'}
-      </p>
+      <div className="mx-auto max-w-3xl">
+        <ErrorState
+          message={error || 'Could not build the project summary.'}
+          onRetry={() => void load()}
+        />
+      </div>
     );
   }
 
@@ -148,17 +153,15 @@ export default function ProjectSummaryScreen() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Summary</h1>
-          <p className="text-sm text-muted-foreground">
-            Material reuse, cutting efficiency, and procurement estimates for this project.
-          </p>
-        </div>
-        <Button type="button" variant="outline" onClick={() => void handleExportCsv()}>
-          <Download className="h-4 w-4" /> Export inventory CSV
-        </Button>
-      </div>
+      <PageHeader
+        title="Summary"
+        description="Material reuse, cutting efficiency, and procurement estimates for this project."
+        actions={
+          <Button type="button" variant="outline" onClick={() => void handleExportCsv()}>
+            <Download className="h-4 w-4" /> Export inventory CSV
+          </Button>
+        }
+      />
 
       {exportError && (
         <p role="alert" className="text-sm font-medium text-destructive">

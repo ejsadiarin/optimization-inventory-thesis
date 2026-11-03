@@ -4,6 +4,7 @@ import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   Dialog,
   DialogContent,
@@ -412,12 +413,10 @@ export default function StructuralMembersScreen() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Structural members</h1>
-        <p className="text-sm text-muted-foreground">
-          Define columns, beams, and slabs to derive their formwork panels.
-        </p>
-      </div>
+      <PageHeader
+        title="Structural members"
+        description="Define columns, beams, and slabs to derive their formwork panels."
+      />
 
       {oversizedPanels.length > 0 && (
         <div
