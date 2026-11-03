@@ -16,6 +16,10 @@ _Avoid_: Sheet, board, piece (when referring to a panel specifically)
 The arrangement of required formwork panels on a stock sheet or length, optimized to minimize waste.
 _Avoid_: Cutting pattern (ambiguous with the algorithm's internal "pattern"), layout
 
+**Optimization Session**:
+The record of a project's optimization work: which formwork requirements have been satisfied by reuse and which candidate pieces the engineer declined. It persists across reloads and is distinct from the cutting plans it produces.
+_Avoid_: Run, pass, job
+
 **Stock Sheet**:
 An uncut, full-size piece of material purchased from a supplier. For phenolic board: 1.22m × 2.44m. For lumber: a standard-length piece with a fixed cross-section.
 _Avoid_: Raw material, new material
@@ -23,6 +27,10 @@ _Avoid_: Raw material, new material
 **Offcut**:
 The portion of a stock sheet left over after cutting. May be reusable if dimensions are sufficient.
 _Avoid_: Waste (waste is an offcut too small to reuse), scrap, leftover
+
+**Reusable Offcut**:
+An offcut whose length and width both meet the minimum reusable dimension (0.3 m), making it eligible to be returned to inventory for future pours.
+_Avoid_: Scrap, waste, leftover
 
 **Material Type**:
 One of two categories of formwork material: Phenolic Board or Lumber.
@@ -79,6 +87,10 @@ _Avoid_: Free cut, arbitrary cut
 **Match-and-Flag**:
 The system's approach to reusing inventory pieces: find pieces with sufficient dimensions, rank them by smallest-fit-first, and flag pieces that need trimming as "requires cutting." The system does not generate a new cutting plan for reuse pieces.
 _Avoid_: Cut-to-fit, auto-recut
+
+**Reuse Decision**:
+The engineer's explicit choice about a formwork requirement: accept a candidate inventory piece, decline a candidate, or plan the requirement from new stock. A declined candidate is not offered again for that requirement until decisions are reset; an accepted piece records a usage.
+_Avoid_: Match, selection (when referring to the engineer's decision)
 
 **Shelf**:
 A horizontal row of panels placed left-to-right on a stock sheet during cutting optimization. When a panel doesn't fit the current shelf, a new shelf starts below it. The shelf height is set by the tallest panel in that row.
