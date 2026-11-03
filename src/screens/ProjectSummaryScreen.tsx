@@ -18,6 +18,9 @@ import { formatPeso } from '@/lib/format';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
+const SUMMARY_DESCRIPTION =
+  'Material reuse, cutting efficiency, and procurement estimates for this project.';
+
 function percent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
@@ -140,7 +143,8 @@ export default function ProjectSummaryScreen() {
 
   if (error || !summary) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader title="Summary" description={SUMMARY_DESCRIPTION} />
         <ErrorState
           message={error || 'Could not build the project summary.'}
           onRetry={() => void load()}
@@ -155,7 +159,7 @@ export default function ProjectSummaryScreen() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         title="Summary"
-        description="Material reuse, cutting efficiency, and procurement estimates for this project."
+        description={SUMMARY_DESCRIPTION}
         actions={
           <Button type="button" variant="outline" onClick={() => void handleExportCsv()}>
             <Download className="h-4 w-4" /> Export inventory CSV

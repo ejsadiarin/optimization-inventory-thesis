@@ -100,6 +100,35 @@ describe('ProjectsScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load projects/i);
   });
 
+  it('retries the marketplace load and shows progress while retrying', async () => {
+    const user = userEvent.setup();
+    const recovered = project({ name: 'Recovered Site', ownerName: testUser.displayName });
+    let resolveProjects: ((projects: Project[]) => void) | undefined;
+    mocks.listProjects
+      .mockRejectedValueOnce(new Error('permission denied'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<Project[]>((resolve) => {
+            resolveProjects = resolve;
+          }),
+      );
+
+    renderScreen();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load projects/i);
+
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+
+    expect(screen.getByText(/loading projects/i)).toBeInTheDocument();
+
+    await act(async () => {
+      resolveProjects?.([recovered]);
+    });
+
+    expect(await screen.findByText('Recovered Site')).toBeInTheDocument();
+    expect(mocks.listProjects).toHaveBeenCalledTimes(2);
+  });
+
   it('refetches the marketplace when the window regains focus', async () => {
     mocks.listProjects.mockResolvedValue([]);
     renderScreen();

@@ -31,22 +31,17 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const VARIANT_STYLES: Record<ToastVariant, string> = {
-  default: 'border-border',
-  success: 'border-emerald-600/30',
-  error: 'border-destructive/40',
-};
-
-const VARIANT_ICONS = {
-  default: Info,
-  success: CheckCircle2,
-  error: AlertCircle,
-} as const;
-
-const VARIANT_ICON_STYLES: Record<ToastVariant, string> = {
-  default: 'text-muted-foreground',
-  success: 'text-emerald-600',
-  error: 'text-destructive',
+const TOAST_VARIANTS: Record<
+  ToastVariant,
+  { border: string; icon: typeof Info; iconClassName: string }
+> = {
+  default: { border: 'border-border', icon: Info, iconClassName: 'text-muted-foreground' },
+  success: {
+    border: 'border-emerald-600/30',
+    icon: CheckCircle2,
+    iconClassName: 'text-emerald-600',
+  },
+  error: { border: 'border-destructive/40', icon: AlertCircle, iconClassName: 'text-destructive' },
 };
 
 export function useToast() {
@@ -104,18 +99,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 sm:items-end"
       >
         {toasts.map((item) => {
-          const variant = item.variant ?? 'default';
-          const Icon = VARIANT_ICONS[variant];
+          const variant = TOAST_VARIANTS[item.variant ?? 'default'];
+          const Icon = variant.icon;
           return (
             <div
               key={item.id}
               className={cn(
                 'pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border bg-card p-3 shadow-lg',
-                VARIANT_STYLES[variant],
+                variant.border,
               )}
             >
               <Icon
-                className={cn('mt-0.5 h-4 w-4 shrink-0', VARIANT_ICON_STYLES[variant])}
+                className={cn('mt-0.5 h-4 w-4 shrink-0', variant.iconClassName)}
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1">

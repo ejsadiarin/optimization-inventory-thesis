@@ -43,7 +43,8 @@ export default function ProjectsScreen() {
   );
   const [importError, setImportError] = useState('');
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       setProjects(await listProjects());
       setLoadError('');
@@ -152,7 +153,7 @@ export default function ProjectsScreen() {
         }
       />
 
-      {loadError && <ErrorState message={loadError} onRetry={() => void refresh()} />}
+      {loadError && <ErrorState message={loadError} onRetry={() => void refresh(true)} />}
 
       {seedError && (
         <p role="alert" className="text-sm font-medium text-destructive">

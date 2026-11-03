@@ -60,13 +60,20 @@ describe('ToastProvider', () => {
     expect(screen.queryByText('Saved')).not.toBeInTheDocument();
   });
 
-  it('does not move focus when a toast appears', () => {
+  it('keeps focus on the trigger when a toast appears and auto-dismisses', () => {
     renderWithProvider();
 
     const trigger = screen.getByRole('button', { name: 'Show toast' });
     trigger.focus();
     fireEvent.click(trigger);
 
+    expect(trigger).toHaveFocus();
+
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 });

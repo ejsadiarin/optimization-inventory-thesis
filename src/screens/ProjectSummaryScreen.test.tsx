@@ -7,6 +7,7 @@ import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { addPiece, retirePiece } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
+import * as membersDb from '@/db/members';
 import { saveCuttingPlanSnapshot } from '@/db/plans';
 import { seedProject } from '@/test/fixtures';
 import { resetInventoryMock } from '@/test/inventoryMock';
@@ -58,6 +59,17 @@ function blobText(blob: Blob): Promise<string> {
 }
 
 describe('ProjectSummaryScreen', () => {
+  it('keeps the page header and offers retry when the summary cannot be built', async () => {
+    const project = await seedProject({ name: 'Summary Error Site' });
+    vi.spyOn(membersDb, 'listStructuralMembers').mockRejectedValueOnce(new Error('offline'));
+
+    await renderSummary(project.id);
+
+    expect(screen.getByRole('heading', { name: /^summary$/i })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not build the project summary/i);
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+
   it('shows cost-weighted utilization, waste, reuse counts, and new material requirements', async () => {
     const project = await seedProject({ name: 'Summary Site' });
     for (let index = 0; index < 4; index += 1) {
