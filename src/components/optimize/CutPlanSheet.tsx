@@ -125,9 +125,6 @@ export function SheetDiagram({
 
       {sheet.panels.map((panel) => {
         const fill = memberColors.get(panel.label) ?? MEMBER_COLORS[0];
-        const centerX = panel.x + panel.length / 2;
-        const centerY = panel.y + panel.width / 2;
-        const fontSize = panelFontSize(panel.length, panel.width);
 
         return (
           <g
@@ -144,35 +141,49 @@ export function SheetDiagram({
               stroke={PANEL_STROKE}
               strokeWidth={0.008}
             />
-            {!decorative && (
-              <text
-                x={centerX}
-                y={centerY}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#0f172a"
-              >
-                <tspan x={centerX} y={centerY - fontSize * 0.4} fontSize={fontSize} fontWeight={600}>
-                  {panel.label}
-                </tspan>
-                <tspan x={centerX} y={centerY + fontSize * 0.8} fontSize={fontSize * 0.8}>
-                  {panel.length.toFixed(2)} × {panel.width.toFixed(2)} m
-                </tspan>
-                {panel.rotated && (
-                  <tspan
-                    x={centerX}
-                    y={centerY + fontSize * 1.55}
-                    fontSize={fontSize * 0.62}
-                    fill="#475569"
-                  >
-                    rotated
-                  </tspan>
-                )}
-              </text>
-            )}
           </g>
         );
       })}
+
+      {!decorative &&
+        sheet.panels.map((panel) => {
+          const centerX = panel.x + panel.length / 2;
+          const centerY = panel.y + panel.width / 2;
+          const fontSize = panelFontSize(panel.length, panel.width);
+
+          return (
+            <text
+              key={`label-${panel.panelId}`}
+              x={centerX}
+              y={centerY}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill="#0f172a"
+            >
+              <tspan
+                x={centerX}
+                y={centerY - fontSize * 0.4}
+                fontSize={fontSize}
+                fontWeight={600}
+              >
+                {panel.label}
+              </tspan>
+              <tspan x={centerX} y={centerY + fontSize * 0.8} fontSize={fontSize * 0.8}>
+                {panel.length.toFixed(2)} × {panel.width.toFixed(2)} m
+              </tspan>
+              {panel.rotated && (
+                <tspan
+                  x={centerX}
+                  y={centerY + fontSize * 1.55}
+                  fontSize={fontSize * 0.62}
+                  fill="#475569"
+                >
+                  rotated
+                </tspan>
+              )}
+            </text>
+          );
+        })}
     </svg>
   );
 }

@@ -452,6 +452,54 @@ describe('MemberFocusScreen', () => {
     ).toHaveAttribute('href', `/projects/${project.id}/settings`);
   });
 
+  it('keeps nested panels on one piece during a background refresh', async () => {
+    const project = await seedProject({ name: 'Focus Nested Refresh Site' });
+    const beam = await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 0.2,
+      height: 0.4,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderFocus(project.id);
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('3 of 3'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId(`focus-piece-legend-${piece.id}`)).getAllByRole(
+        'listitem',
+      ),
+    ).toHaveLength(3);
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId('focus-summary')).getByText('3 of 3'),
+      ).toBeInTheDocument();
+    });
+    expect(
+      within(screen.getByTestId(`focus-piece-legend-${piece.id}`)).getAllByRole(
+        'listitem',
+      ),
+    ).toHaveLength(3);
+    expect(screen.getByTestId(`member-option-${beam.id}`)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   it('keeps the selected member and manual choices during a background refresh', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Focus Refresh Site' });

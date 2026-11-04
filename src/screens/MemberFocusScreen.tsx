@@ -207,20 +207,17 @@ export default function MemberFocusScreen() {
       return;
     }
 
-    // A background refresh must not discard manual choices. Keep only
-    // assignments whose panel and piece still exist and are not double-booked.
+    // A background refresh must not discard manual choices. Keep assignments
+    // whose panel and piece still exist; the packer decides whether several
+    // panels can keep sharing one piece.
     setAssignments((current) => {
       const panelIds = new Set(selected.panels.map((panel) => panel.id));
       const pieceIds = new Set(matchPieces.map((piece) => piece.id));
-      const usedPieces = new Set<string>();
       const next: Record<string, string> = {};
 
       for (const [panelId, pieceId] of Object.entries(current)) {
-        if (!panelIds.has(panelId) || !pieceIds.has(pieceId) || usedPieces.has(pieceId)) {
-          continue;
-        }
+        if (!panelIds.has(panelId) || !pieceIds.has(pieceId)) continue;
         next[panelId] = pieceId;
-        usedPieces.add(pieceId);
       }
 
       const unchanged =
