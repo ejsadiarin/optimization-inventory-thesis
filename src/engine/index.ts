@@ -22,6 +22,7 @@ export function toMatchRequirements(
       id: panel.id,
       materialType: 'phenolic' as const,
       label: panel.label,
+      memberId: panel.memberId,
       length: panel.length,
       width: panel.width,
       panelIndex: panel.panelIndex,

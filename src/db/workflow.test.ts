@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearWorkflowDecisions,
+  declinedKey,
   emptyWorkflow,
   invalidateWorkflow,
+  resetRequirementDecisions,
+  restoreDeclinedCandidate,
   workflowFromSnapshot,
   type OptimizationWorkflow,
 } from './workflow';
@@ -97,5 +100,28 @@ describe('workflow state', () => {
       satisfiedRequirementIds: [],
       acceptedByRequirement: {},
     });
+  });
+
+  it('builds a declined key from the requirement and piece', () => {
+    expect(declinedKey('req-1', 'piece-2')).toBe('req-1::piece-2');
+  });
+
+  it('restores a single declined candidate', () => {
+    const restored = restoreDeclinedCandidate(workflow(), 'req-1::piece-2');
+
+    expect(restored.declinedCandidates).toEqual(['req-2::piece-2']);
+    expect(restored.newStockRequirementIds).toEqual(['req-2']);
+    expect(restored.satisfiedRequirementIds).toEqual(['req-1']);
+    expect(restoreDeclinedCandidate(restored, 'req-1::piece-2')).toBe(restored);
+  });
+
+  it('resets one requirement without touching other decisions', () => {
+    const reset = resetRequirementDecisions(workflow(), 'req-2');
+
+    expect(reset.declinedCandidates).toEqual(['req-1::piece-2']);
+    expect(reset.newStockRequirementIds).toEqual([]);
+    expect(reset.satisfiedRequirementIds).toEqual(['req-1']);
+    expect(reset.acceptedByRequirement).toEqual({ 'req-1': 'piece-1' });
+    expect(resetRequirementDecisions(reset, 'req-2')).toBe(reset);
   });
 });

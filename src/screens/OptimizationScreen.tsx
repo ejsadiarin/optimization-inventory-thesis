@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { Loader2, PackageSearch } from 'lucide-react';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Loader2, PackageSearch } from 'lucide-react';
 import CuttingPlans from '@/components/optimize/CuttingPlans';
 import MatchGroups from '@/components/optimize/MatchGroups';
-import { declinedKey } from '@/components/optimize/matchLabels';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
 import { offcutKey, type ReusableOffcutEntry } from '@/components/optimize/offcuts';
+import {
+  countReviews,
+  decidedCount,
+  reviewRequirements,
+  REUSE_STATUS_LABELS,
+  REUSE_STATUSES,
+  type ReuseStatus,
+} from '@/components/optimize/reuseReview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { useToast } from '@/components/ui/toast';
 import { addPiece, getActivePieces, recordUsage } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import {
@@ -19,15 +27,18 @@ import {
 } from '@/db/plans';
 import {
   clearWorkflowDecisions,
+  declinedKey,
   emptyWorkflow,
   getOptimizationWorkflow,
   invalidateWorkflow,
+  resetRequirementDecisions,
+  restoreDeclinedCandidate,
   saveOptimizationWorkflow,
   workflowFromSnapshot,
   type OptimizationStep,
   type OptimizationWorkflow,
 } from '@/db/workflow';
-import type { Piece, Project } from '@/db/types';
+import { INSPECTION_USAGE_THRESHOLD, type Piece, type Project } from '@/db/types';
 import { optimizeProject, toMatchRequirements } from '@/engine';
 import { decomposeMember } from '@/engine/decompose';
 import type {
@@ -38,6 +49,7 @@ import type {
   PanelRequirement,
 } from '@/engine/types';
 import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
+import { shortId } from '@/lib/format';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
@@ -55,6 +67,7 @@ function parseStep(value: string | null): OptimizationStep | null {
 export default function OptimizationScreen() {
   const project = useOutletContext<Project>();
   const refreshSignal = useRefreshSignal();
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlStepRef = useRef(parseStep(searchParams.get('step')));
   const [panels, setPanels] = useState<PanelRequirement[]>([]);
@@ -70,6 +83,7 @@ export default function OptimizationScreen() {
   const [intakeMessage, setIntakeMessage] = useState('');
   const [intakeError, setIntakeError] = useState('');
   const [addingOffcuts, setAddingOffcuts] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<ReuseStatus>('needsDecision');
 
   const satisfiedRequirementIds = useMemo(
     () => new Set(workflow.satisfiedRequirementIds),
@@ -198,18 +212,47 @@ export default function OptimizationScreen() {
   );
 
   const groups = optimization.matches;
-  const visibleGroups = groups.filter(
-    (group) => !newStockRequirementIds.has(group.requirement.id),
+  const reviews = useMemo(
+    () =>
+      reviewRequirements(
+        groups,
+        satisfiedRequirementIds,
+        acceptedByRequirement,
+        declinedCandidates,
+        newStockRequirementIds,
+      ),
+    [
+      groups,
+      satisfiedRequirementIds,
+      acceptedByRequirement,
+      declinedCandidates,
+      newStockRequirementIds,
+    ],
   );
+  const reviewCounts = useMemo(() => countReviews(reviews), [reviews]);
+  const decided = decidedCount(reviews);
+  const filteredReviews = useMemo(
+    () => reviews.filter((review) => review.status === statusFilter),
+    [reviews, statusFilter],
+  );
+  const allSatisfied = reviews.length > 0 && reviews.every((review) => review.status === 'satisfied');
+  const allDecided = reviews.length > 0 && decided === reviews.length;
+  const remainingForCutting =
+    optimization.remainingPanels.length + optimization.remainingLumberRequirements.length;
+  const oversizedForStock =
+    optimization.plywood.oversizedPanels.length +
+    optimization.lumber.unplacedRequirements.length;
+  const noReuseOptions = reviews.every(
+    (review) => review.status === 'noMatch' || review.status === 'newStock',
+  );
+  const allRemainingOversized =
+    remainingForCutting > 0 &&
+    oversizedForStock === remainingForCutting &&
+    noReuseOptions;
 
   const memberColors = useMemo(
-    () =>
-      buildMemberColorMap(
-        optimization.plywood.sheets.flatMap((sheet) =>
-          sheet.panels.map((panel) => panel.label),
-        ),
-      ),
-    [optimization.plywood.sheets],
+    () => buildMemberColorMap(panels.map((panel) => panel.label)),
+    [panels],
   );
 
   const reusableOffcuts = useMemo<ReusableOffcutEntry[]>(
@@ -254,6 +297,8 @@ export default function OptimizationScreen() {
       return;
     }
 
+    const inspectionDue =
+      (candidate.piece.usageCount ?? 0) + 1 === INSPECTION_USAGE_THRESHOLD;
     let updated: Piece;
     try {
       updated = await recordUsage(candidate.piece.id, project.id, group.requirement.label);
@@ -284,6 +329,28 @@ export default function OptimizationScreen() {
             }
           : piece,
       ),
+    );
+    toast({
+      title: `Accepted ${group.requirement.label}`,
+      description: `${shortId(candidate.pieceId)} · usage ${updated.usageCount}${
+        inspectionDue ? ' · flagged for inspection after this use' : ''
+      }`,
+      variant: inspectionDue ? 'warning' : 'success',
+    });
+  }
+
+  function handleRestoreDeclined(group: MatchGroup, candidate: InventoryMatch) {
+    updateWorkflow((current) =>
+      restoreDeclinedCandidate(
+        current,
+        declinedKey(group.requirement.id, candidate.pieceId),
+      ),
+    );
+  }
+
+  function handleResetRequirement(group: MatchGroup) {
+    updateWorkflow((current) =>
+      resetRequirementDecisions(current, group.requirement.id),
     );
   }
 
@@ -449,63 +516,145 @@ export default function OptimizationScreen() {
           icon={PackageSearch}
           title="No formwork requirements yet"
           description="Add structural members or lumber requirements to see reuse matches."
+          action={
+            <Button asChild>
+              <Link to="../members">Add structural members</Link>
+            </Button>
+          }
         />
       ) : step === 'reuse' ? (
-        <>
-          <Card>
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm">
-              <div className="space-y-1">
-                <p>
-                  <span className="font-medium">{satisfiedRequirementIds.size}</span> of{' '}
-                  {groups.length} requirements satisfied
-                </p>
-                {newStockRequirementIds.size > 0 && (
-                  <p className="text-muted-foreground">
-                    {newStockRequirementIds.size} planned from new stock
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">
-                  {optimization.remainingPanels.length +
-                    optimization.remainingLumberRequirements.length}{' '}
-                  remaining for cutting
-                </span>
-                {hasResettableDecisions && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={handleResetDecisions}
-                  >
-                    Reset decisions
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {visibleGroups.length === 0 ? (
+        pieces.length === 0 ? (
+          <EmptyState
+            icon={PackageSearch}
+            title="No inventory pieces yet"
+            description="Add reusable pieces or record offcuts before reviewing matches."
+            action={
+              <Button asChild>
+                <Link to="../inventory">Add inventory</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <>
             <Card>
-              <CardContent className="py-8 text-center">
-                <p className="font-medium">All requirements are planned from new stock.</p>
-                <p className="text-sm text-muted-foreground">
-                  Continue to Plan cuts to arrange the remaining material.
-                </p>
+              <CardContent className="space-y-3 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1 text-sm">
+                    <p data-testid="reuse-progress-summary">
+                      <span className="font-medium">{decided}</span> of {reviews.length}{' '}
+                      requirements decided
+                    </p>
+                    <p className="text-muted-foreground">
+                      {remainingForCutting} remaining for cutting
+                    </p>
+                  </div>
+                  {hasResettableDecisions && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={handleResetDecisions}
+                    >
+                      Reset decisions
+                    </Button>
+                  )}
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label="Reuse review progress"
+                  aria-valuemin={0}
+                  aria-valuemax={reviews.length}
+                  aria-valuenow={decided}
+                  className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width]"
+                    style={{ width: `${Math.round((decided / reviews.length) * 100)}%` }}
+                  />
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            <MatchGroups
-              groups={visibleGroups}
-              satisfiedRequirementIds={satisfiedRequirementIds}
-              acceptedByRequirement={acceptedByRequirement}
-              declinedCandidates={declinedCandidates}
-              onAccept={(group, candidate) => void handleAccept(group, candidate)}
-              onDecline={handleDecline}
-              onPlanFromNewStock={handlePlanFromNewStock}
-            />
-          )}
-        </>
+
+            {allSatisfied && (
+              <Card>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div className="space-y-1">
+                    <p className="font-medium">
+                      All requirements covered by reusable inventory
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Every requirement is matched to existing stock, so nothing needs new
+                      material.
+                    </p>
+                  </div>
+                  <Button type="button" onClick={() => handleStepChange('cuts')}>
+                    Continue to Plan cuts <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {!allSatisfied && allRemainingOversized && (
+              <Card>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div className="space-y-1">
+                    <p className="font-medium">Remaining panels exceed stock sizes</p>
+                    <p className="text-sm text-muted-foreground">
+                      Increase the phenolic sheet or lumber stock sizes to plan these cuts.
+                    </p>
+                  </div>
+                  <Button asChild>
+                    <Link to="../settings">Review stock sizes</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            <div
+              role="group"
+              aria-label="Filter requirements by status"
+              className="flex flex-wrap gap-1.5"
+            >
+              {REUSE_STATUSES.map((status) => (
+                <Button
+                  key={status}
+                  type="button"
+                  size="sm"
+                  variant={statusFilter === status ? 'default' : 'outline'}
+                  aria-pressed={statusFilter === status}
+                  onClick={() => setStatusFilter(status)}
+                >
+                  {REUSE_STATUS_LABELS[status]} ({reviewCounts[status]})
+                </Button>
+              ))}
+            </div>
+
+            {filteredReviews.length === 0 ? (
+              <Card>
+                <CardContent className="space-y-3 py-8 text-center">
+                  <p className="font-medium">
+                    No requirements in {REUSE_STATUS_LABELS[statusFilter]}.
+                  </p>
+                  {allDecided && !allSatisfied && !allRemainingOversized && (
+                    <Button type="button" onClick={() => handleStepChange('cuts')}>
+                      Continue to Plan cuts <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <MatchGroups
+                reviews={filteredReviews}
+                memberColors={memberColors}
+                onAccept={(group, candidate) => void handleAccept(group, candidate)}
+                onDecline={handleDecline}
+                onRestoreDeclined={handleRestoreDeclined}
+                onPlanFromNewStock={handlePlanFromNewStock}
+                onResetRequirement={handleResetRequirement}
+              />
+            )}
+          </>
+        )
       ) : (
         <CuttingPlans
           optimization={optimization}

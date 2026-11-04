@@ -45,6 +45,7 @@ export interface MatchRequirement {
   id: string;
   materialType: MaterialType;
   label: string;
+  memberId?: string;
   length: number;
   width?: number;
   crossSection?: CrossSection;

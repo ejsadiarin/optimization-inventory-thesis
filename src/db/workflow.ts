@@ -82,6 +82,44 @@ export function clearWorkflowDecisions(
   };
 }
 
+export function declinedKey(requirementId: string, pieceId: string): string {
+  return `${requirementId}::${pieceId}`;
+}
+
+export function restoreDeclinedCandidate(
+  workflow: OptimizationWorkflow,
+  key: string,
+): OptimizationWorkflow {
+  if (!workflow.declinedCandidates.includes(key)) return workflow;
+
+  return {
+    ...workflow,
+    declinedCandidates: workflow.declinedCandidates.filter((candidate) => candidate !== key),
+  };
+}
+
+export function resetRequirementDecisions(
+  workflow: OptimizationWorkflow,
+  requirementId: string,
+): OptimizationWorkflow {
+  const prefix = `${requirementId}::`;
+  const declinedCandidates = workflow.declinedCandidates.filter(
+    (key) => !key.startsWith(prefix),
+  );
+  const newStockRequirementIds = workflow.newStockRequirementIds.filter(
+    (id) => id !== requirementId,
+  );
+
+  if (
+    declinedCandidates.length === workflow.declinedCandidates.length &&
+    newStockRequirementIds.length === workflow.newStockRequirementIds.length
+  ) {
+    return workflow;
+  }
+
+  return { ...workflow, declinedCandidates, newStockRequirementIds };
+}
+
 export function invalidateWorkflow(
   workflow: OptimizationWorkflow,
   requirements: readonly MatchRequirement[],

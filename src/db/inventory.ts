@@ -16,12 +16,13 @@ import {
   projectDoc,
   requireProjectId,
 } from '@/lib/firestore-helpers';
-import type {
-  CrossSection,
-  MaterialType,
-  Piece,
-  PieceCondition,
-  UsageLogEntry,
+import {
+  INSPECTION_USAGE_THRESHOLD,
+  type CrossSection,
+  type MaterialType,
+  type Piece,
+  type PieceCondition,
+  type UsageLogEntry,
 } from './types';
 import { generateId } from '@/lib/ids';
 import { normalizePieceDimensions } from '@/lib/pieces';
@@ -227,7 +228,9 @@ export async function recordUsage(
   }
 
   const usageCount = piece.usageCount + 1;
-  const crossedInspectionThreshold = piece.usageCount < 5 && usageCount >= 5;
+  const crossedInspectionThreshold =
+    piece.usageCount < INSPECTION_USAGE_THRESHOLD &&
+    usageCount >= INSPECTION_USAGE_THRESHOLD;
   const condition: PieceCondition = crossedInspectionThreshold
     ? 'For Inspection'
     : piece.condition;

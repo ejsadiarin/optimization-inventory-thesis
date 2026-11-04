@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
@@ -9,6 +9,7 @@ import { addPiece, getPiece, getUsageLog, listPieces, recordUsage, retirePiece }
 import { createLumberRequirement, createStructuralMember, deleteStructuralMember } from '@/db/members';
 import * as membersDb from '@/db/members';
 import { saveCuttingPlanSnapshot } from '@/db/plans';
+import { shortId } from '@/lib/format';
 import {
   getOptimizationWorkflow,
 } from '@/db/workflow';
@@ -61,7 +62,7 @@ async function renderOptimize(projectId: string, search = '') {
 }
 
 async function openCutsStep(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /plan cuts/i }));
+  await user.click(screen.getByRole('button', { name: /^plan cuts/i }));
 }
 
 describe('OptimizationScreen matching', () => {
@@ -116,9 +117,15 @@ describe('OptimizationScreen matching', () => {
 
     await user.click(screen.getByRole('button', { name: /accept/i }));
 
-    expect(await screen.findByText(/usage 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
+    expect(screen.getByText(/usage 1/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(`${shortId(piece.id)} · usage 1`, 'i')),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/all requirements covered by reusable inventory/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^accept /i })).not.toBeInTheDocument();
 
     const log = await getUsageLog(project.id, piece.id);
     expect(log).toHaveLength(1);
@@ -146,10 +153,12 @@ describe('OptimizationScreen matching', () => {
     }
 
     await renderOptimize(project.id);
+    expect(screen.getByText(/inspection after this use/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /accept/i }));
 
-    expect(await screen.findByText(/usage 5/i)).toBeInTheDocument();
-    expect(await screen.findByText(/for inspection/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
+    expect(screen.getByText(/usage 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/flagged for inspection after this use/i)).toBeInTheDocument();
     await expect(getPiece(project.id, piece.id)).resolves.toMatchObject({
       usageCount: 5,
       condition: 'For Inspection',
@@ -174,13 +183,15 @@ describe('OptimizationScreen matching', () => {
 
     const first = await renderOptimize(project.id);
     await user.click(screen.getByRole('button', { name: /accept/i }));
-    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
     first.unmount();
 
     await renderOptimize(project.id);
 
-    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/all requirements covered by reusable inventory/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^accept /i })).not.toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
   });
 
@@ -211,9 +222,13 @@ describe('OptimizationScreen matching', () => {
 
     await user.click(screen.getAllByRole('button', { name: /accept/i })[0]!);
 
-    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/no active inventory pieces match/i)).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
+    expect(screen.getByText(/all matching pieces are assigned to other requirements/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 matching piece assigned to other requirements/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^accept /i })).not.toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
   });
 
@@ -239,7 +254,8 @@ describe('OptimizationScreen matching', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
     });
-    expect(screen.getByText(/no active inventory pieces match/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
+    expect(screen.getByText(/all matching pieces have been declined/i)).toBeInTheDocument();
     expect(screen.queryByText('Satisfied')).not.toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(0);
     await expect(getPiece(project.id, piece.id)).resolves.toMatchObject({ usageCount: 0 });
@@ -313,14 +329,17 @@ describe('OptimizationScreen workflow persistence', () => {
     );
 
     expect(
-      await screen.findByText(/all requirements are planned from new stock/i),
+      await screen.findByRole('button', { name: /new stock \(1\)/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/1 planned from new stock/i)).toBeInTheDocument();
+    expect(screen.getByText(/no requirements in needs decision/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /continue to plan cuts/i }),
+    ).toBeInTheDocument();
     first.unmount();
 
     await renderOptimize(project.id);
 
-    expect(screen.getByText(/all requirements are planned from new stock/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new stock \(1\)/i })).toBeInTheDocument();
     await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
       newStockRequirementIds: [requirement.id],
       declinedCandidates: [],
@@ -331,9 +350,7 @@ describe('OptimizationScreen workflow persistence', () => {
     expect(
       await screen.findByRole('button', { name: /accept .* for brace a/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/all requirements are planned from new stock/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/no requirements in needs decision/i)).not.toBeInTheDocument();
   });
 
   it('resets declines and new-stock marks without clearing accepted matches', async () => {
@@ -368,19 +385,20 @@ describe('OptimizationScreen workflow persistence', () => {
     await user.click(
       screen.getAllByRole('button', { name: /accept .* for brace a/i })[0]!,
     );
-    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
     await user.click(
       screen.getAllByRole('button', { name: /decline .* for brace b/i })[0]!,
     );
 
     await user.click(screen.getByRole('button', { name: /reset decisions/i }));
 
-    expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(
         screen.getAllByRole('button', { name: /accept .* for brace b/i }).length,
       ).toBeGreaterThan(0);
     });
+    await user.click(screen.getByRole('button', { name: /satisfied \(1\)/i }));
+    expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
     const storedWorkflow = await getOptimizationWorkflow(project.id);
     const acceptedPieceId = storedWorkflow?.acceptedByRequirement[acceptedRequirement.id];
     expect(acceptedPieceId).toBeDefined();
@@ -410,14 +428,15 @@ describe('OptimizationScreen workflow persistence', () => {
 
     const first = await renderOptimize(project.id);
     await user.click(screen.getByRole('button', { name: /accept/i }));
-    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
     first.unmount();
 
     await retirePiece(project.id, piece.id);
     await renderOptimize(project.id);
 
     expect(screen.queryByText(/excluded from cutting/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/no active inventory pieces match/i)).toBeInTheDocument();
+    expect(screen.getByText(/no inventory pieces yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /add inventory/i })).toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
     await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
       satisfiedRequirementIds: [],
@@ -446,13 +465,16 @@ describe('OptimizationScreen workflow persistence', () => {
 
     const first = await renderOptimize(project.id);
     await user.click(screen.getByRole('button', { name: /accept/i }));
-    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(await screen.findByText(/accepted s1/i)).toBeInTheDocument();
     first.unmount();
 
     await deleteStructuralMember(project.id, member.id);
     await renderOptimize(project.id);
 
     expect(screen.getByText(/no formwork requirements yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /add structural members/i }),
+    ).toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
     await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
       satisfiedRequirementIds: [],
@@ -488,9 +510,7 @@ describe('OptimizationScreen workflow persistence', () => {
       'step',
     );
     expect(screen.queryByRole('heading', { name: /cutting plans/i })).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /plan s1 from new stock/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/no inventory pieces yet/i)).toBeInTheDocument();
   });
 
   it('deep-links to the cuts step', async () => {
@@ -542,7 +562,12 @@ describe('OptimizationScreen workflow persistence', () => {
       'aria-current',
       'step',
     );
-    expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/all requirements covered by reusable inventory/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /continue to plan cuts/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
     await expect(getOptimizationWorkflow(project.id)).resolves.toBeNull();
   });
@@ -794,5 +819,381 @@ describe('OptimizationScreen SVG export', () => {
     await user.click(screen.getByRole('button', { name: /export all sheets/i }));
 
     expect(createObjectURL).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('OptimizationScreen reuse review', () => {
+  it('filters requirements by status and defaults to needs decision', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Filter Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Long Brace',
+      length: 7,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+
+    expect(screen.getByRole('button', { name: /needs decision \(2\)/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: /satisfied \(0\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new stock \(0\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /no match \(1\)/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^accept /i })).toHaveLength(2);
+    expect(screen.queryByText('Long Brace')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
+
+    expect(screen.getByText('Long Brace')).toBeInTheDocument();
+    expect(screen.getByText(/no active inventory pieces match/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /satisfied \(0\)/i }));
+
+    expect(screen.getByText(/no requirements in satisfied/i)).toBeInTheDocument();
+  });
+
+  it('tracks progress across accepted, new-stock, declined, and unmatched requirements', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Progress Site' });
+    for (const label of ['Brace A', 'Brace B', 'Brace C']) {
+      await createLumberRequirement({
+        projectId: project.id,
+        label,
+        length: 2.4,
+        crossSection: '2x3',
+      });
+    }
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Long Brace',
+      length: 7,
+      crossSection: '2x3',
+    });
+    for (let index = 0; index < 3; index += 1) {
+      await addPiece({
+        projectId: project.id,
+        materialType: 'lumber',
+        length: 3,
+        crossSection: '2x3',
+      });
+    }
+
+    await renderOptimize(project.id);
+    const progress = () => screen.getByRole('progressbar', { name: /reuse review progress/i });
+
+    expect(progress()).toHaveAttribute('aria-valuenow', '1');
+    expect(screen.getByTestId('reuse-progress-summary')).toHaveTextContent(
+      '1 of 4 requirements decided',
+    );
+
+    await user.click(
+      screen.getAllByRole('button', { name: /accept .* for brace a/i })[0]!,
+    );
+    await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '2'));
+
+    await user.click(screen.getByRole('button', { name: /plan brace b from new stock/i }));
+    await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '3'));
+
+    while (
+      screen.queryAllByRole('button', { name: /decline .* for brace c/i }).length > 0
+    ) {
+      await user.click(
+        screen.getAllByRole('button', { name: /decline .* for brace c/i })[0]!,
+      );
+    }
+
+    await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '4'));
+    expect(screen.getByTestId('reuse-progress-summary')).toHaveTextContent(
+      '4 of 4 requirements decided',
+    );
+    expect(
+      screen.getByRole('button', { name: /continue to plan cuts/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the top three candidates until the list is expanded', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Top Three Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    for (let index = 0; index < 4; index += 1) {
+      await addPiece({
+        projectId: project.id,
+        materialType: 'lumber',
+        length: 3,
+        crossSection: '2x3',
+      });
+    }
+
+    await renderOptimize(project.id);
+
+    expect(screen.getAllByRole('button', { name: /^accept /i })).toHaveLength(3);
+
+    await user.click(
+      screen.getByRole('button', { name: /show all 4 candidates for brace a/i }),
+    );
+
+    expect(screen.getAllByRole('button', { name: /^accept /i })).toHaveLength(4);
+
+    await user.click(
+      screen.getByRole('button', { name: /show fewer 4 candidates for brace a/i }),
+    );
+
+    expect(screen.getAllByRole('button', { name: /^accept /i })).toHaveLength(3);
+  });
+
+  it('groups cards by structural member with a color tag', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Group Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 0.5,
+      width: 0.3,
+      height: 3,
+    });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 1,
+      width: 1,
+      thickness: 0.018,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 1,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /no match \(5\)/i }));
+
+    const column = screen.getByRole('region', { name: 'C1' });
+    expect(within(column).getByRole('heading', { name: 'C1' })).toBeInTheDocument();
+    expect(column.querySelector('span[aria-hidden="true"]')?.getAttribute('style')).toContain(
+      'background-color',
+    );
+    expect(
+      screen.getByRole('region', { name: 'Lumber requirements' }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /needs decision \(1\)/i }));
+
+    const slab = screen.getByRole('region', { name: 'S1' });
+    expect(within(slab).getByRole('heading', { name: 'S1' })).toBeInTheDocument();
+  });
+
+  it('restores a declined candidate', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Restore Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /^decline /i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /no match \(1\)/i })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
+    expect(screen.getByText(/all matching pieces have been declined/i)).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: /show declined candidates for brace a/i }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /restore .* for brace a/i }),
+    );
+
+    expect(
+      await screen.findByRole('button', { name: /needs decision \(1\)/i }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /needs decision \(1\)/i }));
+    expect(screen.getByRole('button', { name: /^accept /i })).toBeInTheDocument();
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      declinedCandidates: [],
+    });
+  });
+
+  it('resets one requirement without touching the others', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Per Requirement Reset Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace B',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    for (let index = 0; index < 2; index += 1) {
+      await addPiece({
+        projectId: project.id,
+        materialType: 'lumber',
+        length: 3,
+        crossSection: '2x3',
+      });
+    }
+
+    await renderOptimize(project.id);
+
+    while (
+      screen.queryAllByRole('button', { name: /decline .* for brace a/i }).length > 0
+    ) {
+      await user.click(
+        screen.getAllByRole('button', { name: /decline .* for brace a/i })[0]!,
+      );
+    }
+
+    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
+    await user.click(
+      screen.getByRole('button', { name: /reset decisions for brace a/i }),
+    );
+
+    await user.click(screen.getByRole('button', { name: /needs decision \(2\)/i }));
+    expect(screen.getAllByRole('button', { name: /^accept /i }).length).toBeGreaterThan(0);
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      declinedCandidates: [],
+    });
+
+    await user.click(screen.getByRole('button', { name: /plan brace b from new stock/i }));
+    await user.click(screen.getByRole('button', { name: /new stock \(1\)/i }));
+    await user.click(
+      screen.getByRole('button', { name: /reset decisions for brace b/i }),
+    );
+
+    expect(
+      await screen.findByRole('button', { name: /needs decision \(2\)/i }),
+    ).toBeInTheDocument();
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      newStockRequirementIds: [],
+    });
+  });
+
+  it('keeps declined candidates reachable after planning from new stock', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Declined New Stock Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    for (let index = 0; index < 2; index += 1) {
+      await addPiece({
+        projectId: project.id,
+        materialType: 'lumber',
+        length: 3,
+        crossSection: '2x3',
+      });
+    }
+
+    await renderOptimize(project.id);
+    await user.click(
+      screen.getAllByRole('button', { name: /decline .* for brace a/i })[0]!,
+    );
+    await user.click(screen.getByRole('button', { name: /plan brace a from new stock/i }));
+    await user.click(screen.getByRole('button', { name: /new stock \(1\)/i }));
+
+    expect(
+      screen.getByRole('button', { name: /show declined candidates for brace a/i }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: /show declined candidates for brace a/i }),
+    );
+    expect(
+      screen.getByRole('button', { name: /restore .* for brace a/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('points oversized-only requirements at the stock settings', async () => {
+    const project = await seedProject({ name: 'Oversized Review Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'Big Slab',
+      length: 0.6,
+      width: 3.5,
+      height: 0,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.2,
+      width: 0.2,
+      thickness: 0.018,
+    });
+
+    await renderOptimize(project.id);
+
+    expect(screen.getByText(/remaining panels exceed stock sizes/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /review stock sizes/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^accept /i })).not.toBeInTheDocument();
   });
 });

@@ -8,10 +8,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type ToastVariant = 'default' | 'success' | 'error';
+export type ToastVariant = 'default' | 'success' | 'error' | 'warning';
 
 export interface ToastOptions {
   title: string;
@@ -42,6 +42,11 @@ const TOAST_VARIANTS: Record<
     iconClassName: 'text-emerald-600',
   },
   error: { border: 'border-destructive/40', icon: AlertCircle, iconClassName: 'text-destructive' },
+  warning: {
+    border: 'border-amber-600/40',
+    icon: AlertTriangle,
+    iconClassName: 'text-amber-600',
+  },
 };
 
 export function useToast() {

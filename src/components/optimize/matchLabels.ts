@@ -22,7 +22,3 @@ export function requirementDimensions(requirement: MatchRequirement): string {
 export function candidateDimensions(piece: MatchPiece): string {
   return materialDimensions(piece);
 }
-
-export function declinedKey(requirementId: string, pieceId: string): string {
-  return `${requirementId}::${pieceId}`;
-}
