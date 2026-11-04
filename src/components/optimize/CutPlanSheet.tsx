@@ -1,11 +1,12 @@
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { PlywoodSheetPlan } from '@/engine/types';
+import type { PlacedPanel, PlywoodSheetPlan } from '@/engine/types';
 import { formatMeters } from '@/lib/format';
 import { MEMBER_COLORS } from './memberColors';
 
 const SHEET_PADDING = 0.09;
 const PANEL_STROKE = '#0f172a';
+const LABEL_LINE_HEIGHT = 1.15;
 
 export interface SheetDiagramProps {
   sheet: PlywoodSheetPlan;
@@ -25,6 +26,48 @@ export interface CutPlanSheetProps {
 
 function panelFontSize(length: number, width: number): number {
   return Math.min(0.08, Math.max(0.028, Math.min(length, width) * 0.18));
+}
+
+interface PanelLabelLine {
+  text: string;
+  fontSize: number;
+  fontWeight?: number;
+  fill: string;
+  y: number;
+}
+
+/**
+ * Lay out every panel label line at an explicit baseline.
+ *
+ * Do not reintroduce `dominantBaseline` here. Firefox applies the text
+ * baseline shift on top of the absolute `y` of child tspans, which pushes the
+ * whole label block below its panel (Chrome happens to render it correctly).
+ * One `<text>` per line with a plain alphabetic `y` renders consistently.
+ */
+function panelLabelLines(panel: PlacedPanel): PanelLabelLine[] {
+  const fontSize = panelFontSize(panel.length, panel.width);
+  const lines = [
+    { text: panel.label, fontSize, fontWeight: 600, fill: '#0f172a' },
+    {
+      text: `${panel.length.toFixed(2)} × ${panel.width.toFixed(2)} m`,
+      fontSize: fontSize * 0.8,
+      fill: '#0f172a',
+    },
+    ...(panel.rotated
+      ? [{ text: 'rotated', fontSize: fontSize * 0.62, fill: '#475569' }]
+      : []),
+  ];
+  const lineHeights = lines.map((line) => line.fontSize * LABEL_LINE_HEIGHT);
+  let cursor =
+    panel.y +
+    panel.width / 2 -
+    lineHeights.reduce((total, height) => total + height, 0) / 2;
+
+  return lines.map((line, index) => {
+    const baseline = cursor + line.fontSize * 0.8;
+    cursor += lineHeights[index] ?? 0;
+    return { ...line, y: baseline };
+  });
 }
 
 export function SheetDiagram({
@@ -148,41 +191,22 @@ export function SheetDiagram({
       {!decorative &&
         sheet.panels.map((panel) => {
           const centerX = panel.x + panel.length / 2;
-          const centerY = panel.y + panel.width / 2;
-          const fontSize = panelFontSize(panel.length, panel.width);
 
-          return (
+          return panelLabelLines(panel).map((line, index) => (
             <text
-              key={`label-${panel.panelId}`}
+              key={`label-${panel.panelId}-${index}`}
+              data-testid={`panel-label-${panel.panelId}-${index}`}
+              data-panel-label={panel.panelId}
               x={centerX}
-              y={centerY}
+              y={line.y}
               textAnchor="middle"
-              dominantBaseline="middle"
-              fill="#0f172a"
+              fontSize={line.fontSize}
+              fontWeight={line.fontWeight}
+              fill={line.fill}
             >
-              <tspan
-                x={centerX}
-                y={centerY - fontSize * 0.4}
-                fontSize={fontSize}
-                fontWeight={600}
-              >
-                {panel.label}
-              </tspan>
-              <tspan x={centerX} y={centerY + fontSize * 0.8} fontSize={fontSize * 0.8}>
-                {panel.length.toFixed(2)} × {panel.width.toFixed(2)} m
-              </tspan>
-              {panel.rotated && (
-                <tspan
-                  x={centerX}
-                  y={centerY + fontSize * 1.55}
-                  fontSize={fontSize * 0.62}
-                  fill="#475569"
-                >
-                  rotated
-                </tspan>
-              )}
+              {line.text}
             </text>
-          );
+          ));
         })}
     </svg>
   );

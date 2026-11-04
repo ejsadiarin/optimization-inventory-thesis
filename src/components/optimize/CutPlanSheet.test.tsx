@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CutPlanSheet from './CutPlanSheet';
 import { buildMemberColorMap } from './memberColors';
+import { serializeSvg } from '@/lib/download';
 import type { PlywoodSheetPlan } from '@/engine/types';
 
 const STOCK = { length: 2.44, width: 1.22 };
@@ -102,6 +103,56 @@ describe('CutPlanSheet', () => {
     expect(screen.getByText('1.22 × 0.50 m')).toBeInTheDocument();
     expect(screen.getByText('B1')).toBeInTheDocument();
     expect(screen.getByText('0.60 × 1.00 m')).toBeInTheDocument();
+  });
+
+  it('keeps every label line inside its panel without dominant-baseline', () => {
+    const c1Panels = Array.from({ length: 4 }, (_, index) => ({
+      panelId: `C1-panel-${index + 1}`,
+      label: 'C1',
+      x: 0,
+      y: index * 0.3,
+      length: 2.2,
+      width: 0.3,
+      rotated: true,
+    }));
+    const b1Panels = [
+      { panelId: 'B1-panel-1', label: 'B1', x: 0, y: 0, length: 2, width: 0.4, rotated: false },
+      { panelId: 'B1-panel-2', label: 'B1', x: 0, y: 0.4, length: 2, width: 0.4, rotated: false },
+      { panelId: 'B1-panel-3', label: 'B1', x: 0, y: 0.8, length: 2, width: 0.2, rotated: false },
+    ];
+
+    renderSheet({ panels: [...c1Panels, ...b1Panels] });
+
+    const svg = screen.getByTestId('cut-plan-sheet-0');
+    // Firefox shifts a whole text block when dominant-baseline is combined with
+    // absolute child y coordinates, so labels must not rely on it.
+    expect(svg.querySelector('[dominant-baseline]')).toBeNull();
+
+    for (const panel of [...c1Panels, ...b1Panels]) {
+      const rect = panelRect(panel.panelId);
+      const panelTop = Number(rect.getAttribute('y'));
+      const panelHeight = Number(rect.getAttribute('height'));
+      const panelBottom = panelTop + panelHeight;
+      const lines = Array.from(svg.querySelectorAll(`text[data-panel-label="${panel.panelId}"]`));
+
+      expect(lines.length).toBeGreaterThan(0);
+
+      for (const line of lines) {
+        const baseline = Number(line.getAttribute('y'));
+        expect(baseline).toBeGreaterThan(panelTop);
+        expect(baseline).toBeLessThan(panelBottom);
+      }
+
+      const firstBaseline = Number(lines[0]!.getAttribute('y'));
+      const lastBaseline = Number(lines[lines.length - 1]!.getAttribute('y'));
+      const labelCenter = (firstBaseline + lastBaseline) / 2;
+      expect(labelCenter).toBeGreaterThan(panelTop + panelHeight * 0.3);
+      expect(labelCenter).toBeLessThan(panelBottom - panelHeight * 0.3);
+    }
+
+    const exported = serializeSvg(svg as unknown as SVGSVGElement);
+    expect(exported).toContain('data-panel-label');
+    expect(exported).toContain('2.20 × 0.30 m');
   });
 
   it('hatches reusable offcuts gray and waste red', () => {
