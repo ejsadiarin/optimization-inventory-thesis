@@ -322,6 +322,7 @@ describe('OptimizationScreen workflow persistence', () => {
       crossSection: '2x4',
     });
 
+    const user = userEvent.setup();
     const first = await renderOptimize(project.id);
 
     expect(
@@ -332,12 +333,20 @@ describe('OptimizationScreen workflow persistence', () => {
       screen.getByRole('button', { name: /continue to plan cuts/i }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /plan .* from new stock/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /continue to plan cuts/i }));
+    expect(await screen.findByText(/Brace A/)).toBeInTheDocument();
     first.unmount();
 
     await renderOptimize(project.id);
 
-    expect(screen.getByRole('button', { name: /new stock \(1\)/i })).toBeInTheDocument();
-    await expect(getOptimizationWorkflow(project.id)).resolves.toBeNull();
+    expect(screen.getByText(/lumber cuts/i)).toBeInTheDocument();
+    expect(screen.getByText(/Brace A/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^reuse inventory/i }));
+    expect(
+      await screen.findByRole('button', { name: /new stock \(1\)/i }),
+    ).toBeInTheDocument();
+    const stored = await getOptimizationWorkflow(project.id);
+    expect(stored).not.toHaveProperty('newStockRequirementIds');
   });
 
   it('resets declines without clearing accepted matches', async () => {
@@ -793,6 +802,7 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.getByRole('tab', { name: /lumber \(1\)/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /offcuts \(2\)/i })).toBeInTheDocument();
     expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
+    expect(screen.queryByTestId('cut-unplaced')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /lumber \(1\)/i }));
     expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();

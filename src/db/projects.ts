@@ -141,7 +141,7 @@ export async function updateProjectSettings(
   if (!existing) return undefined;
 
   const writePromise = updateDoc(projectRef(projectId), {
-    costs: copyCosts(settings.costs),
+    ...(settings.costs ? { costs: copyCosts(settings.costs) } : {}),
     stock: copyStock(settings.stock),
   });
   queueWrite(writePromise);

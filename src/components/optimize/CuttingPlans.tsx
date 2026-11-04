@@ -455,7 +455,8 @@ export default function CuttingPlans({
                 Unplaced ({unplacedCount})
               </CardTitle>
               <InfoHint label="Unplaced items">
-                These pieces are larger than the configured stock and cannot be cut from it.
+                Panels need a larger phenolic sheet; lumber needs a longer stock length.
+                Change either in Settings.
               </InfoHint>
             </div>
           </CardHeader>

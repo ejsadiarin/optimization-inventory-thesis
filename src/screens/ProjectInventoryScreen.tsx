@@ -110,6 +110,7 @@ export default function ProjectInventoryScreen() {
   const { toast } = useToast();
   const isDesktop = useIsDesktop();
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [hasAnyPieces, setHasAnyPieces] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const loadedOnceRef = useRef(false);
@@ -128,7 +129,12 @@ export default function ProjectInventoryScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      setPieces(await getActivePieces(project.id));
+      const [activePieces, allPieces] = await Promise.all([
+        getActivePieces(project.id),
+        listPieces(project.id),
+      ]);
+      setPieces(activePieces);
+      setHasAnyPieces(allPieces.length > 0);
       loadedOnceRef.current = true;
       setLoadError('');
     } catch {
@@ -211,9 +217,9 @@ export default function ProjectInventoryScreen() {
         title="Inventory"
         description="Track every phenolic board and lumber piece across its lifecycle."
         actions={
-          loading || Boolean(loadError) || pieces.length > 0 ? (
+          loading || Boolean(loadError) || hasAnyPieces ? (
             <div className="flex flex-wrap gap-2">
-              {pieces.length > 0 && (
+              {hasAnyPieces && (
                 <Button
                   type="button"
                   variant="outline"

@@ -141,6 +141,15 @@ describe('projects on Firestore', () => {
     await expect(getProject(created.project.id)).resolves.toMatchObject({
       costs: { phenolicPerSheet: 920, lumberPerPiece: 145 },
     });
+
+    await updateProjectSettings(created.project.id, {
+      stock: { phenolic: { length: 3, width: 1.5, thickness: 0.018 }, lumberLengths: [2.4] },
+    });
+
+    await expect(getProject(created.project.id)).resolves.toMatchObject({
+      costs: { phenolicPerSheet: 920, lumberPerPiece: 145 },
+      stock: { phenolic: { length: 3, width: 1.5, thickness: 0.018 } },
+    });
   });
 
   it('backfills the phenolic thickness for projects saved before the setting existed', async () => {
