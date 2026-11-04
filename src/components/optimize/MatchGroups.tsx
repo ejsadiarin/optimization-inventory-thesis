@@ -13,6 +13,7 @@ export interface MatchGroupsProps {
   declinedCandidates: ReadonlySet<string>;
   onAccept: (group: MatchGroup, candidate: InventoryMatch) => void;
   onDecline: (group: MatchGroup, candidate: InventoryMatch) => void;
+  onPlanFromNewStock: (group: MatchGroup) => void;
 }
 
 export default function MatchGroups({
@@ -22,6 +23,7 @@ export default function MatchGroups({
   declinedCandidates,
   onAccept,
   onDecline,
+  onPlanFromNewStock,
 }: MatchGroupsProps) {
   return (
     <>
@@ -117,8 +119,19 @@ export default function MatchGroups({
                 ))
               )}
 
-              {satisfied && (
+              {satisfied ? (
                 <p className="text-sm font-medium text-emerald-700">Excluded from cutting.</p>
+              ) : (
+                <div className="border-t pt-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Plan ${requirement.label} from new stock`}
+                    onClick={() => onPlanFromNewStock(group)}
+                  >
+                    Plan from new stock
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

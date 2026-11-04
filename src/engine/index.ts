@@ -13,7 +13,7 @@ import type {
   PlywoodPlan,
 } from './types';
 
-function toMatchRequirements(
+export function toMatchRequirements(
   panels: readonly PanelRequirement[],
   lumberRequirements: OptimizeInput['lumberRequirements'],
 ): MatchRequirement[] {

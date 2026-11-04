@@ -8,7 +8,13 @@ import { PageHeader } from '@/components/ui/page-header';
 import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
+import {
+  getOptimizationWorkflow,
+  invalidateWorkflow,
+  saveOptimizationWorkflow,
+} from '@/db/workflow';
 import type { Project } from '@/db/types';
+import { toMatchRequirements } from '@/engine';
 import { decomposeMember } from '@/engine/decompose';
 import { buildProjectSummary, type ProjectSummary } from '@/engine/report';
 import type { LumberRequirementInput } from '@/engine/types';
@@ -75,11 +81,12 @@ export default function ProjectSummaryScreen() {
     setLoading(true);
     setError('');
     try {
-      const [members, lumberRequirements, pieces, savedPlan] = await Promise.all([
+      const [members, lumberRequirements, pieces, savedPlan, workflow] = await Promise.all([
         listStructuralMembers(project.id),
         listLumberRequirements(project.id),
         listPieces(project.id),
         getLatestCuttingPlan(project.id),
+        getOptimizationWorkflow(project.id),
       ]);
 
       const panels = members.flatMap((member) => decomposeMember(member));
@@ -93,10 +100,29 @@ export default function ProjectSummaryScreen() {
         ...panels.map((panel) => panel.id),
         ...lumberInputs.map((requirement) => requirement.id),
       ]);
-      const satisfiedRequirementIds = savedPlan
+      const snapshot = savedPlan
         ? filterCuttingPlanSnapshot(savedPlan.snapshot, requirementIds)
-            .satisfiedRequirementIds
-        : [];
+        : { satisfiedRequirementIds: [], acceptedByRequirement: {} };
+      const matchPieces = pieces.map(toMatchPiece);
+      const resolvedWorkflow = workflow
+        ? invalidateWorkflow(
+            workflow,
+            toMatchRequirements(panels, lumberInputs),
+            matchPieces,
+          )
+        : null;
+      if (resolvedWorkflow && resolvedWorkflow !== workflow) {
+        void saveOptimizationWorkflow(project.id, resolvedWorkflow);
+      }
+      const decisions = resolvedWorkflow
+        ? filterCuttingPlanSnapshot(
+            {
+              satisfiedRequirementIds: resolvedWorkflow.satisfiedRequirementIds,
+              acceptedByRequirement: resolvedWorkflow.acceptedByRequirement,
+            },
+            requirementIds,
+          )
+        : snapshot;
 
       setSummary(
         buildProjectSummary({
@@ -104,8 +130,8 @@ export default function ProjectSummaryScreen() {
           lumberRequirements: lumberInputs,
           stock: project.stock,
           costs: project.costs,
-          pieces: pieces.map(toMatchPiece),
-          satisfiedRequirementIds: new Set(satisfiedRequirementIds),
+          pieces: matchPieces,
+          satisfiedRequirementIds: new Set(decisions.satisfiedRequirementIds),
         }),
       );
     } catch {

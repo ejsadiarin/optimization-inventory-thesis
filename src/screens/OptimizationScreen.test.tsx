@@ -5,12 +5,18 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { addPiece, getPiece, getUsageLog, listPieces, recordUsage } from '@/db/inventory';
-import { createLumberRequirement, createStructuralMember } from '@/db/members';
+import { addPiece, getPiece, getUsageLog, listPieces, recordUsage, retirePiece } from '@/db/inventory';
+import { createLumberRequirement, createStructuralMember, deleteStructuralMember } from '@/db/members';
+import * as membersDb from '@/db/members';
+import { saveCuttingPlanSnapshot } from '@/db/plans';
+import {
+  getOptimizationWorkflow,
+} from '@/db/workflow';
 import { seedProject } from '@/test/fixtures';
 import { resetInventoryMock } from '@/test/inventoryMock';
 import { resetMembersMock } from '@/test/membersMock';
 import { resetPlansMock } from '@/test/plansMock';
+import { resetWorkflowMock } from '@/test/workflowMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
@@ -24,18 +30,24 @@ vi.mock('@/db/plans', async (importOriginal) => {
   const mock = await import('@/test/plansMock');
   return { ...actual, ...mock };
 });
+vi.mock('@/db/workflow', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/workflow')>();
+  const mock = await import('@/test/workflowMock');
+  return { ...actual, ...mock };
+});
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetMembersMock();
   resetInventoryMock();
   resetPlansMock();
+  resetWorkflowMock();
 });
 
-async function renderOptimize(projectId: string) {
+async function renderOptimize(projectId: string, search = '') {
   unlockProject(projectId);
   const view = render(
-    <MemoryRouter initialEntries={[`/projects/${projectId}/optimize`]}>
+    <MemoryRouter initialEntries={[`/projects/${projectId}/optimize${search}`]}>
       <TestAuthProvider user={testUser}>
         <App />
       </TestAuthProvider>
@@ -46,6 +58,10 @@ async function renderOptimize(projectId: string) {
     expect(screen.queryByText(/loading matches/i)).not.toBeInTheDocument();
   });
   return view;
+}
+
+async function openCutsStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /plan cuts/i }));
 }
 
 describe('OptimizationScreen matching', () => {
@@ -100,9 +116,6 @@ describe('OptimizationScreen matching', () => {
 
     await user.click(screen.getByRole('button', { name: /accept/i }));
 
-    expect(
-      await screen.findByText(/all requirements satisfied by reused pieces/i),
-    ).toBeInTheDocument();
     expect(await screen.findByText(/usage 1/i)).toBeInTheDocument();
     expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
@@ -161,17 +174,12 @@ describe('OptimizationScreen matching', () => {
 
     const first = await renderOptimize(project.id);
     await user.click(screen.getByRole('button', { name: /accept/i }));
-    expect(
-      await screen.findByText(/all requirements satisfied by reused pieces/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
     first.unmount();
 
     await renderOptimize(project.id);
 
     expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/all requirements satisfied by reused pieces/i),
-    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
   });
@@ -238,8 +246,339 @@ describe('OptimizationScreen matching', () => {
   });
 });
 
+describe('OptimizationScreen workflow persistence', () => {
+  it('persists a decline for one requirement without hiding the piece for another', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Decline Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace B',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    const first = await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /decline .* for brace a/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: /accept .* for brace a/i }),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /accept .* for brace b/i })).toBeInTheDocument();
+    first.unmount();
+
+    await renderOptimize(project.id);
+
+    expect(
+      screen.queryByRole('button', { name: /accept .* for brace a/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /accept .* for brace b/i })).toBeInTheDocument();
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      declinedCandidates: [expect.stringMatching(/::/)],
+    });
+  });
+
+  it('persists plan-from-new-stock without declining its candidates', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'New Stock Site' });
+    const requirement = await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    const first = await renderOptimize(project.id);
+    await user.click(
+      screen.getByRole('button', { name: /plan brace a from new stock/i }),
+    );
+
+    expect(
+      await screen.findByText(/all requirements are planned from new stock/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/1 planned from new stock/i)).toBeInTheDocument();
+    first.unmount();
+
+    await renderOptimize(project.id);
+
+    expect(screen.getByText(/all requirements are planned from new stock/i)).toBeInTheDocument();
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      newStockRequirementIds: [requirement.id],
+      declinedCandidates: [],
+    });
+
+    await user.click(screen.getByRole('button', { name: /reset decisions/i }));
+
+    expect(
+      await screen.findByRole('button', { name: /accept .* for brace a/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/all requirements are planned from new stock/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('resets declines and new-stock marks without clearing accepted matches', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Reset Site' });
+    const acceptedRequirement = await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace B',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+    await user.click(
+      screen.getAllByRole('button', { name: /accept .* for brace a/i })[0]!,
+    );
+    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    await user.click(
+      screen.getAllByRole('button', { name: /decline .* for brace b/i })[0]!,
+    );
+
+    await user.click(screen.getByRole('button', { name: /reset decisions/i }));
+
+    expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('button', { name: /accept .* for brace b/i }).length,
+      ).toBeGreaterThan(0);
+    });
+    const storedWorkflow = await getOptimizationWorkflow(project.id);
+    const acceptedPieceId = storedWorkflow?.acceptedByRequirement[acceptedRequirement.id];
+    expect(acceptedPieceId).toBeDefined();
+    await expect(getUsageLog(project.id, acceptedPieceId!)).resolves.toHaveLength(1);
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      satisfiedRequirementIds: [acceptedRequirement.id],
+      declinedCandidates: [],
+      newStockRequirementIds: [],
+    });
+  });
+
+  it('clears a stale accepted match on load but keeps the usage entry', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Stale Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    const first = await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /accept/i }));
+    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    first.unmount();
+
+    await retirePiece(project.id, piece.id);
+    await renderOptimize(project.id);
+
+    expect(screen.queryByText(/excluded from cutting/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/no active inventory pieces match/i)).toBeInTheDocument();
+    await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      satisfiedRequirementIds: [],
+      acceptedByRequirement: {},
+    });
+  });
+
+  it('clears an accepted match when its requirement no longer exists', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Deleted Requirement Site' });
+    const member = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+
+    const first = await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /accept/i }));
+    expect(await screen.findByText(/excluded from cutting/i)).toBeInTheDocument();
+    first.unmount();
+
+    await deleteStructuralMember(project.id, member.id);
+    await renderOptimize(project.id);
+
+    expect(screen.getByText(/no formwork requirements yet/i)).toBeInTheDocument();
+    await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
+    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
+      satisfiedRequirementIds: [],
+      acceptedByRequirement: {},
+    });
+  });
+
+  it('resumes the last step and lets an explicit URL step win', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Resume Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+
+    const first = await renderOptimize(project.id);
+    await openCutsStep(user);
+    expect(screen.getByRole('heading', { name: /cutting plans/i })).toBeInTheDocument();
+    first.unmount();
+
+    const second = await renderOptimize(project.id);
+    expect(screen.getByRole('heading', { name: /cutting plans/i })).toBeInTheDocument();
+    second.unmount();
+
+    await renderOptimize(project.id, '?step=reuse');
+
+    expect(screen.getByRole('button', { name: /reuse inventory/i })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+    expect(screen.queryByRole('heading', { name: /cutting plans/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /plan s1 from new stock/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('deep-links to the cuts step', async () => {
+    const project = await seedProject({ name: 'Deep Link Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+
+    await renderOptimize(project.id, '?step=cuts');
+
+    expect(screen.getByRole('button', { name: /plan cuts/i })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+    expect(screen.getByRole('heading', { name: /cutting plans/i })).toBeInTheDocument();
+  });
+
+  it('derives satisfied requirements from the latest cutting plan without a workflow', async () => {
+    const project = await seedProject({ name: 'Snapshot Fallback Site' });
+    const member = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+    const panelId = `${member.id}-panel-1`;
+    await saveCuttingPlanSnapshot(project.id, {
+      satisfiedRequirementIds: [panelId],
+      acceptedByRequirement: { [panelId]: piece.id },
+    });
+
+    await renderOptimize(project.id);
+
+    expect(screen.getByRole('button', { name: /reuse inventory/i })).toHaveAttribute(
+      'aria-current',
+      'step',
+    );
+    expect(screen.getByText(/excluded from cutting/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
+    await expect(getOptimizationWorkflow(project.id)).resolves.toBeNull();
+  });
+
+  it('shows an error state and retries a failed load', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Retry Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3,
+      crossSection: '2x3',
+    });
+    vi.spyOn(membersDb, 'listStructuralMembers').mockRejectedValueOnce(
+      new Error('offline'),
+    );
+
+    await renderOptimize(project.id);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not load optimization data/i);
+
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+
+    expect(await screen.findByRole('button', { name: /accept/i })).toBeInTheDocument();
+  });
+});
+
 describe('OptimizationScreen cutting plans', () => {
   it('renders plywood SVG plans and grouped lumber cuts for remaining requirements', async () => {
+    const user = userEvent.setup();
     const project = await seedProject({ name: 'Plan Site' });
     await createStructuralMember({
       projectId: project.id,
@@ -263,6 +602,7 @@ describe('OptimizationScreen cutting plans', () => {
     });
 
     await renderOptimize(project.id);
+    await openCutsStep(user);
 
     expect(screen.getByRole('heading', { name: /cutting plans/i })).toBeInTheDocument();
     expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
@@ -271,7 +611,7 @@ describe('OptimizationScreen cutting plans', () => {
 
     expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
     expect(screen.getByText(/stock 1 · 2\.40 m/i)).toBeInTheDocument();
-    expect(screen.getAllByText('Brace A').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Brace A/).length).toBeGreaterThan(0);
     expect(screen.getByText(/longer than the longest stock length/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated savings/i)).toBeInTheDocument();
   });
@@ -296,9 +636,8 @@ describe('OptimizationScreen cutting plans', () => {
     });
 
     await renderOptimize(project.id);
-    expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: /accept/i }));
+    await openCutsStep(user);
 
     expect(
       await screen.findByText(/all requirements satisfied by reused pieces/i),
@@ -319,6 +658,7 @@ describe('OptimizationScreen cutting plans', () => {
     });
 
     await renderOptimize(project.id);
+    await openCutsStep(user);
 
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes).toHaveLength(2);
@@ -352,6 +692,7 @@ describe('OptimizationScreen cutting plans', () => {
   });
 
   it('flags panels that are larger than the stock sheet', async () => {
+    const user = userEvent.setup();
     const project = await seedProject({ name: 'Oversized Site' });
     await createStructuralMember({
       projectId: project.id,
@@ -363,6 +704,7 @@ describe('OptimizationScreen cutting plans', () => {
     });
 
     await renderOptimize(project.id);
+    await openCutsStep(user);
 
     expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
     expect(screen.getByText(/cannot fit on a stock sheet/i)).toBeInTheDocument();
@@ -416,6 +758,7 @@ describe('OptimizationScreen SVG export', () => {
     });
 
     await renderOptimize(project.id);
+    await openCutsStep(user);
     await user.click(screen.getByRole('button', { name: /export sheet 1 as svg/i }));
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
@@ -445,6 +788,7 @@ describe('OptimizationScreen SVG export', () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
     await renderOptimize(project.id);
+    await openCutsStep(user);
     expect(screen.getByTestId('cut-plan-sheet-1')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /export all sheets/i }));

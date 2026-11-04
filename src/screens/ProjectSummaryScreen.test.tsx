@@ -9,10 +9,12 @@ import { addPiece, retirePiece } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import * as membersDb from '@/db/members';
 import { saveCuttingPlanSnapshot } from '@/db/plans';
+import { emptyWorkflow, saveOptimizationWorkflow } from '@/db/workflow';
 import { seedProject } from '@/test/fixtures';
 import { resetInventoryMock } from '@/test/inventoryMock';
 import { resetMembersMock } from '@/test/membersMock';
 import { resetPlansMock } from '@/test/plansMock';
+import { resetWorkflowMock } from '@/test/workflowMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
@@ -26,12 +28,18 @@ vi.mock('@/db/plans', async (importOriginal) => {
   const mock = await import('@/test/plansMock');
   return { ...actual, ...mock };
 });
+vi.mock('@/db/workflow', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/workflow')>();
+  const mock = await import('@/test/workflowMock');
+  return { ...actual, ...mock };
+});
 import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetMembersMock();
   resetInventoryMock();
   resetPlansMock();
+  resetWorkflowMock();
 });
 
 async function renderSummary(projectId: string) {
@@ -155,6 +163,49 @@ describe('ProjectSummaryScreen', () => {
     expect(screen.getByTestId('summary-new-sheets')).toHaveTextContent('1');
     expect(screen.getAllByText(/₱850/).length).toBeGreaterThan(0);
     expect(screen.getByText(/plywood utilization/i)).toBeInTheDocument();
+  });
+
+  it('reads reuse decisions from the workflow document over the latest plan', async () => {
+    const project = await seedProject({ name: 'Workflow Site' });
+    const reused = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'Reused',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'New Stock',
+      length: 1.2,
+      width: 0.7,
+      height: 0,
+    });
+    const reusedPanelId = `${reused.id}-panel-1`;
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+    await saveCuttingPlanSnapshot(project.id, {
+      satisfiedRequirementIds: [],
+      acceptedByRequirement: {},
+    });
+    await saveOptimizationWorkflow(project.id, {
+      ...emptyWorkflow(),
+      satisfiedRequirementIds: [reusedPanelId],
+      acceptedByRequirement: { [reusedPanelId]: piece.id },
+    });
+
+    await renderSummary(project.id);
+
+    expect(screen.getByTestId('summary-reused-pieces')).toHaveTextContent('1');
+    expect(screen.getByTestId('summary-reuse-events')).toHaveTextContent('1');
+    expect(screen.getByTestId('summary-new-sheets')).toHaveTextContent('1');
   });
 
   it('shows the PHP procurement breakdown', async () => {
