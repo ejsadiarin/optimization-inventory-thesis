@@ -5,11 +5,12 @@ The optimization screen used to keep its state in two places that were never des
 ## Decision
 
 - **Location**: one document per project at `projects/{projectId}/workflow/optimization`. It is separate from the project document so that frequent workflow writes do not collide with settings and ownership updates under last-write-wins.
-- **Contents**: satisfied requirement IDs, accepted piece per requirement, declined `requirementId::pieceId` keys, requirements explicitly planned from new stock, the current step, the timestamp the cut plans were reviewed, and a schema version.
+- **Contents**: satisfied requirement IDs, accepted piece per requirement, declined `requirementId::pieceId` keys, the current step, the timestamp the cut plans were reviewed, and a schema version.
 - **Source of truth**: the summary and the optimization screen read satisfied decisions from the workflow document. Cutting-plan records remain append-only audit artifacts and are no longer read as live state.
-- **Declines**: sticky per requirement and piece. Declining a piece for one requirement does not hide it for another. A reset clears declines and new-stock marks only; accepted matches are permanent because accepting writes a usage entry.
+- **Declines**: sticky per requirement and piece. Declining a piece for one requirement does not hide it for another. A reset clears declines only; accepted matches are permanent because accepting writes a usage entry.
+- **New stock**: a requirement with no candidate, or whose only candidates are assigned to other requirements, is classified as new stock automatically. All-declined requirements remain no-match until a candidate is restored. New-stock classification is derived, not persisted, so it never goes stale.
 - **Invalidation**: on load, an accepted match whose piece no longer fits, or whose requirement no longer exists, is cleared from the workflow document but its usage entry is kept. The piece was physically used; the link is what became stale.
-- **Compatibility**: if a project has no workflow document, derive satisfied IDs from the latest cutting-plan snapshot, treat declines and new-stock marks as empty, and start on the reuse step. No backfill migration.
+- **Compatibility**: if a project has no workflow document, derive satisfied IDs from the latest cutting-plan snapshot, treat declines as empty, ignore legacy new-stock marks, and start on the reuse step. No backfill migration.
 - **Concurrency**: per-document last-write-wins, consistent with ADR-0006. Two devices editing the same project's workflow state can overwrite each other.
 
 ## Considered Options

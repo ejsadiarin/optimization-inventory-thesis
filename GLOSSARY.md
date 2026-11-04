@@ -89,7 +89,7 @@ The system's approach to reusing inventory pieces: find pieces with sufficient d
 _Avoid_: Cut-to-fit, auto-recut
 
 **Reuse Decision**:
-The engineer's explicit choice about a formwork requirement: accept a candidate inventory piece, decline a candidate, or plan the requirement from new stock. A declined candidate is not offered again for that requirement until decisions are reset; an accepted piece records a usage.
+The engineer's explicit choice about a formwork requirement: accept a candidate inventory piece or decline a candidate. A declined candidate is not offered again for that requirement until decisions are reset; an accepted piece records a usage. A requirement with no available candidate is classified as new stock automatically rather than by an explicit action.
 _Avoid_: Match, selection (when referring to the engineer's decision)
 
 **Shelf**:

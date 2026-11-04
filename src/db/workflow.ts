@@ -5,7 +5,7 @@ import { matchInventory } from '@/engine/match';
 import type { MatchPiece, MatchRequirement } from '@/engine/types';
 import type { CuttingPlanSnapshot } from './plans';
 
-export const OPTIMIZATION_WORKFLOW_SCHEMA_VERSION = 1;
+export const OPTIMIZATION_WORKFLOW_SCHEMA_VERSION = 2;
 export const OPTIMIZATION_WORKFLOW_ID = 'optimization';
 
 export type OptimizationStep = 'reuse' | 'cuts';
@@ -14,7 +14,6 @@ export interface OptimizationWorkflow {
   satisfiedRequirementIds: string[];
   acceptedByRequirement: Record<string, string>;
   declinedCandidates: string[];
-  newStockRequirementIds: string[];
   step: OptimizationStep;
   cutPlansReviewedAt: string | null;
   schemaVersion: number;
@@ -41,7 +40,6 @@ function parseWorkflow(data: unknown): OptimizationWorkflow {
     satisfiedRequirementIds: stringArray(record.satisfiedRequirementIds),
     acceptedByRequirement: stringRecord(record.acceptedByRequirement),
     declinedCandidates: stringArray(record.declinedCandidates),
-    newStockRequirementIds: stringArray(record.newStockRequirementIds),
     step: record.step === 'cuts' ? 'cuts' : 'reuse',
     cutPlansReviewedAt:
       typeof record.cutPlansReviewedAt === 'string' ? record.cutPlansReviewedAt : null,
@@ -57,7 +55,6 @@ export function emptyWorkflow(): OptimizationWorkflow {
     satisfiedRequirementIds: [],
     acceptedByRequirement: {},
     declinedCandidates: [],
-    newStockRequirementIds: [],
     step: 'reuse',
     cutPlansReviewedAt: null,
     schemaVersion: OPTIMIZATION_WORKFLOW_SCHEMA_VERSION,
@@ -78,7 +75,6 @@ export function clearWorkflowDecisions(
   return {
     ...workflow,
     declinedCandidates: [],
-    newStockRequirementIds: [],
   };
 }
 
@@ -106,18 +102,12 @@ export function resetRequirementDecisions(
   const declinedCandidates = workflow.declinedCandidates.filter(
     (key) => !key.startsWith(prefix),
   );
-  const newStockRequirementIds = workflow.newStockRequirementIds.filter(
-    (id) => id !== requirementId,
-  );
 
-  if (
-    declinedCandidates.length === workflow.declinedCandidates.length &&
-    newStockRequirementIds.length === workflow.newStockRequirementIds.length
-  ) {
+  if (declinedCandidates.length === workflow.declinedCandidates.length) {
     return workflow;
   }
 
-  return { ...workflow, declinedCandidates, newStockRequirementIds };
+  return { ...workflow, declinedCandidates };
 }
 
 export function invalidateWorkflow(
@@ -156,20 +146,12 @@ export function invalidateWorkflow(
     }
   }
 
-  const newStockRequirementIds = workflow.newStockRequirementIds.filter((id) =>
-    requirementById.has(id),
-  );
-  if (newStockRequirementIds.length !== workflow.newStockRequirementIds.length) {
-    changed = true;
-  }
-
   if (!changed) return workflow;
 
   return {
     ...workflow,
     satisfiedRequirementIds: Array.from(satisfied),
     acceptedByRequirement,
-    newStockRequirementIds,
   };
 }
 

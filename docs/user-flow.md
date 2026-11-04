@@ -85,7 +85,7 @@ flowchart TD
   - **Matching Criteria:** Same material type, sufficient dimensions (`piece.L >= req.L` and `piece.W >= req.W`), and non-retired condition.
   - **Ranking:** Uses a *Smallest-Fit* heuristic to prioritize pieces that fit with minimum leftover margin, preserving larger offcuts for bigger future panels.
 - **User Interaction:**
-  - Engineers review candidates grouped by structural member and can **Accept**, **Decline**, or mark a requirement as **Plan from new stock**. Decisions persist per project and survive reloads.
+  - Engineers review candidates grouped by structural member and can **Accept** or **Decline**. Requirements with no available candidate are marked **New stock** automatically. Decisions persist per project and survive reloads.
   - Accepting marks the requirement satisfied, increments the piece's `usageCount`, and records an entry in `usageLog` linked to that structural member (e.g. `C1`).
 
 ---

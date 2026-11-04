@@ -63,19 +63,44 @@ describe('reviewRequirements', () => {
     const reviews = reviewRequirements(
       groups,
       new Set(['accepted']),
-      new Map([['accepted', 'p1']]),
+      new Map([
+        ['accepted', 'p1'],
+        ['other', 'p2'],
+      ]),
       new Set(['declined::p3']),
-      new Set(['new-stock']),
     );
 
     expect(reviews.map((review) => review.status)).toEqual([
       'satisfied',
       'newStock',
       'noMatch',
-      'noMatch',
+      'newStock',
       'needsDecision',
     ]);
     expect(reviews[0]!.acceptedPieceId).toBe('p1');
+  });
+
+  it('classifies requirements without available candidates as new stock', () => {
+    const groups = [
+      group('no-candidates', []),
+      group('assigned', [candidate('p1')]),
+      group('declined', [candidate('p2')]),
+      group('mixed', [candidate('p3'), candidate('p4')]),
+    ];
+
+    const reviews = reviewRequirements(
+      groups,
+      new Set(),
+      new Map([['other', 'p1']]),
+      new Set(['declined::p2']),
+    );
+
+    expect(reviews.map((review) => review.status)).toEqual([
+      'newStock',
+      'newStock',
+      'noMatch',
+      'needsDecision',
+    ]);
   });
 
   it('hides candidates assigned to other requirements and counts them', () => {
@@ -85,7 +110,6 @@ describe('reviewRequirements', () => {
       groups,
       new Set(),
       new Map([['other', 'p1']]),
-      new Set(),
       new Set(),
     );
 
@@ -105,14 +129,13 @@ describe('reviewRequirements', () => {
       new Set(['a']),
       new Map([['a', 'p1']]),
       new Set(),
-      new Set(),
     );
 
     expect(countReviews(reviews)).toEqual({
       needsDecision: 1,
       satisfied: 1,
-      newStock: 0,
-      noMatch: 1,
+      newStock: 1,
+      noMatch: 0,
     });
     expect(decidedCount(reviews)).toBe(2);
   });
@@ -126,7 +149,6 @@ describe('reviewRequirements', () => {
       ],
       new Set(),
       new Map(),
-      new Set(),
       new Set(),
     );
     const sections = groupReviewsByMember(

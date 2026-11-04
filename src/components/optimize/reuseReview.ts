@@ -38,7 +38,6 @@ export function reviewRequirements(
   satisfiedRequirementIds: ReadonlySet<string>,
   acceptedByRequirement: ReadonlyMap<string, string>,
   declinedCandidates: ReadonlySet<string>,
-  newStockRequirementIds: ReadonlySet<string>,
 ): RequirementReview[] {
   const assignedPieceIds = new Set(acceptedByRequirement.values());
 
@@ -65,12 +64,14 @@ export function reviewRequirements(
     let status: ReuseStatus;
     if (satisfiedRequirementIds.has(requirementId)) {
       status = 'satisfied';
-    } else if (newStockRequirementIds.has(requirementId)) {
+    } else if (available.length > 0) {
+      status = 'needsDecision';
+    } else if (group.candidates.length === 0) {
       status = 'newStock';
-    } else if (group.candidates.length === 0 || available.length === 0) {
+    } else if (declined.length === group.candidates.length) {
       status = 'noMatch';
     } else {
-      status = 'needsDecision';
+      status = 'newStock';
     }
 
     return {

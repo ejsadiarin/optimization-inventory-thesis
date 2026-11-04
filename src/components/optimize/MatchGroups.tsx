@@ -21,7 +21,6 @@ export interface MatchGroupsProps {
   onAccept: (group: MatchGroup, candidate: InventoryMatch) => void;
   onDecline: (group: MatchGroup, candidate: InventoryMatch) => void;
   onRestoreDeclined: (group: MatchGroup, candidate: InventoryMatch) => void;
-  onPlanFromNewStock: (group: MatchGroup) => void;
   onResetRequirement: (group: MatchGroup) => void;
 }
 
@@ -31,7 +30,6 @@ export default function MatchGroups({
   onAccept,
   onDecline,
   onRestoreDeclined,
-  onPlanFromNewStock,
   onResetRequirement,
 }: MatchGroupsProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -69,7 +67,6 @@ export default function MatchGroups({
           onAccept={onAccept}
           onDecline={onDecline}
           onRestoreDeclined={onRestoreDeclined}
-          onPlanFromNewStock={onPlanFromNewStock}
           onResetRequirement={onResetRequirement}
         />
       ))}
@@ -86,7 +83,6 @@ interface ReviewSectionViewProps {
   onAccept: MatchGroupsProps['onAccept'];
   onDecline: MatchGroupsProps['onDecline'];
   onRestoreDeclined: MatchGroupsProps['onRestoreDeclined'];
-  onPlanFromNewStock: MatchGroupsProps['onPlanFromNewStock'];
   onResetRequirement: MatchGroupsProps['onResetRequirement'];
 }
 
@@ -99,7 +95,6 @@ function ReviewSectionView({
   onAccept,
   onDecline,
   onRestoreDeclined,
-  onPlanFromNewStock,
   onResetRequirement,
 }: ReviewSectionViewProps) {
   return (
@@ -129,7 +124,6 @@ function ReviewSectionView({
           onAccept={onAccept}
           onDecline={onDecline}
           onRestoreDeclined={onRestoreDeclined}
-          onPlanFromNewStock={onPlanFromNewStock}
           onResetRequirement={onResetRequirement}
         />
       ))}
@@ -146,7 +140,6 @@ interface ReviewCardProps {
   onAccept: MatchGroupsProps['onAccept'];
   onDecline: MatchGroupsProps['onDecline'];
   onRestoreDeclined: MatchGroupsProps['onRestoreDeclined'];
-  onPlanFromNewStock: MatchGroupsProps['onPlanFromNewStock'];
   onResetRequirement: MatchGroupsProps['onResetRequirement'];
 }
 
@@ -159,7 +152,6 @@ function ReviewCard({
   onAccept,
   onDecline,
   onRestoreDeclined,
-  onPlanFromNewStock,
   onResetRequirement,
 }: ReviewCardProps) {
   const { group, status } = review;
@@ -168,7 +160,7 @@ function ReviewCard({
   const newStock = status === 'newStock';
   const available = review.availableCandidates;
   const visible = expanded ? available : available.slice(0, TOP_CANDIDATES);
-  const canReset = review.declinedCandidates.length > 0 || newStock;
+  const canReset = review.declinedCandidates.length > 0;
 
   return (
     <Card>
@@ -215,9 +207,17 @@ function ReviewCard({
         {satisfied ? (
           <p className="text-sm font-medium text-emerald-700">Excluded from cutting.</p>
         ) : newStock ? (
-          <p className="text-sm text-muted-foreground">
-            Planned from new stock. Reset this requirement to review inventory matches again.
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              No inventory match. This requirement will be cut from new stock.
+            </p>
+            {review.assignedElsewhereCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {review.assignedElsewhereCount} matching piece
+                {review.assignedElsewhereCount === 1 ? '' : 's'} assigned to other requirements.
+              </p>
+            )}
+          </div>
         ) : (
           <>
             {visible.length === 0 ? (
@@ -299,20 +299,6 @@ function ReviewCard({
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {!satisfied && !newStock && (
-          <div className="border-t pt-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              aria-label={`Plan ${requirement.label} from new stock`}
-              onClick={() => onPlanFromNewStock(group)}
-            >
-              Plan from new stock
-            </Button>
           </div>
         )}
       </CardContent>

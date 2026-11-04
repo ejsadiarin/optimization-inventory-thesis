@@ -95,7 +95,6 @@ describe('seedDemoProject on Firestore', () => {
       new Set(workflow!.satisfiedRequirementIds),
       new Map(Object.entries(workflow!.acceptedByRequirement)),
       new Set(workflow!.declinedCandidates),
-      new Set(workflow!.newStockRequirementIds),
     );
 
     expect(reviews.filter((review) => review.status === 'needsDecision').length).toBeGreaterThan(

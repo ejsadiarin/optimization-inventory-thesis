@@ -111,7 +111,6 @@ export function ProjectProgressProvider({
           satisfied,
           new Map(Object.entries(resolved.acceptedByRequirement)),
           new Set(resolved.declinedCandidates),
-          new Set(resolved.newStockRequirementIds),
         );
 
         if (cancelled) return;

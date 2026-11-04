@@ -8,7 +8,6 @@ function clone(workflow: OptimizationWorkflow): OptimizationWorkflow {
     satisfiedRequirementIds: [...workflow.satisfiedRequirementIds],
     acceptedByRequirement: { ...workflow.acceptedByRequirement },
     declinedCandidates: [...workflow.declinedCandidates],
-    newStockRequirementIds: [...workflow.newStockRequirementIds],
   };
 }
 

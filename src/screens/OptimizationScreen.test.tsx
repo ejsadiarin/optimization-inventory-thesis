@@ -223,8 +223,8 @@ describe('OptimizationScreen matching', () => {
     await user.click(screen.getAllByRole('button', { name: /accept/i })[0]!);
 
     expect(await screen.findByText(/accepted brace a/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
-    expect(screen.getByText(/all matching pieces are assigned to other requirements/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /new stock \(1\)/i }));
+    expect(screen.getByText(/no inventory match/i)).toBeInTheDocument();
     expect(
       screen.getByText(/1 matching piece assigned to other requirements/i),
     ).toBeInTheDocument();
@@ -307,10 +307,9 @@ describe('OptimizationScreen workflow persistence', () => {
     });
   });
 
-  it('persists plan-from-new-stock without declining its candidates', async () => {
-    const user = userEvent.setup();
+  it('auto-classifies a requirement with no candidates as new stock', async () => {
     const project = await seedProject({ name: 'New Stock Site' });
-    const requirement = await createLumberRequirement({
+    await createLumberRequirement({
       projectId: project.id,
       label: 'Brace A',
       length: 2.4,
@@ -320,13 +319,10 @@ describe('OptimizationScreen workflow persistence', () => {
       projectId: project.id,
       materialType: 'lumber',
       length: 3,
-      crossSection: '2x3',
+      crossSection: '2x4',
     });
 
     const first = await renderOptimize(project.id);
-    await user.click(
-      screen.getByRole('button', { name: /plan brace a from new stock/i }),
-    );
 
     expect(
       await screen.findByRole('button', { name: /new stock \(1\)/i }),
@@ -335,25 +331,16 @@ describe('OptimizationScreen workflow persistence', () => {
     expect(
       screen.getByRole('button', { name: /continue to plan cuts/i }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /plan .* from new stock/i })).not.toBeInTheDocument();
     first.unmount();
 
     await renderOptimize(project.id);
 
     expect(screen.getByRole('button', { name: /new stock \(1\)/i })).toBeInTheDocument();
-    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
-      newStockRequirementIds: [requirement.id],
-      declinedCandidates: [],
-    });
-
-    await user.click(screen.getByRole('button', { name: /reset decisions/i }));
-
-    expect(
-      await screen.findByRole('button', { name: /accept .* for brace a/i }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/no requirements in needs decision/i)).not.toBeInTheDocument();
+    await expect(getOptimizationWorkflow(project.id)).resolves.toBeNull();
   });
 
-  it('resets declines and new-stock marks without clearing accepted matches', async () => {
+  it('resets declines without clearing accepted matches', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Reset Site' });
     const acceptedRequirement = await createLumberRequirement({
@@ -406,7 +393,6 @@ describe('OptimizationScreen workflow persistence', () => {
     await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
       satisfiedRequirementIds: [acceptedRequirement.id],
       declinedCandidates: [],
-      newStockRequirementIds: [],
     });
   });
 
@@ -1275,15 +1261,15 @@ describe('OptimizationScreen reuse review', () => {
       'true',
     );
     expect(screen.getByRole('button', { name: /satisfied \(0\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /new stock \(0\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /no match \(1\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new stock \(1\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /no match \(0\)/i })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^accept /i })).toHaveLength(2);
     expect(screen.queryByText('Long Brace')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /no match \(1\)/i }));
+    await user.click(screen.getByRole('button', { name: /new stock \(1\)/i }));
 
     expect(screen.getByText('Long Brace')).toBeInTheDocument();
-    expect(screen.getByText(/no active inventory pieces match/i)).toBeInTheDocument();
+    expect(screen.getByText(/no inventory match/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /satisfied \(0\)/i }));
 
@@ -1329,9 +1315,6 @@ describe('OptimizationScreen reuse review', () => {
     );
     await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '2'));
 
-    await user.click(screen.getByRole('button', { name: /plan brace b from new stock/i }));
-    await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '3'));
-
     while (
       screen.queryAllByRole('button', { name: /decline .* for brace c/i }).length > 0
     ) {
@@ -1340,6 +1323,11 @@ describe('OptimizationScreen reuse review', () => {
       );
     }
 
+    await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '3'));
+
+    await user.click(
+      screen.getAllByRole('button', { name: /accept .* for brace b/i })[0]!,
+    );
     await waitFor(() => expect(progress()).toHaveAttribute('aria-valuenow', '4'));
     expect(screen.getByTestId('reuse-progress-summary')).toHaveTextContent(
       '4 of 4 requirements decided',
@@ -1424,7 +1412,7 @@ describe('OptimizationScreen reuse review', () => {
     });
 
     await renderOptimize(project.id);
-    await user.click(screen.getByRole('button', { name: /no match \(5\)/i }));
+    await user.click(screen.getByRole('button', { name: /new stock \(5\)/i }));
 
     const column = screen.getByRole('region', { name: 'C1' });
     expect(within(column).getByRole('heading', { name: 'C1' })).toBeInTheDocument();
@@ -1527,55 +1515,6 @@ describe('OptimizationScreen reuse review', () => {
     await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
       declinedCandidates: [],
     });
-
-    await user.click(screen.getByRole('button', { name: /plan brace b from new stock/i }));
-    await user.click(screen.getByRole('button', { name: /new stock \(1\)/i }));
-    await user.click(
-      screen.getByRole('button', { name: /reset decisions for brace b/i }),
-    );
-
-    expect(
-      await screen.findByRole('button', { name: /needs decision \(2\)/i }),
-    ).toBeInTheDocument();
-    await expect(getOptimizationWorkflow(project.id)).resolves.toMatchObject({
-      newStockRequirementIds: [],
-    });
-  });
-
-  it('keeps declined candidates reachable after planning from new stock', async () => {
-    const user = userEvent.setup();
-    const project = await seedProject({ name: 'Declined New Stock Site' });
-    await createLumberRequirement({
-      projectId: project.id,
-      label: 'Brace A',
-      length: 2.4,
-      crossSection: '2x3',
-    });
-    for (let index = 0; index < 2; index += 1) {
-      await addPiece({
-        projectId: project.id,
-        materialType: 'lumber',
-        length: 3,
-        crossSection: '2x3',
-      });
-    }
-
-    await renderOptimize(project.id);
-    await user.click(
-      screen.getAllByRole('button', { name: /decline .* for brace a/i })[0]!,
-    );
-    await user.click(screen.getByRole('button', { name: /plan brace a from new stock/i }));
-    await user.click(screen.getByRole('button', { name: /new stock \(1\)/i }));
-
-    expect(
-      screen.getByRole('button', { name: /show declined candidates for brace a/i }),
-    ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole('button', { name: /show declined candidates for brace a/i }),
-    );
-    expect(
-      screen.getByRole('button', { name: /restore .* for brace a/i }),
-    ).toBeInTheDocument();
   });
 
   it('points oversized-only requirements at the stock settings', async () => {

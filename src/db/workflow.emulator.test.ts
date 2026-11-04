@@ -54,7 +54,6 @@ function workflow(overrides: Partial<OptimizationWorkflow> = {}): OptimizationWo
     satisfiedRequirementIds: ['req-1'],
     acceptedByRequirement: { 'req-1': 'piece-1' },
     declinedCandidates: ['req-2::piece-2'],
-    newStockRequirementIds: ['req-3'],
     step: 'cuts',
     cutPlansReviewedAt: '2026-11-01T00:00:00.000Z',
     ...overrides,

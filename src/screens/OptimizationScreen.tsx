@@ -94,10 +94,6 @@ export default function OptimizationScreen() {
     () => new Set(workflow.declinedCandidates),
     [workflow.declinedCandidates],
   );
-  const newStockRequirementIds = useMemo(
-    () => new Set(workflow.newStockRequirementIds),
-    [workflow.newStockRequirementIds],
-  );
   const step = parseStep(searchParams.get('step')) ?? workflow.step;
 
   const updateWorkflow = useCallback(
@@ -226,14 +222,12 @@ export default function OptimizationScreen() {
         satisfiedRequirementIds,
         acceptedByRequirement,
         declinedCandidates,
-        newStockRequirementIds,
       ),
     [
       groups,
       satisfiedRequirementIds,
       acceptedByRequirement,
       declinedCandidates,
-      newStockRequirementIds,
     ],
   );
   const reviewCounts = useMemo(() => countReviews(reviews), [reviews]);
@@ -373,19 +367,6 @@ export default function OptimizationScreen() {
     );
   }
 
-  function handlePlanFromNewStock(group: MatchGroup) {
-    const requirementId = group.requirement.id;
-    updateWorkflow((current) =>
-      current.satisfiedRequirementIds.includes(requirementId) ||
-      current.newStockRequirementIds.includes(requirementId)
-        ? current
-        : {
-            ...current,
-            newStockRequirementIds: [...current.newStockRequirementIds, requirementId],
-          },
-    );
-  }
-
   function handleResetDecisions() {
     updateWorkflow(clearWorkflowDecisions);
   }
@@ -470,8 +451,7 @@ export default function OptimizationScreen() {
     optimization.plywood.sheets.forEach((sheet) => exportSheet(sheet.sheetIndex));
   }
 
-  const hasResettableDecisions =
-    workflow.declinedCandidates.length > 0 || workflow.newStockRequirementIds.length > 0;
+  const hasResettableDecisions = workflow.declinedCandidates.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -658,7 +638,6 @@ export default function OptimizationScreen() {
                 onAccept={(group, candidate) => void handleAccept(group, candidate)}
                 onDecline={handleDecline}
                 onRestoreDeclined={handleRestoreDeclined}
-                onPlanFromNewStock={handlePlanFromNewStock}
                 onResetRequirement={handleResetRequirement}
               />
             )}
