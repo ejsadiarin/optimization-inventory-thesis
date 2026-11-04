@@ -6,6 +6,11 @@ import type { AddPieceInput, UpdatePieceInput } from '@/db/inventory';
 let pieces: Piece[] = [];
 let usageLog: UsageLogEntry[] = [];
 let sequence = 0;
+let failNextInventoryLoad = false;
+
+export function failNextGetActivePieces(): void {
+  failNextInventoryLoad = true;
+}
 
 function nextTimestamp(): string {
   const timestamp = new Date(Date.UTC(2026, 0, 1, 0, 0, 0, sequence)).toISOString();
@@ -42,6 +47,7 @@ export function resetInventoryMock(): void {
   pieces = [];
   usageLog = [];
   sequence = 0;
+  failNextInventoryLoad = false;
 }
 
 export async function addPiece(input: AddPieceInput): Promise<Piece> {
@@ -74,6 +80,10 @@ export async function listPieces(projectId: string): Promise<Piece[]> {
 }
 
 export async function getActivePieces(projectId: string): Promise<Piece[]> {
+  if (failNextInventoryLoad) {
+    failNextInventoryLoad = false;
+    throw new Error('Inventory load failed.');
+  }
   return (await listPieces(projectId)).filter(
     (piece) => !piece.retired && piece.condition !== 'Retired',
   );

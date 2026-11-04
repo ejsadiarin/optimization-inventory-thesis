@@ -1,11 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, PackageOpen, Plus } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  PackageOpen,
+  Plus,
+  SearchX,
+} from 'lucide-react';
 import PieceDetailDialog from '@/components/inventory/PieceDetailDialog';
 import PieceFormDialog from '@/components/inventory/PieceFormDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +41,7 @@ import {
   shortId,
 } from '@/lib/format';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 
 const SELECT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm';
@@ -52,11 +62,45 @@ function parseUsage(value: string): number | undefined {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
+interface PieceActionsProps {
+  piece: Piece;
+  onView: (piece: Piece) => void;
+  onEdit: (piece: Piece) => void;
+}
+
+function PieceActions({ piece, onView, onEdit }: PieceActionsProps) {
+  return (
+    <div className="flex justify-end gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        aria-label={`View piece ${shortId(piece.id)}`}
+        onClick={() => onView(piece)}
+      >
+        View
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        aria-label={`Edit piece ${shortId(piece.id)}`}
+        onClick={() => onEdit(piece)}
+      >
+        Edit
+      </Button>
+    </div>
+  );
+}
+
 export default function ProjectInventoryScreen() {
   const project = useOutletContext<Project>();
   const refreshSignal = useRefreshSignal();
+  const isDesktop = useIsDesktop();
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const loadedOnceRef = useRef(false);
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<MaterialType | 'all'>('all');
@@ -70,14 +114,29 @@ export default function ProjectInventoryScreen() {
   const [editingPiece, setEditingPiece] = useState<Piece | null>(null);
   const [detailPiece, setDetailPiece] = useState<Piece | null>(null);
 
-  const loadPieces = useCallback(async () => {
-    setPieces(await getActivePieces(project.id));
-    setLoading(false);
+  const refresh = useCallback(async () => {
+    try {
+      setPieces(await getActivePieces(project.id));
+      loadedOnceRef.current = true;
+      setLoadError('');
+    } catch {
+      if (!loadedOnceRef.current) {
+        setLoadError('Could not load inventory. Try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [project.id]);
 
   useEffect(() => {
-    void loadPieces();
-  }, [loadPieces, refreshSignal]);
+    void refresh();
+  }, [refresh, refreshSignal]);
+
+  const retry = useCallback(() => {
+    setLoadError('');
+    setLoading(true);
+    void refresh();
+  }, [refresh]);
 
   const visiblePieces = queryPieces(pieces, {
     search,
@@ -103,6 +162,14 @@ export default function ProjectInventoryScreen() {
     setFormOpen(true);
   }
 
+  function clearFilters() {
+    setSearch('');
+    setTypeFilter('all');
+    setConditionFilter('all');
+    setMinUsage('');
+    setMaxUsage('');
+  }
+
   function openEditForm(piece: Piece) {
     setDetailPiece(null);
     setEditingPiece(piece);
@@ -115,9 +182,11 @@ export default function ProjectInventoryScreen() {
         title="Inventory"
         description="Track every phenolic board and lumber piece across its lifecycle."
         actions={
-          <Button type="button" onClick={openAddForm}>
-            <Plus className="h-4 w-4" /> Add piece
-          </Button>
+          loading || Boolean(loadError) || pieces.length > 0 ? (
+            <Button type="button" onClick={openAddForm}>
+              <Plus className="h-4 w-4" /> Add piece
+            </Button>
+          ) : undefined
         }
       />
 
@@ -183,95 +252,158 @@ export default function ProjectInventoryScreen() {
             />
           </div>
         </div>
+        {!isDesktop && (
+          <div className="space-y-1">
+            <Label htmlFor="inventory-sort">Sort by</Label>
+            <select
+              id="inventory-sort"
+              className={SELECT_CLASS}
+              value={sortKey}
+              onChange={(event) => handleSort(event.target.value as PieceSortKey)}
+            >
+              {COLUMNS.map((column) => (
+                <option key={column.key} value={column.key}>
+                  {column.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
+      {loadError ? (
+        <ErrorState message={loadError} onRetry={retry} />
+      ) : loading ? (
+        <Card>
+          <CardContent className="p-0">
             <p className="p-6 text-sm text-muted-foreground">Loading inventory…</p>
-          ) : visiblePieces.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-10 text-center">
-              <PackageOpen className="h-8 w-8 text-muted-foreground" />
-              <p className="font-medium">
-                {pieces.length === 0 ? 'No pieces in inventory yet' : 'No pieces match your filters'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {pieces.length === 0
-                  ? 'Add a phenolic board or lumber piece to start tracking.'
-                  : 'Adjust the search or filters to see more pieces.'}
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {COLUMNS.map((column) => {
-                    const active = sortKey === column.key;
-                    const Icon = !active ? ArrowUpDown : sortDirection === 'asc' ? ArrowUp : ArrowDown;
-                    return (
-                      <TableHead key={column.key} aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                        <button
-                          type="button"
-                          aria-label={`Sort by ${column.label.toLowerCase()}`}
-                          className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-foreground"
-                          onClick={() => handleSort(column.key)}
-                        >
-                          {column.label}
-                          <Icon className="h-3 w-3" />
-                        </button>
-                      </TableHead>
-                    );
-                  })}
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          </CardContent>
+        </Card>
+      ) : visiblePieces.length === 0 ? (
+        pieces.length === 0 ? (
+          <EmptyState
+            icon={PackageOpen}
+            title="No pieces in inventory yet"
+            description="Add a phenolic board or lumber piece to start tracking."
+            action={
+              <Button type="button" onClick={openAddForm}>
+                <Plus className="h-4 w-4" /> Add piece
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={SearchX}
+            title="No pieces match your filters"
+            description="Adjust the search or filters to see more pieces."
+            action={
+              <Button type="button" variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            }
+          />
+        )
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            {isDesktop ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {COLUMNS.map((column) => {
+                      const active = sortKey === column.key;
+                      const Icon = !active ? ArrowUpDown : sortDirection === 'asc' ? ArrowUp : ArrowDown;
+                      return (
+                        <TableHead key={column.key} aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                          <button
+                            type="button"
+                            aria-label={`Sort by ${column.label.toLowerCase()}`}
+                            className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-foreground"
+                            onClick={() => handleSort(column.key)}
+                          >
+                            {column.label}
+                            <Icon className="h-3 w-3" />
+                          </button>
+                        </TableHead>
+                      );
+                    })}
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visiblePieces.map((piece) => (
+                    <TableRow key={piece.id}>
+                      <TableCell className="font-mono text-xs" title={piece.id}>
+                        {shortId(piece.id)}
+                      </TableCell>
+                      <TableCell>{formatPieceDimensions(piece)}</TableCell>
+                      <TableCell>{materialTypeLabel(piece.materialType)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={conditionBadgeClass(piece.condition)}>
+                          {piece.condition}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{piece.usageCount}</TableCell>
+                      <TableCell>
+                        <span className="line-clamp-1">{piece.storageLocation.trim() || '—'}</span>
+                      </TableCell>
+                      <TableCell>{daysInInventory(piece.dateAdded)} d</TableCell>
+                      <TableCell className="text-right">
+                        <PieceActions
+                          piece={piece}
+                          onView={setDetailPiece}
+                          onEdit={openEditForm}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <ul data-testid="piece-cards" className="space-y-2 p-3">
                 {visiblePieces.map((piece) => (
-                  <TableRow key={piece.id}>
-                    <TableCell className="font-mono text-xs" title={piece.id}>
-                      {shortId(piece.id)}
-                    </TableCell>
-                    <TableCell>{formatPieceDimensions(piece)}</TableCell>
-                    <TableCell>{materialTypeLabel(piece.materialType)}</TableCell>
-                    <TableCell>
+                  <li key={piece.id} className="space-y-2 rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-mono text-xs" title={piece.id}>
+                          {shortId(piece.id)}
+                        </p>
+                        <p className="font-medium">{formatPieceDimensions(piece)}</p>
+                      </div>
                       <Badge variant="outline" className={conditionBadgeClass(piece.condition)}>
                         {piece.condition}
                       </Badge>
-                    </TableCell>
-                    <TableCell>{piece.usageCount}</TableCell>
-                    <TableCell>
-                      <span className="line-clamp-1">{piece.storageLocation.trim() || '—'}</span>
-                    </TableCell>
-                    <TableCell>{daysInInventory(piece.dateAdded)} d</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`View piece ${shortId(piece.id)}`}
-                          onClick={() => setDetailPiece(piece)}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          aria-label={`Edit piece ${shortId(piece.id)}`}
-                          onClick={() => openEditForm(piece)}
-                        >
-                          Edit
-                        </Button>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                      <div>
+                        <dt className="text-muted-foreground">Type</dt>
+                        <dd>{materialTypeLabel(piece.materialType)}</dd>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      <div>
+                        <dt className="text-muted-foreground">Usage</dt>
+                        <dd>{piece.usageCount}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Location</dt>
+                        <dd className="truncate">{piece.storageLocation.trim() || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Days in inventory</dt>
+                        <dd>{daysInInventory(piece.dateAdded)} d</dd>
+                      </div>
+                    </dl>
+                    <PieceActions
+                      piece={piece}
+                      onView={setDetailPiece}
+                      onEdit={openEditForm}
+                    />
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {formOpen && (
         <PieceFormDialog
@@ -281,7 +413,7 @@ export default function ProjectInventoryScreen() {
           piece={editingPiece}
           onSaved={() => {
             setEditingPiece(null);
-            void loadPieces();
+            void refresh();
           }}
         />
       )}
@@ -296,7 +428,7 @@ export default function ProjectInventoryScreen() {
           onEdit={openEditForm}
           onRetired={() => {
             setDetailPiece(null);
-            void loadPieces();
+            void refresh();
           }}
         />
       )}

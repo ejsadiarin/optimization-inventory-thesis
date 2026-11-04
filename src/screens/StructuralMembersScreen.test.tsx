@@ -12,6 +12,7 @@ import {
 } from '@/db/members';
 import { seedProject } from '@/test/fixtures';
 import { failNextListStructuralMembers, resetMembersMock } from '@/test/membersMock';
+import { resetViewport, useMobileViewport } from '@/test/viewport';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
@@ -22,25 +23,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  delete (window as { matchMedia?: unknown }).matchMedia;
+  resetViewport();
 });
-
-function useMobileViewport() {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-      addListener: () => undefined,
-      removeListener: () => undefined,
-      dispatchEvent: () => false,
-    }),
-  });
-}
 
 async function renderMembers(projectId: string) {
   unlockProject(projectId);

@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -14,7 +14,11 @@ import {
   retirePiece,
 } from '@/db/inventory';
 import { seedProject } from '@/test/fixtures';
-import { resetInventoryMock } from '@/test/inventoryMock';
+import {
+  failNextGetActivePieces,
+  resetInventoryMock,
+} from '@/test/inventoryMock';
+import { resetViewport, useMobileViewport } from '@/test/viewport';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/inventory', async (importOriginal) => {
@@ -26,6 +30,10 @@ import { unlockProject } from '@/lib/projectSession';
 
 beforeEach(async () => {
   resetInventoryMock();
+});
+
+afterEach(() => {
+  resetViewport();
 });
 
 async function renderInventory(projectId: string) {
@@ -45,6 +53,7 @@ describe('ProjectInventoryScreen', () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Inventory Site' });
     await renderInventory(project.id);
+    await screen.findByText(/no pieces in inventory yet/i);
 
     await user.click(screen.getByRole('button', { name: /add piece/i }));
     await user.selectOptions(screen.getByLabelText(/material type/i), 'phenolic');
@@ -68,6 +77,56 @@ describe('ProjectInventoryScreen', () => {
       storageLocation: 'Rack A',
       usageCount: 0,
     });
+  });
+});
+
+describe('ProjectInventoryScreen resilience and empty states', () => {
+  it('shows a load error and retries', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Retry Site' });
+    failNextGetActivePieces();
+
+    await renderInventory(project.id);
+
+    expect(await screen.findByText(/could not load inventory/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText(/no pieces in inventory yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/could not load inventory/i)).not.toBeInTheDocument();
+  });
+
+  it('offers one Add piece CTA in the true-empty state', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Empty Site' });
+    await renderInventory(project.id);
+
+    expect(await screen.findByText(/no pieces in inventory yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /add piece/i })).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /add piece/i }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('renders inventory as cards on mobile', async () => {
+    useMobileViewport();
+    const project = await seedProject({ name: 'Mobile Inventory Site' });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 3.6,
+      crossSection: '2x3',
+      storageLocation: 'Rack C',
+    });
+
+    await renderInventory(project.id);
+
+    const list = await screen.findByTestId('piece-cards');
+    expect(screen.getByLabelText(/sort by/i)).toBeInTheDocument();
+    expect(within(list).getByRole('listitem')).toHaveTextContent(/3\.60 m · 2x3/i);
+    expect(within(list).getByRole('listitem')).toHaveTextContent(/rack c/i);
+    expect(
+      within(list).getByRole('button', { name: /view piece/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });
 
@@ -180,6 +239,7 @@ describe('ProjectInventoryScreen search, filter, and sort', () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Lumber Site' });
     await renderInventory(project.id);
+    await screen.findByText(/no pieces in inventory yet/i);
 
     await user.click(screen.getByRole('button', { name: /add piece/i }));
     await user.selectOptions(screen.getByLabelText(/material type/i), 'lumber');
@@ -243,6 +303,21 @@ describe('ProjectInventoryScreen search, filter, and sort', () => {
     expect(await screen.findByRole('row', { name: /rack a/i })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /rack b/i })).toBeInTheDocument();
     expect(screen.queryByRole('row', { name: /ground/i })).not.toBeInTheDocument();
+  });
+
+  it('clears filters from the no-match state', async () => {
+    const user = userEvent.setup();
+    const { project } = await seedInventory();
+    await renderInventory(project.id);
+    await screen.findByRole('row', { name: /rack a/i });
+
+    await user.type(screen.getByLabelText(/search inventory/i), 'does-not-exist');
+
+    expect(await screen.findByText(/no pieces match your filters/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+
+    expect(await screen.findByRole('row', { name: /rack a/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/search inventory/i)).toHaveValue('');
   });
 
   it('sorts by the usage column when its header is clicked', async () => {
