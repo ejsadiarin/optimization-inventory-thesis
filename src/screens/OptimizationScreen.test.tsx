@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
@@ -924,11 +924,209 @@ describe('OptimizationScreen SVG export', () => {
 
     await renderOptimize(project.id);
     await openCutsStep(user);
-    expect(screen.getByTestId('cut-plan-sheet-1')).toBeInTheDocument();
+    expect(document.getElementById('cut-plan-sheet-1')).not.toBeNull();
 
     await user.click(screen.getByRole('button', { name: /export all sheets/i }));
 
     expect(createObjectURL).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('OptimizationScreen sheet navigation', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  async function seedMultiSheetProject(name: string) {
+    const project = await seedProject({ name });
+    for (let index = 0; index < 4; index += 1) {
+      await createStructuralMember({
+        projectId: project.id,
+        type: 'slab',
+        label: `S${index + 1}`,
+        length: 1.2,
+        width: 1.2,
+        height: 0,
+      });
+    }
+    return project;
+  }
+
+  function mockDownload() {
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:sheet');
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+    let downloadedFilename = '';
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloadedFilename = this.download;
+    });
+    return () => downloadedFilename;
+  }
+
+  it('selects a sheet from the thumbnail grid and exports that sheet', async () => {
+    const user = userEvent.setup();
+    const project = await seedMultiSheetProject('Sheet Grid Site');
+    const downloadedFilename = mockDownload();
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 1 of 2');
+    expect(screen.getByTestId('sheet-thumbnail-0')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('cut-plan-sheet-0')).toHaveClass('w-full');
+
+    await user.click(screen.getByRole('button', { name: /select sheet 2/i }));
+
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 2 of 2');
+    expect(screen.getByTestId('sheet-thumbnail-1')).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: /export sheet 2 as svg/i }));
+
+    expect(downloadedFilename()).toMatch(/-cut-plan-sheet-2-.*\.svg$/);
+  });
+
+  it('exports the selected sheet as PNG', async () => {
+    const user = userEvent.setup();
+    const project = await seedMultiSheetProject('Sheet Png Site');
+    const downloadedFilename = mockDownload();
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', MockImage);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      fillStyle: '',
+      fillRect: () => undefined,
+      drawImage: () => undefined,
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(
+      (callback: BlobCallback) => {
+        callback(new Blob(['png'], { type: 'image/png' }));
+      },
+    );
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    await user.click(screen.getByRole('button', { name: /select sheet 2/i }));
+    await user.click(screen.getByRole('button', { name: /export sheet 2 as png/i }));
+
+    await waitFor(() => {
+      expect(downloadedFilename()).toMatch(/-cut-plan-sheet-2-.*\.png$/);
+    });
+  });
+
+  it('navigates sheets with the mobile carousel controls', async () => {
+    const user = userEvent.setup();
+    const project = await seedMultiSheetProject('Sheet Carousel Site');
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    await user.click(screen.getByRole('button', { name: /next sheet/i }));
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 2 of 2');
+    expect(screen.getByRole('button', { name: /next sheet/i })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: /previous sheet/i }));
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 1 of 2');
+    expect(screen.getByRole('button', { name: /previous sheet/i })).toBeDisabled();
+  });
+
+  it('changes sheets by swiping the selected sheet', async () => {
+    const user = userEvent.setup();
+    const project = await seedMultiSheetProject('Sheet Swipe Site');
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    const detail = screen.getByTestId('selected-sheet-detail');
+    fireEvent.touchStart(detail, { touches: [{ clientX: 240 }] });
+    fireEvent.touchEnd(detail, { changedTouches: [{ clientX: 60 }] });
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 2 of 2');
+
+    fireEvent.touchStart(detail, { touches: [{ clientX: 60 }] });
+    fireEvent.touchEnd(detail, { changedTouches: [{ clientX: 240 }] });
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 1 of 2');
+  });
+
+  it('opens a sheet fullscreen and supports zoom controls and pinch', async () => {
+    const user = userEvent.setup();
+    const project = await seedMultiSheetProject('Sheet Fullscreen Site');
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    await user.click(screen.getByRole('button', { name: /open sheet 1 fullscreen/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('sheet-zoom-level')).toHaveTextContent('100%');
+
+    await user.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(screen.getByTestId('sheet-zoom-level')).toHaveTextContent('125%');
+
+    const zoomArea = screen.getByTestId('sheet-zoom-area');
+    fireEvent.touchStart(zoomArea, {
+      touches: [
+        { clientX: 0, clientY: 0 },
+        { clientX: 100, clientY: 0 },
+      ],
+      changedTouches: [{ clientX: 100, clientY: 0 }],
+    });
+    fireEvent.touchMove(zoomArea, {
+      touches: [
+        { clientX: 0, clientY: 0 },
+        { clientX: 200, clientY: 0 },
+      ],
+      changedTouches: [{ clientX: 200, clientY: 0 }],
+    });
+    expect(screen.getByTestId('sheet-zoom-level')).toHaveTextContent('250%');
+
+    await user.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('toggles a list view of the selected sheet panels', async () => {
+    const user = userEvent.setup();
+    const project = await seedMultiSheetProject('Sheet List Site');
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    await user.click(screen.getByRole('button', { name: /^list view$/i }));
+
+    const list = screen.getByTestId('sheet-panel-list');
+    const listLabels = () =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((row) => row.textContent ?? '');
+    const firstSheetRows = listLabels();
+    expect(firstSheetRows).toHaveLength(2);
+    expect(within(list).getAllByText(/1\.20 m × 1\.20 m/)).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /diagram view/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.click(screen.getByRole('button', { name: /select sheet 2/i }));
+    expect(screen.getByTestId('sheet-counter')).toHaveTextContent('Sheet 2 of 2');
+    expect(listLabels()).not.toEqual(firstSheetRows);
+
+    await user.click(screen.getByRole('button', { name: /diagram view/i }));
+    expect(screen.queryByTestId('sheet-panel-list')).not.toBeInTheDocument();
+    expect(screen.getByTestId('cut-plan-sheet-1')).toBeInTheDocument();
   });
 });
 
