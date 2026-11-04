@@ -38,7 +38,7 @@ export function toMatchRequirements(
   ];
 }
 
-function toPlywoodPanel(panel: PanelRequirement): PlywoodPanel {
+export function toPlywoodPanel(panel: PanelRequirement): PlywoodPanel {
   return {
     id: panel.id,
     label: panel.label,

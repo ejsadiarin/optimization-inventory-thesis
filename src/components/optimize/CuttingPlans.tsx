@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Download, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -486,24 +486,6 @@ export default function CuttingPlans({
                     onExportSheetPng={onExportSheetPng}
                   />
                 )}
-
-                {optimization.plywood.oversizedPanels.length > 0 && (
-                  <Card className="border-amber-300 bg-amber-50">
-                    <CardContent className="space-y-1 py-4 text-sm text-amber-900">
-                      <p className="flex items-center gap-1 font-medium">
-                        <AlertTriangle className="h-4 w-4" /> Oversized panels
-                      </p>
-                      <ul className="list-disc space-y-1 pl-5">
-                        {optimization.plywood.oversizedPanels.map((panel) => (
-                          <li key={panel.panelId}>
-                            {panel.label} ({formatMeters(panel.length)} ×{' '}
-                            {formatMeters(panel.width)}) cannot fit on a stock sheet.
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                )}
             </TabsContent>
 
             <TabsContent value="lumber" className="space-y-3">
@@ -545,25 +527,6 @@ export default function CuttingPlans({
                     </CardContent>
                   </Card>
                 ))}
-
-                {optimization.lumber.unplacedRequirements.length > 0 && (
-                  <Card className="border-amber-300 bg-amber-50">
-                    <CardContent className="space-y-1 py-4 text-sm text-amber-900">
-                      <p className="flex items-center gap-1 font-medium">
-                        <AlertTriangle className="h-4 w-4" /> Oversized lumber
-                      </p>
-                      <ul className="list-disc space-y-1 pl-5">
-                        {optimization.lumber.unplacedRequirements.map((requirement) => (
-                          <li key={requirement.requirementId}>
-                            {requirement.label} ({formatMeters(requirement.length)} ·{' '}
-                            {crossSectionLabel(requirement.crossSection)}) is longer than the
-                            longest stock length.
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                )}
             </TabsContent>
 
             <TabsContent value="offcuts" className="space-y-3">

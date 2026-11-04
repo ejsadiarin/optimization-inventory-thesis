@@ -647,9 +647,17 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
     expect(screen.getByText(/stock 1 · 2\.40 m/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Brace A/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/longer than the longest stock length/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated savings/i)).toBeInTheDocument();
     expect(screen.getByTestId('cut-utilization')).toHaveTextContent(/%/);
+
+    await user.click(screen.getByRole('button', { name: /notifications \(1\)/i }));
+    const drawer = await screen.findByRole('dialog');
+    expect(
+      within(drawer).getByText(/1 lumber requirement exceeds the stock lengths/i),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).getByRole('link', { name: /review 1 lumber requirement/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/optimize?step=cuts`);
   });
 
   it('recomputes plans and shows the no-cuts state after accepting a reuse match', async () => {
@@ -877,8 +885,16 @@ describe('OptimizationScreen cutting plans', () => {
     await openCutsStep(user);
 
     expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
-    expect(screen.getByText(/cannot fit on a stock sheet/i)).toBeInTheDocument();
     expect(screen.getByText(/no plywood panels can be placed/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /notifications \(1\)/i }));
+    const drawer = await screen.findByRole('dialog');
+    expect(
+      within(drawer).getByText(/1 panel exceeds the stock sheet/i),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).getByText('Big Slab (3.00 m × 1.50 m)'),
+    ).toBeInTheDocument();
   });
 });
 

@@ -133,6 +133,43 @@ describe('ProjectOverviewScreen', () => {
     );
   });
 
+  it('shows an empty notification drawer when no plan warning exists', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Quiet Site' });
+    renderProject(project.id);
+
+    await user.click(await screen.findByRole('button', { name: /^notifications$/i }));
+
+    const drawer = await screen.findByRole('dialog');
+    expect(
+      within(drawer).getByText(/no plan warnings\./i),
+    ).toBeInTheDocument();
+  });
+
+  it('surfaces oversized panels in the notification drawer', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Warning Site' });
+    mocks.listStructuralMembers.mockResolvedValue([
+      { ...member(project.id), length: 5, width: 3 },
+    ]);
+    renderProject(project.id);
+
+    await user.click(
+      await screen.findByRole('button', { name: /notifications \(1\)/i }),
+    );
+
+    const drawer = await screen.findByRole('dialog');
+    expect(
+      within(drawer).getByText(/1 panel exceeds the stock sheet/i),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).getByText('S1 (5.00 m × 3.00 m)'),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).getByRole('link', { name: /review 1 panel exceeds the stock sheet/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/optimize?step=cuts`);
+  });
+
   it('shows completion and outstanding work once the project progresses', async () => {
     const project = await seedProject({ name: 'Progress Site' });
     const structuralMember = member(project.id);

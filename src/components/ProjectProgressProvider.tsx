@@ -11,9 +11,15 @@ import {
   invalidateWorkflow,
   workflowFromSnapshot,
 } from '@/db/workflow';
-import { toMatchRequirements } from '@/engine';
+import { toMatchRequirements, toPlywoodPanel } from '@/engine';
 import { decomposeMember } from '@/engine/decompose';
+import { optimizeLumber } from '@/engine/lumber';
 import { matchInventory } from '@/engine/match';
+import { optimizePlywood } from '@/engine/plywood';
+import {
+  buildProjectNotifications,
+  type ProjectNotification,
+} from '@/lib/projectNotifications';
 import {
   buildNavAnnotations,
   buildProjectChecklist,
@@ -47,6 +53,7 @@ export function ProjectProgressProvider({
     loading: true,
     error: false,
     counts: EMPTY_COUNTS,
+    notifications: [] as ProjectNotification[],
   });
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
@@ -86,9 +93,22 @@ export function ProjectProgressProvider({
           requirements,
           matchPieces,
         );
+        const satisfied = new Set(resolved.satisfiedRequirementIds);
+        const plywood = optimizePlywood(
+          panels.filter((panel) => !satisfied.has(panel.id)).map(toPlywoodPanel),
+          project.stock.phenolic,
+        );
+        const lumberPlan = optimizeLumber(
+          lumber.filter((requirement) => !satisfied.has(requirement.id)),
+          project.stock.lumberLengths,
+        );
+        const notifications = buildProjectNotifications(
+          plywood.oversizedPanels,
+          lumberPlan.unplacedRequirements,
+        );
         const reviews = reviewRequirements(
           groups,
-          new Set(resolved.satisfiedRequirementIds),
+          satisfied,
           new Map(Object.entries(resolved.acceptedByRequirement)),
           new Set(resolved.declinedCandidates),
           new Set(resolved.newStockRequirementIds),
@@ -107,6 +127,7 @@ export function ProjectProgressProvider({
             reuseReviewed: workflow !== null,
             cutPlansReviewedAt: resolved.cutPlansReviewedAt,
           },
+          notifications,
         });
       } catch {
         if (cancelled) return;
@@ -118,7 +139,7 @@ export function ProjectProgressProvider({
     return () => {
       cancelled = true;
     };
-  }, [project.id, refreshSignal, reloadToken, location.pathname]);
+  }, [project.id, project.stock, refreshSignal, reloadToken, location.pathname]);
 
   const checklist = buildProjectChecklist(state.counts);
   const nav = buildNavAnnotations(state.counts);

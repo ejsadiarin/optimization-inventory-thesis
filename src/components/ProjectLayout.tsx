@@ -9,7 +9,9 @@ import {
   useParams,
 } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowLeft,
+  Bell,
   Boxes,
   Calculator,
   Check,
@@ -63,8 +65,9 @@ function ProjectLayoutContent({ project }: { project: Project }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { nav } = useProjectProgress();
+  const { nav, notifications, reload } = useProjectProgress();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const basePath = projectId ? `/projects/${projectId}` : '/';
   const activeItem = PROJECT_NAV_ITEMS.find((item) =>
@@ -183,6 +186,82 @@ function ProjectLayoutContent({ project }: { project: Project }) {
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              <Dialog open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={
+                    notifications.length > 0
+                      ? `Notifications (${notifications.length})`
+                      : 'Notifications'
+                  }
+                  onClick={() => {
+                    setNotificationsOpen(true);
+                    reload();
+                  }}
+                  type="button"
+                  className="relative"
+                >
+                  <Bell className="h-5 w-5" />
+                  {notifications.length > 0 && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground"
+                    >
+                      {notifications.length}
+                    </span>
+                  )}
+                </Button>
+                <DialogContent className="left-auto right-0 top-0 flex h-dvh w-[min(26rem,100vw)] max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-l p-0">
+                  <div className="space-y-1 border-b p-4 pr-12">
+                    <DialogTitle className="text-base">Notifications</DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Plan warnings that need attention.
+                    </p>
+                  </div>
+                  <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                    {notifications.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No plan warnings. Oversized panels and lumber will appear here.
+                      </p>
+                    ) : (
+                      notifications.map((notification) => (
+                        <article
+                          key={notification.id}
+                          className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900"
+                        >
+                          <p className="flex gap-2 text-sm font-medium">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                            {notification.title}
+                          </p>
+                          <p className="mt-1 text-sm text-amber-800">
+                            {notification.description}
+                          </p>
+                          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs">
+                            {notification.items.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="mt-3 border-amber-400 bg-white/70 text-amber-900 hover:bg-white"
+                          >
+                            <Link
+                              to={`/projects/${projectId}/${notification.href}`}
+                              aria-label={`Review ${notification.title}`}
+                              onClick={() => setNotificationsOpen(false)}
+                            >
+                              Review
+                            </Link>
+                          </Button>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
               <SyncStatusChip />
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { createContext } from 'react';
+import type { ProjectNotification } from '@/lib/projectNotifications';
 import type {
   ProjectChecklistItem,
   ProjectNavAnnotation,
@@ -11,6 +12,7 @@ export interface ProjectProgressValue {
   counts: ProjectProgressCounts;
   checklist: ProjectChecklistItem[];
   nav: Partial<Record<string, ProjectNavAnnotation>>;
+  notifications: ProjectNotification[];
   reload: () => void;
 }
 
