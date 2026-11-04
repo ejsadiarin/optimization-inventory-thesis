@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ProjectsScreen from './ProjectsScreen';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import { makeProject, type ProjectOverrides } from '@/test/fixtures';
@@ -33,7 +33,10 @@ function renderScreen() {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <TestAuthProvider user={testUser}>
-        <ProjectsScreen />
+        <Routes>
+          <Route path="/" element={<ProjectsScreen />} />
+          <Route path="/projects/:projectId" element={<div>Project landing</div>} />
+        </Routes>
       </TestAuthProvider>
     </MemoryRouter>,
   );
@@ -64,7 +67,10 @@ describe('ProjectsScreen', () => {
 
     await user.click(screen.getByRole('button', { name: /saved the code/i }));
 
-    expect(await screen.findByText('Two-Storey Residence')).toBeInTheDocument();
+    expect(await screen.findByText('Project landing')).toBeInTheDocument();
+    expect(sessionStorage.getItem(`formwork-cutting-optimizer:unlocked:${created.id}`)).toBe(
+      'true',
+    );
   });
 
   it('shows an empty state before any project exists', async () => {

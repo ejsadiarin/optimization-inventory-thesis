@@ -16,15 +16,15 @@ flowchart TD
 
     subgraph "Project Workspace Navigation"
         D --> M["Members Tab\n(Define C1, C2, B1, S1...)"]
-        M -->|"Auto-Decompose into 2D panels & 1D lumber"| OPT_M["Optimize: Reuse Matching\n(Rank Best-Fit Inventory)"]
+        M -->|"Auto-Decompose into 2D panels & 1D lumber"| OPT_M["Optimize Step 1\nReuse Inventory\n(?step=reuse)"]
         
         D --> INV["Inventory Tab\n(Log Stock, Usage, Condition)"]
         INV -->|"Supply Active Pieces"| OPT_M
         
         OPT_M -->|"Accept Reuse Matches"| LOG["Record Usage & Increment Count"]
-        OPT_M -->|"Unmatched Remainder"| OPT_C["Optimize: Cut Plans\n(2D Guillotine & 1D FFD)"]
+        OPT_M -->|"Unmatched Remainder"| OPT_C["Optimize Step 2\nPlan Cuts\n(?step=cuts)"]
         
-        OPT_C -->|"Usable Offcuts (>= 0.3m)"| INV
+        OPT_C -->|"Usable Offcuts (>= 0.3m in both dimensions)"| INV
         OPT_C --> SUM["Summary Tab\n(Utilization, Savings ₱, Waste, CSV)"]
         LOG --> SUM
     end
@@ -39,7 +39,7 @@ flowchart TD
    - The user signs in with email/password (or demo credentials `demo@example.com` / `demo1234`).
 2. **Project Marketplace (`src/screens/ProjectsScreen.tsx`):**
    - Users browse all workspace projects with **Mine** badges.
-   - **Create Project**: Generates a project and displays a 6-character Access Code (e.g., `DEMO01`) **once**. Firestore only stores a salted SHA-256 hash.
+   - **Create Project**: Generates a project and displays a 6-character Access Code (e.g., `DEMO01`) **once**. Firestore only stores a salted SHA-256 hash. After saving the code, the new project opens on **Overview**, where the checklist starts with **Start with members**.
    - **Load Demo Data**: One-click idempotent button that seeds a sample two-storey residence.
 3. **Project Unlock Gate (`src/components/ProjectGate.tsx`):**
    - Entering the access code verifies the salted hash client-side and unlocks the project for the browser session.
@@ -49,6 +49,9 @@ flowchart TD
 ### Phase 2: Structural Members & Automated Decomposition
 *(Directly implements the top bar of `app-design-flow-specifics.png` and Step 2 of `schematic-diagram-flowchart.png`)*
 
+- **Overview checklist (`src/screens/ProjectOverviewScreen.tsx`):**
+  - Shows six auto-derived steps: structural members (required), lumber requirements (optional), inventory (optional), reuse decisions (required), cut plans reviewed (required), and summary (optional).
+  - Every row links to its screen, and the project tabs show completion checks or outstanding counts.
 - **Screen:** `src/screens/StructuralMembersScreen.tsx`
 - **Actions:**
   - Engineers define structural components: **Columns** (`C1`, `C2`), **Beams** (`B1`, `B2`), and **Slabs** (`S1`, `S2`) with length, width, depth, and quantity.
@@ -73,24 +76,25 @@ flowchart TD
 
 ---
 
-### Phase 4: Reuse Matching (Best-Fit Ranking)
-*(Directly implements steps 5–7 of `schematic-diagram-flowchart.png`)*
+### Phase 4: Step 1 — Reuse Inventory (Best-Fit Ranking)
+*(Directly implements steps 5–7 of `schematic-diagram-flowchart.png`; deep link `?step=reuse`)*
 
-- **Screen:** `src/screens/OptimizationScreen.tsx` (Tab: *Reuse Matching*)
+- **Screen:** `src/screens/OptimizationScreen.tsx` (Optimize step: *Reuse inventory*)
 - **Algorithm (`src/engine/match.ts`):**
   - Takes the decomposed requirements from Phase 2 and matches them against active pieces in inventory.
   - **Matching Criteria:** Same material type, sufficient dimensions (`piece.L >= req.L` and `piece.W >= req.W`), and non-retired condition.
   - **Ranking:** Uses a *Smallest-Fit* heuristic to prioritize pieces that fit with minimum leftover margin, preserving larger offcuts for bigger future panels.
 - **User Interaction:**
-  - Engineers can review candidates and click **Accept** or **Decline**.
+  - Engineers review candidates grouped by structural member and can **Accept**, **Decline**, or mark a requirement as **Plan from new stock**. Decisions persist per project and survive reloads.
   - Accepting marks the requirement satisfied, increments the piece's `usageCount`, and records an entry in `usageLog` linked to that structural member (e.g. `C1`).
 
 ---
 
-### Phase 5: 2D/1D Cutting Stock Optimization & Offcut Intake
-*(Directly implements the right red box in `app-design-flow-specifics.png` and "Cutting Optimization for New Material")*
+### Phase 5: Step 2 — Plan Cuts & Offcut Intake
+*(Directly implements the right red box in `app-design-flow-specifics.png` and "Cutting Optimization for New Material"; deep link `?step=cuts`)*
 
-- **Screen:** `src/screens/OptimizationScreen.tsx` (Tab: *Cutting Plans*)
+- **Screen:** `src/screens/OptimizationScreen.tsx` (Optimize step: *Plan cuts*)
+- **Segmented workspace:** Results are grouped into **Sheets**, **Lumber**, and **Offcuts** with counts. The step opens on Sheets when panels remain, otherwise Lumber, and visiting it records that cut plans were reviewed.
 - **Algorithm (`src/engine/plywood.ts` & `src/engine/lumber.ts`):**
   - Requirements not satisfied by existing inventory must be cut from new stock.
   - Uses 2D Shelf First-Fit Decreasing (ADR-0005) with strictly valid **Guillotine cuts** (ADR-0003) on standard 2.44m × 1.22m sheets.
@@ -99,7 +103,7 @@ flowchart TD
   - Hatched regions display cutting waste and remaining usable offcuts.
   - Sheets can be exported as SVG or PNG images.
 - **Offcut Intake (`src/components/optimize/OffcutIntake.tsx`):**
-  - Offcuts meeting the thesis reuse threshold (≥ 0.3 m in both dimensions) are surfaced with a one-click **Add to inventory** button to immediately feed back into inventory for future pours.
+  - Offcuts meeting the thesis reuse threshold (≥ 0.3 m in both dimensions) are surfaced with a one-click **Add to inventory** button to feed back into inventory for future pours.
 
 ---
 

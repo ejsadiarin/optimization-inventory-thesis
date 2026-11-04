@@ -4,9 +4,15 @@ import { projectRef } from '@/lib/firestore-helpers';
 import { seedDemoProject, DEMO_PROJECT_NAME, DEMO_ACCESS_CODE, DEMO_PROJECT_ID } from './seed';
 import { listStructuralMembers } from './members';
 import { listLumberRequirements } from './members';
-import { listPieces } from './inventory';
+import { listPieces, getActivePieces } from './inventory';
 import { getLatestCuttingPlan } from './plans';
+import { getOptimizationWorkflow } from './workflow';
 import { verifyProjectAccess } from './projects';
+import { decomposeMember } from '@/engine/decompose';
+import { optimizeProject, toMatchRequirements } from '@/engine';
+import { matchInventory } from '@/engine/match';
+import { reviewRequirements } from '@/components/optimize/reuseReview';
+import { toMatchPiece } from '@/lib/pieces';
 import type { ProjectOwner } from './types';
 import {
   clearAuth,
@@ -69,6 +75,46 @@ describe('seedDemoProject on Firestore', () => {
     expect(data.accessCodeSalt).toBeTruthy();
     expect(data.accessCode).toBeUndefined();
 
+  });
+
+  it('seeds reuse candidates and reusable offcuts', async () => {
+    const result = await seedDemoProject(owner);
+    const [members, lumber, pieces, workflow] = await Promise.all([
+      listStructuralMembers(result.project.id),
+      listLumberRequirements(result.project.id),
+      getActivePieces(result.project.id),
+      getOptimizationWorkflow(result.project.id),
+    ]);
+    expect(workflow).not.toBeNull();
+
+    const panels = members.flatMap(decomposeMember);
+    const requirements = toMatchRequirements(panels, lumber);
+    const matchPieces = pieces.map(toMatchPiece);
+    const reviews = reviewRequirements(
+      matchInventory(requirements, matchPieces),
+      new Set(workflow!.satisfiedRequirementIds),
+      new Map(Object.entries(workflow!.acceptedByRequirement)),
+      new Set(workflow!.declinedCandidates),
+      new Set(workflow!.newStockRequirementIds),
+    );
+
+    expect(reviews.filter((review) => review.status === 'needsDecision').length).toBeGreaterThan(
+      0,
+    );
+
+    const optimization = optimizeProject({
+      panels,
+      lumberRequirements: lumber,
+      stock: result.project.stock,
+      costs: result.project.costs,
+      pieces: matchPieces,
+      satisfiedRequirementIds: new Set(workflow!.satisfiedRequirementIds),
+    });
+    const reusableOffcuts = optimization.plywood.sheets
+      .flatMap((sheet) => sheet.offcuts)
+      .filter((offcut) => offcut.reusable);
+
+    expect(reusableOffcuts.length).toBeGreaterThan(0);
   });
 
   it('is idempotent on re-seed', async () => {

@@ -1,0 +1,136 @@
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import { decidedCount, reviewRequirements } from '@/components/optimize/reuseReview';
+import { getActivePieces } from '@/db/inventory';
+import { listLumberRequirements, listStructuralMembers } from '@/db/members';
+import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
+import type { Project } from '@/db/types';
+import {
+  emptyWorkflow,
+  getOptimizationWorkflow,
+  invalidateWorkflow,
+  workflowFromSnapshot,
+} from '@/db/workflow';
+import { toMatchRequirements } from '@/engine';
+import { decomposeMember } from '@/engine/decompose';
+import { matchInventory } from '@/engine/match';
+import {
+  buildNavAnnotations,
+  buildProjectChecklist,
+  type ProjectProgressCounts,
+} from '@/lib/projectProgress';
+import { ProjectProgressContext } from '@/lib/projectProgressContext';
+import { toMatchPiece } from '@/lib/pieces';
+import { useRefreshSignal } from '@/lib/useRefreshSignal';
+
+const EMPTY_COUNTS: ProjectProgressCounts = {
+  structuralMembers: 0,
+  lumberRequirements: 0,
+  pieces: 0,
+  requirements: 0,
+  decidedRequirements: 0,
+  reuseReviewed: false,
+  cutPlansReviewedAt: null,
+};
+
+export function ProjectProgressProvider({
+  project,
+  children,
+}: {
+  project: Project;
+  children: ReactNode;
+}) {
+  const refreshSignal = useRefreshSignal();
+  const [reloadToken, setReloadToken] = useState(0);
+  const [state, setState] = useState({
+    loading: true,
+    error: false,
+    counts: EMPTY_COUNTS,
+  });
+
+  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [members, lumber, pieces, storedWorkflow] = await Promise.all([
+          listStructuralMembers(project.id),
+          listLumberRequirements(project.id),
+          getActivePieces(project.id),
+          getOptimizationWorkflow(project.id),
+        ]);
+
+        const panels = members.flatMap(decomposeMember);
+        const requirements = toMatchRequirements(panels, lumber);
+        const matchPieces = pieces.map(toMatchPiece);
+        const groups = matchInventory(requirements, matchPieces);
+
+        let workflow = storedWorkflow;
+        if (!workflow) {
+          const latest = await getLatestCuttingPlan(project.id);
+          if (latest) {
+            workflow = workflowFromSnapshot(
+              filterCuttingPlanSnapshot(
+                latest.snapshot,
+                new Set(requirements.map((requirement) => requirement.id)),
+              ),
+            );
+          }
+        }
+
+        const resolved = invalidateWorkflow(
+          workflow ?? emptyWorkflow(),
+          requirements,
+          matchPieces,
+        );
+        const reviews = reviewRequirements(
+          groups,
+          new Set(resolved.satisfiedRequirementIds),
+          new Map(Object.entries(resolved.acceptedByRequirement)),
+          new Set(resolved.declinedCandidates),
+          new Set(resolved.newStockRequirementIds),
+        );
+
+        if (cancelled) return;
+        setState({
+          loading: false,
+          error: false,
+          counts: {
+            structuralMembers: members.length,
+            lumberRequirements: lumber.length,
+            pieces: pieces.length,
+            requirements: requirements.length,
+            decidedRequirements: decidedCount(reviews),
+            reuseReviewed: workflow !== null,
+            cutPlansReviewedAt: resolved.cutPlansReviewedAt,
+          },
+        });
+      } catch {
+        if (cancelled) return;
+        setState((current) => ({ ...current, loading: false, error: true }));
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, refreshSignal, reloadToken]);
+
+  const checklist = buildProjectChecklist(state.counts);
+  const nav = buildNavAnnotations(state.counts);
+
+  return (
+    <ProjectProgressContext.Provider
+      value={{ ...state, checklist, nav, reload }}
+    >
+      {children}
+    </ProjectProgressContext.Provider>
+  );
+}

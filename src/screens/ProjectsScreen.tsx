@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CalendarDays, FolderPlus, KeyRound, Plus, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,12 @@ import { seedDemoProject } from '@/db/seed';
 import { importLegacyData } from '@/migration/importLegacyData';
 import type { CreatedProject, Project } from '@/db/types';
 import { formatDate } from '@/lib/format';
+import { unlockProject } from '@/lib/projectSession';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 export default function ProjectsScreen() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const refreshSignal = useRefreshSignal();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,8 +133,13 @@ export default function ProjectsScreen() {
   }
 
   function closeCodeDialog() {
+    const created = createdProject;
     setCreatedProject(null);
     void refresh();
+    if (created) {
+      unlockProject(created.project.id);
+      navigate(`/projects/${created.project.id}`);
+    }
   }
 
   return (

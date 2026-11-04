@@ -6,6 +6,7 @@ import { DEFAULT_COSTS, DEFAULT_STOCK, getProject } from './projects';
 import { createStructuralMember, createLumberRequirement } from './members';
 import { addPiece, recordUsage, retirePiece } from './inventory';
 import { saveCuttingPlanSnapshot } from './plans';
+import { emptyWorkflow, saveOptimizationWorkflow } from './workflow';
 import { decomposeMember } from '@/engine/decompose';
 import type { Project, ProjectOwner } from './types';
 import type { CreatedProject } from './types';
@@ -270,12 +271,19 @@ export async function seedDemoProject(owner: ProjectOwner): Promise<CreatedProje
   await recordUsage(reusedLumber.id, project.id, braceA.label, daysAgo(1));
 
   const reusedPanelRequirement = decomposeMember(c1)[0]!;
+  const satisfiedRequirementIds = [reusedPanelRequirement.id, braceA.id];
+  const acceptedByRequirement = {
+    [reusedPanelRequirement.id]: reusedPanel.id,
+    [braceA.id]: reusedLumber.id,
+  };
   await saveCuttingPlanSnapshot(project.id, {
-    satisfiedRequirementIds: [reusedPanelRequirement.id, braceA.id],
-    acceptedByRequirement: {
-      [reusedPanelRequirement.id]: reusedPanel.id,
-      [braceA.id]: reusedLumber.id,
-    },
+    satisfiedRequirementIds,
+    acceptedByRequirement,
+  });
+  await saveOptimizationWorkflow(project.id, {
+    ...emptyWorkflow(),
+    satisfiedRequirementIds,
+    acceptedByRequirement,
   });
 
   const checked = await addPiece({
