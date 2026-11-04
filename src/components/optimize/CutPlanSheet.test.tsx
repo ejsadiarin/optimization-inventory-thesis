@@ -96,6 +96,57 @@ describe('CutPlanSheet', () => {
     expect(screen.getByText('rotated')).toBeInTheDocument();
   });
 
+  it('transposes portrait stock so tall pieces render compactly', () => {
+    renderSheet({
+      stock: { length: 0.3, width: 2.2 },
+      panels: [
+        {
+          panelId: 'B1-panel-1',
+          label: 'B1',
+          x: 0,
+          y: 0.1,
+          length: 0.2,
+          width: 2,
+          rotated: true,
+        },
+      ],
+      offcuts: [{ x: 0.2, y: 0, length: 0.1, width: 2.2, reusable: true }],
+    });
+
+    const svg = screen.getByTestId('cut-plan-sheet-0');
+    const [, , viewBoxWidth, viewBoxHeight] = (svg.getAttribute('viewBox') ?? '')
+      .split(' ')
+      .map(Number);
+    expect(viewBoxWidth).toBeCloseTo(2.38);
+    expect(viewBoxHeight).toBeCloseTo(0.48);
+
+    const outline = screen.getByTestId('stock-sheet-outline-0');
+    expect(outline).toHaveAttribute('width', '2.2');
+    expect(outline).toHaveAttribute('height', '0.3');
+
+    const panel = panelRect('B1-panel-1');
+    expect(panel).toHaveAttribute('x', '0.1');
+    expect(panel).toHaveAttribute('y', '0');
+    expect(panel).toHaveAttribute('width', '2');
+    expect(panel).toHaveAttribute('height', '0.2');
+
+    const offcut = screen.getByTestId('offcut-0-0');
+    expect(offcut).toHaveAttribute('x', '0');
+    expect(offcut).toHaveAttribute('y', '0.2');
+    expect(offcut).toHaveAttribute('width', '2.2');
+    expect(offcut).toHaveAttribute('height', '0.1');
+
+    const lines = Array.from(
+      svg.querySelectorAll('text[data-panel-label="B1-panel-1"]'),
+    );
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      const baseline = Number(line.getAttribute('y'));
+      expect(baseline).toBeGreaterThan(0);
+      expect(baseline).toBeLessThan(0.2);
+    }
+  });
+
   it('labels panels with their member label and dimensions in meters', () => {
     renderSheet();
 

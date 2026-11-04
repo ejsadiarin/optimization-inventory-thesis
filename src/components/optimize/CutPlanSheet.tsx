@@ -83,11 +83,16 @@ export function SheetDiagram({
     svgId === `cut-plan-sheet-${sheet.sheetIndex}`
       ? String(sheet.sheetIndex)
       : svgId.replace(/[^a-zA-Z0-9_-]/g, '-');
+  // Lay portrait stock on its side so long, narrow pieces stay compact instead
+  // of rendering as a very tall SVG at full container width.
+  const transposed = stock.width > stock.length;
+  const displayWidth = transposed ? stock.width : stock.length;
+  const displayHeight = transposed ? stock.length : stock.width;
   const viewBox = [
     -SHEET_PADDING,
     -SHEET_PADDING,
-    stock.length + SHEET_PADDING * 2,
-    stock.width + SHEET_PADDING * 2,
+    displayWidth + SHEET_PADDING * 2,
+    displayHeight + SHEET_PADDING * 2,
   ].join(' ');
 
   return (
@@ -131,8 +136,8 @@ export function SheetDiagram({
         data-testid={decorative ? undefined : `stock-sheet-outline-${sheet.sheetIndex}`}
         x={0}
         y={0}
-        width={stock.length}
-        height={stock.width}
+        width={displayWidth}
+        height={displayHeight}
         fill="#ffffff"
         stroke="#111827"
         strokeWidth={0.012}
@@ -141,7 +146,7 @@ export function SheetDiagram({
       {!decorative && (
         <text
           data-testid={`stock-dimensions-${sheet.sheetIndex}`}
-          x={stock.length / 2}
+          x={displayWidth / 2}
           y={-0.025}
           textAnchor="middle"
           fontSize={0.055}
@@ -156,10 +161,10 @@ export function SheetDiagram({
           key={`offcut-${index}`}
           data-testid={decorative ? undefined : `offcut-${sheet.sheetIndex}-${index}`}
           data-reusable={offcut.reusable}
-          x={offcut.x}
-          y={offcut.y}
-          width={offcut.length}
-          height={offcut.width}
+          x={transposed ? offcut.y : offcut.x}
+          y={transposed ? offcut.x : offcut.y}
+          width={transposed ? offcut.width : offcut.length}
+          height={transposed ? offcut.length : offcut.width}
           fill={`url(#${offcut.reusable ? 'reusable' : 'waste'}-hatch-${patternKey})`}
           stroke={offcut.reusable ? '#9ca3af' : '#fca5a5'}
           strokeWidth={0.004}
@@ -176,10 +181,10 @@ export function SheetDiagram({
             data-rotated={String(panel.rotated)}
           >
             <rect
-              x={panel.x}
-              y={panel.y}
-              width={panel.length}
-              height={panel.width}
+              x={transposed ? panel.y : panel.x}
+              y={transposed ? panel.x : panel.y}
+              width={transposed ? panel.width : panel.length}
+              height={transposed ? panel.length : panel.width}
               fill={fill}
               stroke={PANEL_STROKE}
               strokeWidth={0.008}
@@ -190,7 +195,13 @@ export function SheetDiagram({
 
       {!decorative &&
         sheet.panels.map((panel) => {
-          const centerX = panel.x + panel.length / 2;
+          const centerX = transposed
+            ? panel.y + panel.width / 2
+            : panel.x + panel.length / 2;
+          const centerY = transposed
+            ? panel.x + panel.length / 2
+            : panel.y + panel.width / 2;
+          const offsetY = centerY - (panel.y + panel.width / 2);
 
           return panelLabelLines(panel).map((line, index) => (
             <text
@@ -198,7 +209,7 @@ export function SheetDiagram({
               data-testid={`panel-label-${panel.panelId}-${index}`}
               data-panel-label={panel.panelId}
               x={centerX}
-              y={line.y}
+              y={line.y + offsetY}
               textAnchor="middle"
               fontSize={line.fontSize}
               fontWeight={line.fontWeight}
