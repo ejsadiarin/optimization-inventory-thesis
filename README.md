@@ -30,7 +30,7 @@ npm run dev
 2. Add structural members (columns, beams, slabs) and any manual lumber requirements.
 3. Add reusable phenolic boards and lumber pieces to inventory.
 4. Open **Optimize** to accept reuse matches, review SVG cut plans, and keep reusable offcuts.
-5. Open **Summary** to review utilization, waste, reuse, and PHP savings, then export inventory CSV or cutting-plan images.
+5. Open **Inventory** to export the inventory CSV, and use the cut step to export sheet images.
 
 The app is installable and works offline after the first successful load. Data is local to the browser profile; clearing site data removes projects.
 

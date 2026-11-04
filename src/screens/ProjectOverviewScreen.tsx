@@ -1,5 +1,5 @@
 import { Link, useOutletContext } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Circle, Coins, Ruler } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, Ruler } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import type { Project } from '@/db/types';
 import { getNextProjectAction } from '@/lib/projectProgress';
-import { formatMeters, formatPeso } from '@/lib/format';
+import { formatMeters } from '@/lib/format';
 import { useProjectProgress } from '@/lib/useProjectProgress';
 import { projectNavHref } from '@/screens/projectNav';
 
@@ -45,7 +45,7 @@ export default function ProjectOverviewScreen() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Project checklist</CardTitle>
           <CardDescription>
-            Work through the required steps. Lumber, inventory, and summary are optional.
+            Work through the required steps. Lumber and inventory are optional.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -92,25 +92,6 @@ export default function ProjectOverviewScreen() {
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Coins className="h-4 w-4 text-primary" /> Material costs
-            </CardTitle>
-            <CardDescription>Used to estimate procurement savings.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Phenolic board</span>
-              <span className="font-medium">{formatPeso(project.costs.phenolicPerSheet)} / sheet</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Lumber</span>
-              <span className="font-medium">{formatPeso(project.costs.lumberPerPiece)} / piece</span>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">

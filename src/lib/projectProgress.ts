@@ -13,8 +13,7 @@ export type ProjectChecklistId =
   | 'lumber'
   | 'inventory'
   | 'reuse'
-  | 'cuts'
-  | 'summary';
+  | 'cuts';
 
 export interface ProjectChecklistItem {
   id: ProjectChecklistId;
@@ -73,13 +72,6 @@ const CHECKLIST_DEFINITIONS: ReadonlyArray<
     path: 'optimize?step=cuts',
     optional: false,
   },
-  {
-    id: 'summary',
-    label: 'Summary',
-    description: 'Review utilization, savings, and waste.',
-    path: 'summary',
-    optional: true,
-  },
 ];
 
 function isComplete(id: ProjectChecklistId, counts: ProjectProgressCounts): boolean {
@@ -98,8 +90,6 @@ function isComplete(id: ProjectChecklistId, counts: ProjectProgressCounts): bool
       );
     case 'cuts':
       return counts.cutPlansReviewedAt !== null;
-    case 'summary':
-      return false;
   }
 }
 

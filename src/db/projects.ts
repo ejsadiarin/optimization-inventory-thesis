@@ -39,7 +39,7 @@ export interface CreateProjectInput {
 }
 
 export interface ProjectSettingsInput {
-  costs: ProjectCosts;
+  costs?: ProjectCosts;
   stock: ProjectStock;
 }
 

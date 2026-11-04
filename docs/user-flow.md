@@ -25,8 +25,7 @@ flowchart TD
         OPT_M -->|"Unmatched Remainder"| OPT_C["Optimize Step 2\nPlan Cuts\n(?step=cuts)"]
         
         OPT_C -->|"Usable Offcuts (>= 0.3m in both dimensions)"| INV
-        OPT_C --> SUM["Summary Tab\n(Utilization, Savings ₱, Waste, CSV)"]
-        LOG --> SUM
+        LOG --> D
     end
 ```
 
@@ -50,7 +49,7 @@ flowchart TD
 *(Directly implements the top bar of `app-design-flow-specifics.png` and Step 2 of `schematic-diagram-flowchart.png`)*
 
 - **Overview checklist (`src/screens/ProjectOverviewScreen.tsx`):**
-  - Shows six auto-derived steps: structural members (required), lumber requirements (optional), inventory (optional), reuse decisions (required), cut plans reviewed (required), and summary (optional).
+  - Shows five auto-derived steps: structural members (required), lumber requirements (optional), inventory (optional), reuse decisions (required), and cut plans reviewed (required).
   - Every row links to its screen, and the project tabs show completion checks or outstanding counts.
 - **Screen:** `src/screens/StructuralMembersScreen.tsx`
 - **Actions:**
@@ -106,19 +105,7 @@ flowchart TD
   - Sheets can be exported as SVG or PNG images.
 - **Offcut Intake (`src/components/optimize/OffcutIntake.tsx`):**
   - Offcuts meeting the thesis reuse threshold (≥ 0.3 m in both dimensions) are surfaced with a one-click **Add to inventory** button to feed back into inventory for future pours.
-
----
-
-### Phase 6: System Performance & Savings Summary
-*(Directly implements step 9 "Collect System and Material Performance Data" of `schematic-diagram-flowchart.png`)*
-
-- **Screen:** `src/screens/ProjectSummaryScreen.tsx`
-- **Metrics Collected (`src/engine/report.ts`):**
-  - **Material Utilization %** and **Cutting Waste %** (weighted by cost between phenolic board and lumber).
-  - **Total Reused Pieces & Reuse Events**.
-  - **Procurement Order:** Exact number of new phenolic sheets and stock lumber pieces to purchase.
-  - **Financial Savings in PHP (₱):** Cost of buying all-new stock minus the actual procurement cost achieved through reuse.
-  - **CSV Export:** One-click download of all inventory, procurement lists, and cutting specifications.
+  - **Inventory CSV:** The Inventory screen exports every piece, including retired pieces and optional labels.
 
 ---
 
@@ -135,4 +122,3 @@ flowchart TD
 | **Update Digital Inventory (Usage Log)** | `1 USAGE`, `2 USAGE` arrows | `src/db/inventory.ts` (`recordUsage`) | **Full Match** |
 | **Cutting Optimization for New Material** | 1.22m × 2.44m Plywood cutting layout | `src/components/optimize/CutPlanSheet.tsx` & `src/engine/plywood.ts` | **Full Match** |
 | **Return Usable Offcut to Inventory** | Arrow from cutting sheet back to Inventory | `src/components/optimize/OffcutIntake.tsx` | **Full Match** |
-| **Collect Performance Data** | Summary metrics & Savings | `src/screens/ProjectSummaryScreen.tsx` | **Full Match** |

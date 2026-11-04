@@ -316,7 +316,8 @@ describe('inventory usage log on Firestore', () => {
       /piece not found/i,
     );
 
-    const { label: _label, ...pieceWithoutLabel } = piece;
+    const pieceWithoutLabel = { ...piece };
+    delete pieceWithoutLabel.label;
     await setDoc(projectDoc(otherProjectId, 'pieces', piece.id), {
       ...pieceWithoutLabel,
       projectId,

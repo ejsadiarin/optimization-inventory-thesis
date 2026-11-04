@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DEFAULT_COSTS, DEFAULT_STOCK, updateProjectSettings } from '@/db/projects';
+import { DEFAULT_STOCK, updateProjectSettings } from '@/db/projects';
 import type { Project } from '@/db/types';
 import { triggerRefresh } from '@/lib/useRefreshSignal';
 
@@ -18,8 +18,6 @@ function toNumber(value: string, fallback: number): number {
 export default function ProjectSettingsScreen() {
   const project = useOutletContext<Project>();
 
-  const [phenolicCost, setPhenolicCost] = useState(String(project.costs.phenolicPerSheet));
-  const [lumberCost, setLumberCost] = useState(String(project.costs.lumberPerPiece));
   const [sheetLength, setSheetLength] = useState(String(project.stock.phenolic.length));
   const [sheetWidth, setSheetWidth] = useState(String(project.stock.phenolic.width));
   const [sheetThickness, setSheetThickness] = useState(
@@ -50,10 +48,6 @@ export default function ProjectSettingsScreen() {
 
     try {
       const updated = await updateProjectSettings(project.id, {
-        costs: {
-          phenolicPerSheet: toNumber(phenolicCost, project.costs.phenolicPerSheet),
-          lumberPerPiece: toNumber(lumberCost, project.costs.lumberPerPiece),
-        },
         stock: {
           phenolic: {
             length: toNumber(sheetLength, project.stock.phenolic.length),
@@ -81,8 +75,6 @@ export default function ProjectSettingsScreen() {
 
   function restoreDefaults() {
     markDirty();
-    setPhenolicCost(String(DEFAULT_COSTS.phenolicPerSheet));
-    setLumberCost(String(DEFAULT_COSTS.lumberPerPiece));
     setSheetLength(String(DEFAULT_STOCK.phenolic.length));
     setSheetWidth(String(DEFAULT_STOCK.phenolic.width));
     setSheetThickness(String(DEFAULT_STOCK.phenolic.thickness));
@@ -93,48 +85,10 @@ export default function ProjectSettingsScreen() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         title="Project settings"
-        description="Configure material costs and stock sizes. Defaults follow standard Philippine sizes."
+        description="Configure the stock sizes used for cutting plans. Defaults follow standard Philippine sizes."
       />
 
       <form className="space-y-5" onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Material costs</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="phenolic-cost">Phenolic board cost (₱ per sheet)</Label>
-              <Input
-                id="phenolic-cost"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                value={phenolicCost}
-                onChange={(event) => {
-                  markDirty();
-                  setPhenolicCost(event.target.value);
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lumber-cost">Lumber cost (₱ per piece)</Label>
-              <Input
-                id="lumber-cost"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                value={lumberCost}
-                onChange={(event) => {
-                  markDirty();
-                  setLumberCost(event.target.value);
-                }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Phenolic stock sheet</CardTitle>

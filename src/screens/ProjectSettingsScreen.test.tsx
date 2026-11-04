@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { makeProject } from '@/test/fixtures';
-import type { Project, ProjectCosts, ProjectStock } from '@/db/types';
+import type { Project, ProjectStock } from '@/db/types';
 import { unlockProject } from '@/lib/projectSession';
 
 const mocks = vi.hoisted(() => ({
@@ -41,16 +41,15 @@ async function renderSettings(project: Project) {
       </TestAuthProvider>
     </MemoryRouter>,
   );
-  await screen.findByLabelText(/phenolic board cost/i);
+  await screen.findByLabelText(/stock sheet length/i);
 }
 
 describe('ProjectSettingsScreen', () => {
-  it('shows the standard default costs and stock sizes', async () => {
+  it('shows the standard stock sizes and omits cost inputs', async () => {
     const project = makeProject({ name: 'Settings Site' });
     await renderSettings(project);
 
-    expect(screen.getByLabelText(/phenolic board cost/i)).toHaveValue(850);
-    expect(screen.getByLabelText(/lumber cost/i)).toHaveValue(120);
+    expect(screen.queryByLabelText(/cost/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/stock sheet length/i)).toHaveValue(2.44);
     expect(screen.getByLabelText(/stock sheet width/i)).toHaveValue(1.22);
     expect(screen.getByLabelText(/stock sheet thickness/i)).toHaveValue(0.018);
@@ -58,21 +57,16 @@ describe('ProjectSettingsScreen', () => {
     expect(screen.getByRole('spinbutton', { name: /lumber stock length 5/i })).toHaveValue(6);
   });
 
-  it('saves edited material costs and stock sizes to the Firestore project', async () => {
+  it('saves edited stock sizes to the Firestore project', async () => {
     const user = userEvent.setup();
     const project = makeProject({ name: 'Settings Site' });
     mocks.updateProjectSettings.mockImplementation(
-      async (_id: string, settings: { costs: ProjectCosts; stock: ProjectStock }) => ({
+      async (_id: string, settings: { stock: ProjectStock }) => ({
         ...project,
-        costs: settings.costs,
         stock: settings.stock,
       }),
     );
     await renderSettings(project);
-
-    const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
-    await user.clear(phenolicCost);
-    await user.type(phenolicCost, '920');
 
     const sheetLength = screen.getByLabelText(/stock sheet length/i);
     await user.clear(sheetLength);
@@ -86,7 +80,6 @@ describe('ProjectSettingsScreen', () => {
 
     expect(await screen.findByText(/settings saved/i)).toBeInTheDocument();
     expect(mocks.updateProjectSettings).toHaveBeenCalledWith(project.id, {
-      costs: { phenolicPerSheet: 920, lumberPerPiece: 120 },
       stock: {
         phenolic: { length: 3, width: 1.22, thickness: 0.02 },
         lumberLengths: [2.4, 3.0, 3.6, 4.8, 6.0],
@@ -122,12 +115,12 @@ describe('ProjectSettingsScreen', () => {
     const project = makeProject({ name: 'Settings Site' });
     await renderSettings(project);
 
-    const phenolicCost = screen.getByLabelText(/phenolic board cost/i);
-    await user.clear(phenolicCost);
-    await user.type(phenolicCost, '999');
+    const sheetLength = screen.getByLabelText(/stock sheet length/i);
+    await user.clear(sheetLength);
+    await user.type(sheetLength, '3');
 
     window.dispatchEvent(new Event('focus'));
 
-    expect(phenolicCost).toHaveValue(999);
+    expect(sheetLength).toHaveValue(3);
   });
 });

@@ -105,10 +105,7 @@ describe('ProjectOverviewScreen', () => {
     expect(
       screen.getByRole('link', { name: /cut plans.*review sheet layouts/i }),
     ).toHaveAttribute('href', `/projects/${project.id}/optimize?step=cuts`);
-    expect(
-      screen.getByRole('link', { name: /summary.*review utilization/i }),
-    ).toHaveAttribute('href', `/projects/${project.id}/summary`);
-    expect(screen.getAllByText('Optional').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText('Optional').length).toBeGreaterThanOrEqual(2);
   });
 
   it('shows the project sidebar and opens the mobile menu', async () => {
@@ -193,9 +190,6 @@ describe('ProjectOverviewScreen', () => {
     expect(
       screen.queryByRole('link', { name: /start with members/i }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: /summary.*review utilization/i }),
-    ).toBeInTheDocument();
   });
 
   it('navigates from a checklist row to its screen', async () => {

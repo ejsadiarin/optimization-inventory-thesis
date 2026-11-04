@@ -9,7 +9,6 @@ import OptimizationScreen from '@/screens/OptimizationScreen';
 import ProjectInventoryScreen from '@/screens/ProjectInventoryScreen';
 import ProjectOverviewScreen from '@/screens/ProjectOverviewScreen';
 import ProjectSettingsScreen from '@/screens/ProjectSettingsScreen';
-import ProjectSummaryScreen from '@/screens/ProjectSummaryScreen';
 import ProjectsScreen from '@/screens/ProjectsScreen';
 import StructuralMembersScreen from '@/screens/StructuralMembersScreen';
 
@@ -29,7 +28,7 @@ export default function App() {
               <Route path="members" element={<StructuralMembersScreen />} />
               <Route path="inventory" element={<ProjectInventoryScreen />} />
               <Route path="optimize" element={<OptimizationScreen />} />
-              <Route path="summary" element={<ProjectSummaryScreen />} />
+              <Route path="summary" element={<Navigate to=".." replace />} />
               <Route path="settings" element={<ProjectSettingsScreen />} />
             </Route>
           </Route>

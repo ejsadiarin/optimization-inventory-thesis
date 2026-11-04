@@ -15,7 +15,6 @@ import {
   Boxes,
   Calculator,
   Check,
-  FileText,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -46,7 +45,6 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   members: Boxes,
   inventory: Package,
   optimize: Calculator,
-  summary: FileText,
   settings: Settings,
 };
 

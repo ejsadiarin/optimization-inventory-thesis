@@ -647,7 +647,7 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
     expect(screen.getByText(/stock 1 · 2\.40 m/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Brace A/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/estimated savings/i)).toBeInTheDocument();
+    expect(screen.queryByText(/estimated savings/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('cut-utilization')).toHaveTextContent(/%/);
 
     await user.click(screen.getByRole('button', { name: /notifications \(1\)/i }));
@@ -797,7 +797,7 @@ describe('OptimizationScreen cutting plans', () => {
     await openCutsStep(user);
 
     expect(screen.getByTestId('cut-summary')).toHaveTextContent(/sheets used/i);
-    expect(screen.getByTestId('cut-summary')).toHaveTextContent(/estimated savings/i);
+    expect(screen.getByTestId('cut-summary')).not.toHaveTextContent(/savings/i);
     expect(screen.getByTestId('cut-utilization')).toHaveTextContent(/%/);
 
     expect(screen.getByRole('tab', { name: /sheets \(1\)/i })).toHaveAttribute(

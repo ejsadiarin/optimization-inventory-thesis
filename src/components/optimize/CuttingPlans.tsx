@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OptimizationResult, PlywoodSheetPlan } from '@/engine/types';
-import { crossSectionLabel, formatDate, formatMeters, formatPeso } from '@/lib/format';
+import { crossSectionLabel, formatDate, formatMeters } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MEMBER_COLORS } from './memberColors';
 import { SheetDiagram, SheetNotes } from './CutPlanSheet';
@@ -411,7 +411,7 @@ export default function CuttingPlans({
       <Card>
         <CardContent
           data-testid="cut-summary"
-          className="grid grid-cols-2 gap-2 py-4 text-sm sm:grid-cols-4"
+          className="grid grid-cols-2 gap-2 py-4 text-sm sm:grid-cols-3"
         >
           <div>
             <p className="text-muted-foreground">Sheets used</p>
@@ -422,10 +422,6 @@ export default function CuttingPlans({
             <p className="font-semibold">{optimization.stats.plywood.sheetsSaved}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">Estimated savings</p>
-            <p className="font-semibold">{formatPeso(optimization.stats.estimatedSavings)}</p>
-          </div>
-          <div>
             <p className="text-muted-foreground">
               {hasPanels ? 'Sheet utilization' : 'Lumber utilization'}
             </p>
@@ -434,7 +430,7 @@ export default function CuttingPlans({
             </p>
           </div>
           {optimization.plywood.sheets.length > 0 && (
-            <div className="col-span-2 flex justify-end border-t pt-2 sm:col-span-4">
+            <div className="col-span-2 flex justify-end border-t pt-2 sm:col-span-3">
               <Button
                 type="button"
                 size="sm"

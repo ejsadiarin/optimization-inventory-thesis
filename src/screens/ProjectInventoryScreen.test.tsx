@@ -34,6 +34,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   resetViewport();
+  vi.restoreAllMocks();
 });
 
 async function renderInventory(projectId: string) {
@@ -116,6 +117,37 @@ describe('ProjectInventoryScreen labels and row actions', () => {
 
     expect(await screen.findByRole('row', { name: /left wall panel/i })).toBeInTheDocument();
     expect(screen.queryByRole('row', { name: /right wall panel/i })).not.toBeInTheDocument();
+  });
+
+  it('exports all inventory pieces, including labels, as CSV', async () => {
+    const user = userEvent.setup();
+    const project = await seedLabelledPieces();
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:inventory');
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    await renderInventory(project.id);
+    await screen.findByRole('row', { name: /left wall panel/i });
+
+    await user.click(screen.getByRole('button', { name: /export csv/i }));
+
+    expect(createObjectURL).toHaveBeenCalled();
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    const csv = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob as Blob);
+    });
+    expect(csv).toContain('Left wall panel');
   });
 
   it('opens the piece detail when a row is clicked', async () => {

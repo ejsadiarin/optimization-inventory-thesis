@@ -33,7 +33,6 @@ describe('project progress', () => {
       false,
       false,
       false,
-      false,
     ]);
     expect(buildNavAnnotations(empty)).toEqual({});
   });
@@ -56,7 +55,6 @@ describe('project progress', () => {
       ['inventory', true, true],
       ['reuse', false, false],
       ['cuts', false, false],
-      ['summary', false, true],
     ]);
     expect(getNextProjectAction(
       counts({
@@ -98,7 +96,6 @@ describe('project progress', () => {
     const checklist = buildProjectChecklist(reviewed);
 
     expect(checklist.filter((item) => !item.optional).every((item) => item.complete)).toBe(true);
-    expect(checklist.find((item) => item.id === 'summary')?.complete).toBe(false);
     expect(getNextProjectAction(reviewed)).toBeNull();
   });
 
@@ -116,7 +113,6 @@ describe('project progress', () => {
     expect(annotations.members).toEqual({ complete: true });
     expect(annotations.inventory).toBeUndefined();
     expect(annotations.optimize).toEqual({ count: 3 });
-    expect(annotations.summary).toBeUndefined();
   });
 
   it('keeps reuse pending until the step has been reviewed', () => {
@@ -146,6 +142,5 @@ describe('project progress', () => {
     );
 
     expect(annotations.optimize).toEqual({ complete: true });
-    expect(annotations.summary).toBeUndefined();
   });
 });

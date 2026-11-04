@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Download,
   PackageOpen,
   Plus,
   SearchX,
@@ -16,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { useToast } from '@/components/ui/toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -26,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { daysInInventory, getActivePieces, queryPieces } from '@/db/inventory';
+import { daysInInventory, getActivePieces, listPieces, queryPieces } from '@/db/inventory';
 import type { PieceSortKey } from '@/db/inventory';
 import type {
   MaterialType,
@@ -40,6 +42,8 @@ import {
   materialTypeLabel,
   shortId,
 } from '@/lib/format';
+import { piecesToCsv } from '@/lib/csv';
+import { buildDatedFilename, downloadTextFile } from '@/lib/download';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 
@@ -102,6 +106,7 @@ function PieceActions({ piece, onView, onEdit }: PieceActionsProps) {
 export default function ProjectInventoryScreen() {
   const project = useOutletContext<Project>();
   const refreshSignal = useRefreshSignal();
+  const { toast } = useToast();
   const isDesktop = useIsDesktop();
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,6 +187,23 @@ export default function ProjectInventoryScreen() {
     setFormOpen(true);
   }
 
+  async function handleExportCsv() {
+    try {
+      const allPieces = await listPieces(project.id);
+      downloadTextFile(
+        buildDatedFilename(project.name, 'inventory', 'csv'),
+        piecesToCsv(allPieces),
+        'text/csv;charset=utf-8',
+      );
+    } catch {
+      toast({
+        title: 'Could not export inventory records',
+        description: 'Try again when the project is available.',
+        variant: 'error',
+      });
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <PageHeader
@@ -189,9 +211,20 @@ export default function ProjectInventoryScreen() {
         description="Track every phenolic board and lumber piece across its lifecycle."
         actions={
           loading || Boolean(loadError) || pieces.length > 0 ? (
-            <Button type="button" onClick={openAddForm}>
-              <Plus className="h-4 w-4" /> Add piece
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {pieces.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleExportCsv()}
+                >
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+              )}
+              <Button type="button" onClick={openAddForm}>
+                <Plus className="h-4 w-4" /> Add piece
+              </Button>
+            </div>
           ) : undefined
         }
       />
