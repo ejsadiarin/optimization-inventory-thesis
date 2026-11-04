@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { BarChart3, Coins, Download, Layers, Loader2, Recycle } from 'lucide-react';
+import { Link, useOutletContext } from 'react-router-dom';
+import { BarChart3, Boxes, Coins, Download, Layers, Loader2, Recycle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { listPieces } from '@/db/inventory';
@@ -20,7 +21,7 @@ import { buildProjectSummary, type ProjectSummary } from '@/engine/report';
 import type { LumberRequirementInput } from '@/engine/types';
 import { piecesToCsv } from '@/lib/csv';
 import { buildDatedFilename, downloadTextFile } from '@/lib/download';
-import { formatPeso } from '@/lib/format';
+import { formatMeters, formatPeso } from '@/lib/format';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
@@ -69,10 +70,66 @@ function BreakdownRow({ label, detail, value, emphasis }: BreakdownRowProps) {
   );
 }
 
+interface ProjectContextProps {
+  project: Project;
+  pieceCount: number;
+  activePieceCount: number;
+}
+
+function ProjectContext({ project, pieceCount, activePieceCount }: ProjectContextProps) {
+  const { phenolic, lumberLengths } = project.stock;
+
+  return (
+    <section className="grid gap-3 sm:grid-cols-2" aria-label="Project context">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Boxes className="h-4 w-4 text-primary" /> Inventory
+          </CardTitle>
+          <CardDescription>Stock logged for this project.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Metric label="Pieces logged" value={String(pieceCount)} testId="summary-context-pieces" />
+          <Metric
+            label="Active pieces"
+            value={String(activePieceCount)}
+            testId="summary-context-active-pieces"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Coins className="h-4 w-4 text-primary" /> Cost assumptions
+          </CardTitle>
+          <CardDescription>Rates applied when a plan is generated.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <BreakdownRow
+            label="Phenolic sheet"
+            detail={`${formatMeters(phenolic.length)} × ${formatMeters(phenolic.width)} × ${phenolic.thickness} m`}
+            value={formatPeso(project.costs.phenolicPerSheet)}
+          />
+          <BreakdownRow
+            label="Lumber piece"
+            detail={`Stock lengths ${lumberLengths.map((length) => formatMeters(length)).join(' · ')}`}
+            value={formatPeso(project.costs.lumberPerPiece)}
+          />
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 export default function ProjectSummaryScreen() {
   const project = useOutletContext<Project>();
   const refreshSignal = useRefreshSignal();
   const [summary, setSummary] = useState<ProjectSummary | null>(null);
+  const [requirementsCount, setRequirementsCount] = useState(0);
+  const [optimizationStarted, setOptimizationStarted] = useState(false);
+  const [pieceCount, setPieceCount] = useState(0);
+  const [activePieceCount, setActivePieceCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportError, setExportError] = useState('');
@@ -123,6 +180,20 @@ export default function ProjectSummaryScreen() {
             requirementIds,
           )
         : snapshot;
+      const workflowStarted =
+        resolvedWorkflow !== null &&
+        (resolvedWorkflow.cutPlansReviewedAt !== null ||
+          resolvedWorkflow.satisfiedRequirementIds.length > 0 ||
+          Object.keys(resolvedWorkflow.acceptedByRequirement).length > 0 ||
+          resolvedWorkflow.declinedCandidates.length > 0 ||
+          resolvedWorkflow.newStockRequirementIds.length > 0);
+
+      setRequirementsCount(panels.length + lumberInputs.length);
+      setOptimizationStarted(snapshot.satisfiedRequirementIds.length > 0 || workflowStarted);
+      setPieceCount(pieces.length);
+      setActivePieceCount(
+        pieces.filter((piece) => !piece.retired && piece.condition !== 'Retired').length,
+      );
 
       setSummary(
         buildProjectSummary({
@@ -161,8 +232,11 @@ export default function ProjectSummaryScreen() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-10 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading summary…
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader title="Summary" description={SUMMARY_DESCRIPTION} />
+        <div className="flex items-center justify-center py-10 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading summary…
+        </div>
       </div>
     );
   }
@@ -179,6 +253,47 @@ export default function ProjectSummaryScreen() {
     );
   }
 
+  if (requirementsCount === 0) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader title="Summary" description={SUMMARY_DESCRIPTION} />
+        <EmptyState
+          icon={Boxes}
+          title="No requirements yet"
+          description="Add structural members or lumber requirements to build a project summary."
+          action={
+            <Button asChild>
+              <Link to="../members">Add structural members</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!optimizationStarted) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader title="Summary" description={SUMMARY_DESCRIPTION} />
+        <EmptyState
+          icon={BarChart3}
+          title="Optimization not started"
+          description="Review reusable inventory and plan cuts to generate utilization, cost, and procurement estimates."
+          action={
+            <Button asChild>
+              <Link to="../optimize?step=reuse">Start optimization</Link>
+            </Button>
+          }
+        />
+        <ProjectContext
+          project={project}
+          pieceCount={pieceCount}
+          activePieceCount={activePieceCount}
+        />
+      </div>
+    );
+  }
+
   const { procurement } = summary;
 
   return (
@@ -187,9 +302,14 @@ export default function ProjectSummaryScreen() {
         title="Summary"
         description={SUMMARY_DESCRIPTION}
         actions={
-          <Button type="button" variant="outline" onClick={() => void handleExportCsv()}>
-            <Download className="h-4 w-4" /> Export inventory CSV
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link to="../optimize">Revisit optimization</Link>
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void handleExportCsv()}>
+              <Download className="h-4 w-4" /> Export inventory CSV
+            </Button>
+          </>
         }
       />
 

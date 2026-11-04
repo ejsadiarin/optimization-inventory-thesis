@@ -57,6 +57,13 @@ async function renderSummary(projectId: string) {
   });
 }
 
+async function markOptimizationReviewed(projectId: string) {
+  await saveOptimizationWorkflow(projectId, {
+    ...emptyWorkflow(),
+    cutPlansReviewedAt: '2026-11-01T00:00:00.000Z',
+  });
+}
+
 function blobText(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -103,6 +110,7 @@ describe('ProjectSummaryScreen', () => {
       width: 0.6,
       thickness: 0.018,
     });
+    await markOptimizationReviewed(project.id);
 
     await renderSummary(project.id);
 
@@ -191,10 +199,6 @@ describe('ProjectSummaryScreen', () => {
       width: 0.6,
       thickness: 0.018,
     });
-    await saveCuttingPlanSnapshot(project.id, {
-      satisfiedRequirementIds: [],
-      acceptedByRequirement: {},
-    });
     await saveOptimizationWorkflow(project.id, {
       ...emptyWorkflow(),
       satisfiedRequirementIds: [reusedPanelId],
@@ -232,6 +236,7 @@ describe('ProjectSummaryScreen', () => {
       length: 2,
       crossSection: '2x3',
     });
+    await markOptimizationReviewed(project.id);
 
     await renderSummary(project.id);
 
@@ -242,9 +247,94 @@ describe('ProjectSummaryScreen', () => {
     expect(screen.getByText(/total material cost/i)).toBeInTheDocument();
   });
 
+  it('points an empty project at the members screen', async () => {
+    const project = await seedProject({ name: 'Empty Summary Site' });
+
+    await renderSummary(project.id);
+
+    expect(screen.getByRole('heading', { name: /no requirements yet/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /add structural members/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/members`);
+    expect(screen.queryByText(/overall utilization/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/optimization not started/i)).not.toBeInTheDocument();
+  });
+
+  it('shows inventory and cost context before optimization starts', async () => {
+    const project = await seedProject({ name: 'Not Started Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'Slab A',
+      length: 1.2,
+      width: 0.7,
+      height: 0,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+    await saveCuttingPlanSnapshot(project.id, {
+      satisfiedRequirementIds: [],
+      acceptedByRequirement: {},
+    });
+
+    await renderSummary(project.id);
+
+    expect(
+      screen.getByRole('heading', { name: /optimization not started/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /start optimization/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/optimize?step=reuse`);
+    expect(screen.getByTestId('summary-context-pieces')).toHaveTextContent('1');
+    expect(screen.getByTestId('summary-context-active-pieces')).toHaveTextContent('1');
+    expect(screen.getAllByText(/₱850/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/₱120/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/overall utilization/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the live summary and a revisit action once optimization is reviewed', async () => {
+    const project = await seedProject({ name: 'Reviewed Site' });
+    const member = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'Slab A',
+      length: 1.2,
+      width: 0.7,
+      height: 0,
+    });
+    await saveOptimizationWorkflow(project.id, {
+      ...emptyWorkflow(),
+      satisfiedRequirementIds: [],
+      newStockRequirementIds: [`${member.id}-panel-1`],
+      cutPlansReviewedAt: '2026-11-01T00:00:00.000Z',
+    });
+
+    await renderSummary(project.id);
+
+    expect(screen.getByText(/overall utilization/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /revisit optimization/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/optimize`);
+    expect(screen.queryByText(/optimization not started/i)).not.toBeInTheDocument();
+  });
+
   it('exports the full inventory, including retired pieces, as CSV', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Export Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'Slab A',
+      length: 1.2,
+      width: 0.7,
+      height: 0,
+    });
+    await markOptimizationReviewed(project.id);
     const active = await addPiece({
       projectId: project.id,
       materialType: 'phenolic',
