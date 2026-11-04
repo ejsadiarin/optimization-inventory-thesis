@@ -1,4 +1,4 @@
-import { getDoc, getDocs, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { deleteField, getDoc, getDocs, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { generateId } from '@/lib/ids';
 import { queueWrite } from '@/lib/syncStatus';
 import {
@@ -37,12 +37,14 @@ export interface StructuralMemberFields {
 
 export interface LumberRequirementInput {
   projectId: string;
+  memberId?: string;
   label: string;
   length: number;
   crossSection: CrossSection;
 }
 
 export interface LumberRequirementFields {
+  memberId?: string;
   label: string;
   length: number;
   crossSection: CrossSection;
@@ -64,10 +66,12 @@ function normalizeMemberFields(fields: StructuralMemberFields): StructuralMember
 }
 
 function normalizeLumberFields(fields: LumberRequirementFields): LumberRequirementFields {
+  const memberId = fields.memberId?.trim();
   return {
     label: fields.label.trim(),
     length: fields.length,
     crossSection: fields.crossSection,
+    ...(memberId ? { memberId } : {}),
   };
 }
 
@@ -121,7 +125,21 @@ export async function updateStructuralMember(
 }
 
 export async function deleteStructuralMember(projectId: string, id: string): Promise<void> {
-  queueWrite(deleteDoc(projectDoc(requireProjectId(projectId), 'structuralMembers', id)));
+  const scopedProjectId = requireProjectId(projectId);
+  const requirements = await listLumberRequirements(scopedProjectId);
+  await Promise.all(
+    requirements
+      .filter((requirement) => requirement.memberId === id)
+      .map((requirement) =>
+        queueWrite(
+          updateDoc(
+            projectDoc(scopedProjectId, 'lumberRequirements', requirement.id),
+            { memberId: deleteField() },
+          ),
+        ),
+      ),
+  );
+  queueWrite(deleteDoc(projectDoc(scopedProjectId, 'structuralMembers', id)));
 }
 
 export async function createLumberRequirement(
@@ -155,7 +173,13 @@ export async function updateLumberRequirement(
   const existing = await getDoc(reference);
   if (!existing.exists()) return undefined;
 
-  queueWrite(updateDoc(reference, { ...normalizeLumberFields(fields) }));
+  const normalized = normalizeLumberFields(fields);
+  queueWrite(
+    updateDoc(reference, {
+      ...normalized,
+      ...(normalized.memberId ? {} : { memberId: deleteField() }),
+    }),
+  );
 
   const updated = await getDoc(reference);
   return dataWithId<LumberRequirement>(updated);

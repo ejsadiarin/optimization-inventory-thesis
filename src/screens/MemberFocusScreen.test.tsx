@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { createStructuralMember } from '@/db/members';
+import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { addPiece, listPieces } from '@/db/inventory';
 import { seedProject } from '@/test/fixtures';
 import { resetMembersMock } from '@/test/membersMock';
@@ -131,6 +131,15 @@ describe('MemberFocusScreen', () => {
     expect(screen.getByText(/all panels are reused/i)).toBeInTheDocument();
     expect(screen.getByText(/trim to size/i)).toBeInTheDocument();
     expect(screen.getByTestId('focus-reuse-diagram')).toBeInTheDocument();
+    expect(screen.getByTestId(`focus-piece-label-${piece.id}`)).toHaveTextContent(
+      'Inventory piece',
+    );
+    expect(screen.getByTestId(`focus-piece-label-${piece.id}`)).toHaveTextContent(
+      '0.90 m × 0.80 m',
+    );
+    expect(
+      screen.getByRole('group', { name: /inventory piece/i }),
+    ).toBeInTheDocument();
 
     const [stored] = await listPieces(project.id);
     expect(stored?.id).toBe(piece.id);
@@ -154,6 +163,12 @@ describe('MemberFocusScreen', () => {
     expect(screen.getByText('New stock')).toBeInTheDocument();
     expect(screen.getByText('Sheet 1')).toBeInTheDocument();
     expect(screen.getByTestId('focus-sheet-0')).toBeInTheDocument();
+    expect(screen.getByTestId('focus-new-stock-label-0')).toHaveTextContent(
+      'New stock sheet · 2.44 m × 1.22 m',
+    );
+    expect(
+      screen.getByRole('group', { name: /new stock sheet/i }),
+    ).toBeInTheDocument();
   });
 
   it('prevents one physical piece from covering two panels', async () => {
@@ -272,5 +287,165 @@ describe('MemberFocusScreen', () => {
     expect(
       within(thirdPanel).getByText(/all matching pieces are already assigned to other panels/i),
     ).toBeInTheDocument();
+  });
+
+  it('auto-applies best matches on load and resets them on member switch', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Focus Auto Site' });
+    const first = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    const second = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S2',
+      length: 0.5,
+      width: 0.5,
+      height: 0,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.9,
+      width: 0.8,
+      thickness: 0.018,
+    });
+
+    await renderFocus(project.id);
+
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('1 of 1'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('focus-reuse-diagram')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Inventory piece'), '');
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('0 of 1'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId(`member-option-${second.id}`));
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('1 of 1'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId(`member-option-${first.id}`));
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('1 of 1'),
+    ).toBeInTheDocument();
+  });
+
+  it('plans only the lumber linked to the selected member', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Focus Lumber Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1.2,
+      width: 0.6,
+      height: 2.4,
+    });
+    const beam = await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 0.2,
+      height: 0.4,
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      memberId: column.id,
+      label: 'C1 brace',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      memberId: beam.id,
+      label: 'B1 brace',
+      length: 3,
+      crossSection: '2x4',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Project brace',
+      length: 1.8,
+      crossSection: '2x2',
+    });
+
+    await renderFocus(project.id);
+
+    expect(
+      screen.getByRole('heading', { name: /lumber for C1/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('focus-lumber-count')).toHaveTextContent('1 linked');
+
+    const columnPlan = screen.getByTestId('focus-lumber-plan');
+    expect(within(columnPlan).getByText(/C1 brace/)).toBeInTheDocument();
+    expect(within(columnPlan).queryByText(/B1 brace/)).not.toBeInTheDocument();
+    expect(within(columnPlan).queryByText(/Project brace/)).not.toBeInTheDocument();
+    expect(within(columnPlan).getByText(/2×3 lumber/i)).toBeInTheDocument();
+    expect(within(columnPlan).getByTestId('focus-lumber-utilization')).toHaveTextContent(
+      /utilization/i,
+    );
+    expect(within(columnPlan).getByText(/no saw kerf/i)).toBeInTheDocument();
+
+    await user.click(screen.getByTestId(`member-option-${beam.id}`));
+
+    expect(
+      await screen.findByRole('heading', { name: /lumber for B1/i }),
+    ).toBeInTheDocument();
+    const beamPlan = screen.getByTestId('focus-lumber-plan');
+    expect(within(beamPlan).getByText(/B1 brace/)).toBeInTheDocument();
+    expect(within(beamPlan).queryByText(/C1 brace/)).not.toBeInTheDocument();
+  });
+
+  it('shows Exceeds stock with a Settings link instead of New stock when a panel cannot fit', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Focus Oversize Site' });
+    const fitting = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    const oversized = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S2',
+      length: 4,
+      width: 3,
+      height: 0,
+    });
+
+    await renderFocus(project.id);
+
+    const fittingPanel = screen.getByTestId(`focus-panel-${fitting.id}-panel-1`);
+    expect(within(fittingPanel).getByText('New stock')).toBeInTheDocument();
+    expect(within(fittingPanel).queryByText('Exceeds stock')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId(`member-option-${oversized.id}`));
+
+    const oversizedPanel = await screen.findByTestId(
+      `focus-panel-${oversized.id}-panel-1`,
+    );
+    expect(within(oversizedPanel).getByText('Exceeds stock')).toBeInTheDocument();
+    expect(within(oversizedPanel).queryByText('New stock')).not.toBeInTheDocument();
+    expect(
+      within(oversizedPanel).getByRole('link', { name: /settings/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/settings`);
+
+    const unplaced = screen.getByTestId('focus-unplaced');
+    expect(
+      within(unplaced).getByRole('link', { name: /review stock sizes/i }),
+    ).toHaveAttribute('href', `/projects/${project.id}/settings`);
   });
 });

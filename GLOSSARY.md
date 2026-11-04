@@ -80,6 +80,18 @@ _Avoid_: Girder, lintel
 A flat horizontal structural member (floor or roof). Decomposes into 1 formwork panel (the bottom).
 _Avoid_: Floor, deck
 
+**Lumber Requirement**:
+A single 1D cut needed for bracing, walers, joists, or cleats, defined by length and cross-section (2×2, 2×3, or 2×4). A lumber requirement may be linked to one Structural Member or stay project-level.
+_Avoid_: Lumber piece (that is a tracked inventory item), lumber input
+
+**Member-linked Lumber**:
+A Lumber Requirement whose `memberId` points to a Structural Member. It appears in that member's Member Planner alongside the member's formwork panels.
+_Avoid_: Member lumber, attached cut
+
+**Project-level Lumber**:
+A Lumber Requirement with no `memberId`. It is not tied to a single member and remains in the main Optimize flow.
+_Avoid_: Unassigned lumber, global lumber
+
 **Guillotine Cut**:
 A cut that goes straight across the full width or height of the remaining piece, splitting it into two rectangles. The only type of cut the system generates, because this is how plywood is cut with a saw in practice.
 _Avoid_: Free cut, arbitrary cut

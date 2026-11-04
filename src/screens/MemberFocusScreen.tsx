@@ -10,9 +10,9 @@ import { PageHeader } from '@/components/ui/page-header';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
 import { SheetDiagram, SheetNotes } from '@/components/optimize/CutPlanSheet';
 import { getActivePieces } from '@/db/inventory';
-import { listStructuralMembers } from '@/db/members';
-import type { Piece, Project, StructuralMember } from '@/db/types';
-import { decomposeMember } from '@/engine/decompose';
+import { listLumberRequirements, listStructuralMembers } from '@/db/members';
+import type { LumberRequirement, Piece, Project, StructuralMember } from '@/db/types';
+import { decomposeMember, isPanelOversized } from '@/engine/decompose';
 import { optimizeProject } from '@/engine';
 import type {
   InventoryMatch,
@@ -20,7 +20,7 @@ import type {
   MatchRequirement,
   PanelRequirement,
 } from '@/engine/types';
-import { formatMeters, shortId } from '@/lib/format';
+import { crossSectionLabel, formatMeters, shortId } from '@/lib/format';
 import { MEMBER_TYPE_LABELS } from '@/lib/memberLabels';
 import {
   allocationsForAssignments,
@@ -118,6 +118,7 @@ export default function MemberFocusScreen() {
   const refreshSignal = useRefreshSignal();
   const [members, setMembers] = useState<StructuralMember[]>([]);
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [lumberRequirements, setLumberRequirements] = useState<LumberRequirement[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -128,11 +129,16 @@ export default function MemberFocusScreen() {
     let active = true;
     setLoading(true);
     setLoadError('');
-    void Promise.all([listStructuralMembers(project.id), getActivePieces(project.id)])
-      .then(([nextMembers, nextPieces]) => {
+    void Promise.all([
+      listStructuralMembers(project.id),
+      getActivePieces(project.id),
+      listLumberRequirements(project.id),
+    ])
+      .then(([nextMembers, nextPieces, nextLumber]) => {
         if (!active) return;
         setMembers(nextMembers);
         setPieces(nextPieces);
+        setLumberRequirements(nextLumber);
         setSelectedId(nextMembers[0]?.id ?? null);
       })
       .catch(() => {
@@ -168,21 +174,27 @@ export default function MemberFocusScreen() {
   const selected =
     memberEntries.find((entry) => entry.member.id === selectedId) ?? memberEntries[0];
 
-  useEffect(() => {
-    setAssignments({});
-  }, [selected?.member.id]);
+  const memberLumber = useMemo(() => {
+    if (!selected) return [];
+    return lumberRequirements
+      .filter((requirement) => requirement.memberId === selected.member.id)
+      .map((requirement) => ({
+        id: requirement.id,
+        label: requirement.label,
+        length: requirement.length,
+        crossSection: requirement.crossSection,
+      }));
+  }, [lumberRequirements, selected]);
 
-  const plan = useMemo(() => {
-    if (!selected) return null;
-    return optimizeProject({
-      panels: selected.panels,
-      lumberRequirements: [],
-      stock: project.stock,
-      costs: project.costs,
-      pieces: matchPieces,
-      satisfiedRequirementIds: new Set(Object.keys(assignments)),
-    });
-  }, [selected, project.stock, project.costs, matchPieces, assignments]);
+  useEffect(() => {
+    if (loading) return;
+    if (!selected) {
+      setAssignments({});
+      return;
+    }
+
+    setAssignments(assignPanelsToPieces(selected.panels, matchPieces).assignments);
+  }, [loading, selected, matchPieces]);
 
   const pieceAllocations = useMemo(
     () =>
@@ -193,6 +205,28 @@ export default function MemberFocusScreen() {
       ),
     [assignments, selected, matchPieces],
   );
+
+  const placedPanelIds = useMemo(
+    () =>
+      new Set(
+        pieceAllocations.flatMap((allocation) =>
+          allocation.plan.panels.map((panel) => panel.panelId),
+        ),
+      ),
+    [pieceAllocations],
+  );
+
+  const plan = useMemo(() => {
+    if (!selected) return null;
+    return optimizeProject({
+      panels: selected.panels,
+      lumberRequirements: memberLumber,
+      stock: project.stock,
+      costs: project.costs,
+      pieces: matchPieces,
+      satisfiedRequirementIds: placedPanelIds,
+    });
+  }, [selected, memberLumber, project.stock, project.costs, matchPieces, placedPanelIds]);
 
   const pageHeader = (
     <PageHeader
@@ -245,7 +279,9 @@ export default function MemberFocusScreen() {
 
   if (!selected || !plan) return null;
 
-  const assignedCount = selected.panels.filter((panel) => assignments[panel.id]).length;
+  const assignedCount = selected.panels.filter((panel) =>
+    placedPanelIds.has(panel.id),
+  ).length;
   const panelGroups = new Map(plan.matches.map((group) => [group.requirement.id, group]));
   const memberColors = buildMemberColorMap(
     memberEntries.map((entry) => entry.member.label),
@@ -386,6 +422,8 @@ export default function MemberFocusScreen() {
                 false;
               const allAssignedElsewhere =
                 !assignedPiece && (group?.candidates.length ?? 0) > 0 && !canChoose;
+              const oversized = isPanelOversized(panel, project.stock.phenolic);
+              const showExceedsStock = !assignedPiece && oversized;
               const color = memberColors.get(selected.member.label) ?? '#93c5fd';
 
               return (
@@ -405,9 +443,17 @@ export default function MemberFocusScreen() {
                     </div>
                     <Badge
                       variant={assignedPiece ? 'default' : 'outline'}
-                      className={assignedPiece || canChoose ? '' : 'text-muted-foreground'}
+                      className={
+                        assignedPiece || showExceedsStock ? '' : 'text-muted-foreground'
+                      }
                     >
-                      {assignedPiece ? 'Reused' : canChoose ? 'Choose a piece' : 'New stock'}
+                      {assignedPiece
+                        ? 'Reused'
+                        : showExceedsStock
+                          ? 'Exceeds stock'
+                          : canChoose
+                            ? 'Choose a piece'
+                            : 'New stock'}
                     </Badge>
                   </div>
 
@@ -448,6 +494,18 @@ export default function MemberFocusScreen() {
                     )}
                   </div>
 
+                  {showExceedsStock && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      This panel is larger than the configured stock sheet.{' '}
+                      <Link
+                        to="../settings"
+                        className="font-medium underline underline-offset-2"
+                      >
+                        Settings
+                      </Link>
+                    </p>
+                  )}
+
                   {assignedPiece && assignedMatch && (
                     <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md bg-muted/40 p-2">
                       <ReuseDiagram piece={assignedMatch.piece} panel={panel} color={color} />
@@ -486,18 +544,30 @@ export default function MemberFocusScreen() {
                   data-testid={`focus-piece-plan-${allocation.pieceId}`}
                   className="space-y-2 rounded-md border p-3"
                 >
-                  <p className="text-sm text-muted-foreground">
+                  <p
+                    data-testid={`focus-piece-label-${allocation.pieceId}`}
+                    className="text-sm font-semibold"
+                  >
+                    Inventory piece {shortId(allocation.pieceId)} ·{' '}
                     {formatMeters(allocation.plan.stock.length)} ×{' '}
-                    {formatMeters(allocation.plan.stock.width)} ·{' '}
+                    {formatMeters(allocation.plan.stock.width)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
                     {allocation.panelIds.length} panel
                     {allocation.panelIds.length === 1 ? '' : 's'} · remaining{' '}
                     {allocation.plan.offcutArea.toFixed(2)} m²
                   </p>
-                  <SheetDiagram
-                    sheet={allocation.plan}
-                    memberColors={memberColors}
-                    svgId={`focus-piece-${index}`}
-                  />
+                  <div
+                    role="group"
+                    aria-label={`Inventory piece ${shortId(allocation.pieceId)} · ${formatMeters(allocation.plan.stock.length)} × ${formatMeters(allocation.plan.stock.width)}`}
+                  >
+                    <SheetDiagram
+                      sheet={allocation.plan}
+                      memberColors={memberColors}
+                      svgId={`focus-piece-${index}`}
+                      ariaLabel={`Inventory piece ${shortId(allocation.pieceId)} · ${formatMeters(allocation.plan.stock.length)} × ${formatMeters(allocation.plan.stock.width)}`}
+                    />
+                  </div>
                   <SheetNotes sheet={allocation.plan} />
                   <p className="text-xs text-muted-foreground">
                     Dimensions are exact; no saw kerf or blade allowance is included.
@@ -516,7 +586,7 @@ export default function MemberFocusScreen() {
         <CardContent className="space-y-4">
           <div
             data-testid="focus-summary"
-            className="grid grid-cols-2 gap-2 border-b pb-3 text-sm sm:grid-cols-4"
+            className="grid grid-cols-2 gap-2 border-b pb-3 text-sm sm:grid-cols-5"
           >
             <div>
               <p className="text-muted-foreground">Reused panels</p>
@@ -527,6 +597,12 @@ export default function MemberFocusScreen() {
             <div>
               <p className="text-muted-foreground">New sheets</p>
               <p className="font-semibold">{plan.plywood.sheets.length}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Lumber</p>
+              <p className="font-semibold" data-testid="focus-lumber-count">
+                {memberLumber.length === 0 ? '—' : `${memberLumber.length} linked`}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Utilization</p>
@@ -551,11 +627,24 @@ export default function MemberFocusScreen() {
           {plan.plywood.sheets.map((sheet) => (
             <div key={sheet.sheetIndex} className="space-y-2">
               <p className="text-sm font-semibold">Sheet {sheet.sheetIndex + 1}</p>
-              <SheetDiagram
-                sheet={sheet}
-                memberColors={memberColors}
-                svgId={`focus-sheet-${sheet.sheetIndex}`}
-              />
+              <p
+                data-testid={`focus-new-stock-label-${sheet.sheetIndex}`}
+                className="text-sm text-muted-foreground"
+              >
+                New stock sheet · {formatMeters(sheet.stock.length)} ×{' '}
+                {formatMeters(sheet.stock.width)}
+              </p>
+              <div
+                role="group"
+                aria-label={`New stock sheet · ${formatMeters(sheet.stock.length)} × ${formatMeters(sheet.stock.width)}`}
+              >
+                <SheetDiagram
+                  sheet={sheet}
+                  memberColors={memberColors}
+                  svgId={`focus-sheet-${sheet.sheetIndex}`}
+                  ariaLabel={`New stock sheet · ${formatMeters(sheet.stock.length)} × ${formatMeters(sheet.stock.width)}`}
+                />
+              </div>
               <SheetNotes sheet={sheet} />
             </div>
           ))}
@@ -585,6 +674,89 @@ export default function MemberFocusScreen() {
           )}
         </CardContent>
       </Card>
+
+      {memberLumber.length > 0 && (
+        <Card data-testid="focus-lumber-plan">
+          <CardHeader className="pb-3">
+            <h3 className="text-base font-semibold leading-tight tracking-tight">
+              Lumber for {selected.member.label}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {memberLumber.length} linked cut{memberLumber.length === 1 ? '' : 's'} ·{' '}
+              <span data-testid="focus-lumber-utilization">
+                {plan.lumber.utilization.toFixed(1)}% utilization
+              </span>
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {plan.lumber.groups.map((group) => (
+              <div
+                key={group.crossSection}
+                data-testid={`focus-lumber-group-${group.crossSection}`}
+                className="space-y-2 rounded-md border p-3"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-semibold">
+                    {crossSectionLabel(group.crossSection)} lumber
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {group.stockPiecesUsed} stock piece
+                    {group.stockPiecesUsed === 1 ? '' : 's'} ·{' '}
+                    {group.utilization.toFixed(1)}% utilized
+                  </p>
+                </div>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  {group.stocks.map((stock) => (
+                    <li key={stock.stockIndex}>
+                      <p className="font-medium text-foreground">
+                        Stock {stock.stockIndex + 1} · {formatMeters(stock.stockLength)} ·
+                        offcut {formatMeters(stock.offcutLength)}
+                      </p>
+                      <ul className="ml-4 list-disc space-y-0.5">
+                        {stock.cuts.map((cut) => (
+                          <li key={`${stock.stockIndex}-${cut.requirementId}`}>
+                            {cut.label} · {formatMeters(cut.length)}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
+            {plan.lumber.unplacedRequirements.length > 0 && (
+              <div
+                data-testid="focus-unplaced-lumber"
+                className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+              >
+                <p className="font-medium">
+                  {plan.lumber.unplacedRequirements.length} linked cut
+                  {plan.lumber.unplacedRequirements.length === 1 ? '' : 's'} cannot fit the
+                  configured stock lengths
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {plan.lumber.unplacedRequirements.map((requirement) => (
+                    <li key={requirement.requirementId}>
+                      {requirement.label} · {formatMeters(requirement.length)} ·{' '}
+                      {crossSectionLabel(requirement.crossSection)}
+                    </li>
+                  ))}
+                </ul>
+                <Button asChild size="sm" variant="outline" className="mt-2">
+                  <Link to="../settings">
+                    Review stock sizes <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Dimensions are exact; no saw kerf or blade allowance is included.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

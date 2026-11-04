@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
@@ -8,6 +8,7 @@ import App from '@/App';
 import {
   createLumberRequirement,
   createStructuralMember,
+  listLumberRequirements,
   listStructuralMembers,
 } from '@/db/members';
 import { seedProject } from '@/test/fixtures';
@@ -262,5 +263,59 @@ describe('StructuralMembersScreen', () => {
     expect(screen.getByRole('heading', { name: /2×4/i })).toBeInTheDocument();
     expect(screen.getByText('Existing brace')).toBeInTheDocument();
     expect(screen.getByText('Brace A')).toBeInTheDocument();
+  });
+
+  it('links lumber to a member and preserves or updates the link when editing', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Members Site' });
+    const member = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 0.4,
+      width: 0.25,
+      height: 3,
+    });
+    await renderMembers(project.id);
+    await screen.findByText('C1');
+
+    await user.click(screen.getByRole('button', { name: /add lumber/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/requirement label/i), 'Linked brace');
+    await user.type(within(dialog).getByLabelText(/^length/i), '2.4');
+    await user.click(
+      within(dialog).getByRole('combobox', { name: /member \(optional\)/i }),
+    );
+    await user.click(await screen.findByRole('option', { name: /C1 · Column/i }));
+    await user.click(within(dialog).getByRole('button', { name: /save requirement/i }));
+
+    await screen.findByText('Linked brace');
+    const lumberRow = screen.getByText('Linked brace').closest('tr');
+    expect(lumberRow).not.toBeNull();
+    expect(within(lumberRow as HTMLElement).getByText('C1')).toBeInTheDocument();
+
+    const [stored] = await listLumberRequirements(project.id);
+    expect(stored?.memberId).toBe(member.id);
+
+    await user.click(screen.getByRole('button', { name: /edit lumber Linked brace/i }));
+    const editDialog = await screen.findByRole('dialog');
+    expect(
+      within(editDialog).getByRole('combobox', { name: /member \(optional\)/i }),
+    ).toHaveTextContent('C1 · Column');
+    await user.click(
+      within(editDialog).getByRole('combobox', { name: /member \(optional\)/i }),
+    );
+    await user.click(
+      await screen.findByRole('option', { name: /project-level \(no member\)/i }),
+    );
+    await user.click(
+      within(editDialog).getByRole('button', { name: /save requirement/i }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await screen.findByText('Project-level')).toBeInTheDocument();
+
+    const [updated] = await listLumberRequirements(project.id);
+    expect(updated?.memberId).toBeUndefined();
   });
 });

@@ -35,10 +35,12 @@ function normalizeMemberFields(fields: StructuralMemberFields): StructuralMember
 }
 
 function normalizeLumberFields(fields: LumberRequirementFields): LumberRequirementFields {
+  const memberId = fields.memberId?.trim();
   return {
     label: fields.label.trim(),
     length: fields.length,
     crossSection: fields.crossSection,
+    ...(memberId ? { memberId } : {}),
   };
 }
 
@@ -131,10 +133,12 @@ export async function updateLumberRequirement(
   );
   if (index === -1) return undefined;
 
+  const normalized = normalizeLumberFields(fields);
   const updated: LumberRequirement = {
     ...requirements[index]!,
-    ...normalizeLumberFields(fields),
+    ...normalized,
   };
+  if (!normalized.memberId) delete updated.memberId;
   requirements[index] = updated;
   return updated;
 }

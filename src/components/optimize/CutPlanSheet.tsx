@@ -13,6 +13,7 @@ export interface SheetDiagramProps {
   svgId?: string;
   className?: string;
   decorative?: boolean;
+  ariaLabel?: string;
 }
 
 export interface CutPlanSheetProps {
@@ -32,6 +33,7 @@ export function SheetDiagram({
   svgId = `cut-plan-sheet-${sheet.sheetIndex}`,
   className = '',
   decorative = false,
+  ariaLabel,
 }: SheetDiagramProps) {
   const { stock } = sheet;
   const patternKey =
@@ -52,7 +54,11 @@ export function SheetDiagram({
       viewBox={viewBox}
       role={decorative ? undefined : 'img'}
       aria-hidden={decorative || undefined}
-      aria-label={decorative ? undefined : `Cutting plan for sheet ${sheet.sheetIndex + 1}`}
+      aria-label={
+        decorative
+          ? undefined
+          : (ariaLabel ?? `Cutting plan for sheet ${sheet.sheetIndex + 1}`)
+      }
       className={`w-full rounded-md border bg-white ${className}`.trim()}
     >
       <defs>

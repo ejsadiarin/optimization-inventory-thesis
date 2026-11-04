@@ -58,6 +58,7 @@ export interface StructuralMember {
 export interface LumberRequirement {
   id: string;
   projectId: string;
+  memberId?: string;
   label: string;
   length: number;
   crossSection: CrossSection;

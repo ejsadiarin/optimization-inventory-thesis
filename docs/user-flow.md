@@ -54,7 +54,7 @@ flowchart TD
 - **Screen:** `src/screens/StructuralMembersScreen.tsx`
 - **Actions:**
   - Engineers define structural components: **Columns** (`C1`, `C2`), **Beams** (`B1`, `B2`), and **Slabs** (`S1`, `S2`) with length, width, depth, and quantity.
-  - Manual 1D lumber requirements (walers, braces, joists, cleats) can also be added.
+  - Manual 1D lumber requirements (walers, braces, joists, cleats) can also be added. Each requirement may be linked to a structural member or left project-level; the lumber list shows the linked member label.
 - **Under the Hood (`src/engine/decompose.ts`):**
   - The app automatically decomposes 3D structural dimensions into 2D flat contact formwork panels:
     - *Columns:* 4 rectangular phenolic side panels + lumber cleats.
@@ -116,9 +116,9 @@ flowchart TD
 
 - **Screen:** `src/screens/MemberFocusScreen.tsx` (sidebar: *Member planner*, separated under *Alternative flow*; route `/projects/{id}/focus`).
 - **Purpose:** Compare a member-first workflow with the requirement-first Optimize flow. The user picks one structural member, sees its decomposed panels, and assigns an inventory piece to each panel before the cut plan is drawn.
-- **Flow:** choose member → per-panel inventory select (or **Use best matches**) → summary (reused panels, new sheets, utilization, unplaced) → reused-piece diagrams with remaining space, then sheet visualization and offcut notes.
+- **Flow:** choose member → per-panel inventory select (or **Use best matches**) → summary (reused panels, new sheets, linked lumber, utilization, unplaced) → reused-piece diagrams with remaining space, then sheet visualization and offcut notes. Best matches are applied automatically on first load and after switching members; **Use best matches** re-runs the allocator, and manual changes stay until another member is selected.
 - **Nesting:** a second panel may select a piece already used by another panel while the remaining area still fits; the planner repacks the piece and shows the resulting diagram and leftovers. Summary counts are panels covered, not pieces consumed.
-- **Scope:** plywood panels only; lumber requirements are independent of a member and stay in the main Optimize flow. The planner is a **preview**: choices do not consume inventory, record usage, or change saved optimization decisions. Panels left unassigned are planned from new stock; oversized panels are listed with a link to stock settings. Reuse dimensions are exact and include no saw kerf.
+- **Scope:** the selected member's plywood panels plus any lumber requirements linked to that member. A **Lumber for &lt;member&gt;** section groups linked cuts by cross-section, shows utilization, lists unplaced cuts, and notes that dimensions are exact with no saw kerf. Project-level lumber remains in the main Optimize flow; member-linked lumber is still planned there as well, since links only scope this preview. The planner is a **preview**: choices do not consume inventory, record usage, or change saved optimization decisions. Panels left unassigned are planned from new stock; those larger than the configured stock are marked **Exceeds stock** with a link to Settings. Reuse dimensions are exact and include no saw kerf.
 - **Why separate:** the client can compare this flow against the optimized reuse-then-cuts flow without committing to either.
 
 ---

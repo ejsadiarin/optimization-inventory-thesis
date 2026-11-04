@@ -357,6 +357,66 @@ describe('lumber requirements on Firestore', () => {
     await expect(listLumberRequirements(projectId)).resolves.toEqual([]);
   });
 
+  it('links a requirement to a member and clears the link on update', async () => {
+    const projectId = await createTestProject();
+    const member = await createStructuralMember({
+      projectId,
+      type: 'column',
+      label: 'C1',
+      length: 0.4,
+      width: 0.25,
+      height: 3,
+    });
+
+    const created = await createLumberRequirement({
+      projectId,
+      memberId: `  ${member.id}  `,
+      label: 'Brace 1',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+
+    expect(created).toMatchObject({ memberId: member.id });
+    const listed = await listLumberRequirements(projectId);
+    expect(listed[0]?.memberId).toBe(member.id);
+
+    const updated = await updateLumberRequirement(projectId, created.id, {
+      label: 'Brace A',
+      length: 2.7,
+      crossSection: '2x4',
+      memberId: '  ',
+    });
+
+    expect(updated?.memberId).toBeUndefined();
+    expect(updated).not.toHaveProperty('memberId');
+    await expect(listLumberRequirements(projectId)).resolves.toEqual([updated]);
+  });
+
+  it('keeps requirements without a memberId project-level', async () => {
+    const projectId = await createTestProject();
+
+    const created = await createLumberRequirement({
+      projectId,
+      label: 'Project brace',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+
+    expect(created.memberId).toBeUndefined();
+
+    const [listed] = await listLumberRequirements(projectId);
+    expect(listed?.memberId).toBeUndefined();
+
+    const updated = await updateLumberRequirement(projectId, created.id, {
+      label: 'Project brace A',
+      length: 3,
+      crossSection: '2x3',
+    });
+
+    expect(updated?.memberId).toBeUndefined();
+    expect(updated).not.toHaveProperty('memberId');
+  });
+
   it('groups requirements by cross-section in canonical order', async () => {
     const projectId = await createTestProject();
     const first = await createLumberRequirement({

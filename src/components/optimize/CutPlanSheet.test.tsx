@@ -68,6 +68,15 @@ describe('CutPlanSheet', () => {
     expect(screen.getByText(/sheet 1/i)).toBeInTheDocument();
   });
 
+  it('exposes an accessible label for each sheet diagram', () => {
+    renderSheet();
+
+    expect(screen.getByTestId('cut-plan-sheet-0')).toHaveAttribute(
+      'aria-label',
+      'Cutting plan for sheet 1',
+    );
+  });
+
   it('draws each placed panel with its member color and placed geometry', () => {
     renderSheet();
 

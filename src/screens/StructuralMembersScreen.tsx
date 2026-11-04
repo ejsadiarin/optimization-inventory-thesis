@@ -45,6 +45,7 @@ import {
   listStructuralMembers,
   updateLumberRequirement,
   updateStructuralMember,
+  type LumberRequirementFields,
   type StructuralMemberFields,
 } from '@/db/members';
 import type {
@@ -309,14 +310,23 @@ function MemberDialog({ member, onOpenChange, onSubmit }: MemberDialogProps) {
 
 interface LumberDialogProps {
   requirement?: LumberRequirement | null;
+  members: StructuralMember[];
   onOpenChange: (open: boolean) => void;
-  onSubmit: (fields: { label: string; length: number; crossSection: CrossSection }) => Promise<void>;
+  onSubmit: (fields: LumberRequirementFields) => Promise<void>;
 }
 
-function LumberDialog({ requirement = null, onOpenChange, onSubmit }: LumberDialogProps) {
+const PROJECT_LEVEL_MEMBER = 'project-level';
+
+function LumberDialog({
+  requirement = null,
+  members,
+  onOpenChange,
+  onSubmit,
+}: LumberDialogProps) {
   const [label, setLabel] = useState(requirement?.label ?? '');
   const [length, setLength] = useState(requirement ? String(requirement.length) : '');
   const [crossSection, setCrossSection] = useState<CrossSection>(requirement?.crossSection ?? '2x2');
+  const [memberId, setMemberId] = useState(requirement?.memberId ?? PROJECT_LEVEL_MEMBER);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -334,7 +344,12 @@ function LumberDialog({ requirement = null, onOpenChange, onSubmit }: LumberDial
     }
 
     setSaving(true);
-    await onSubmit({ label: label.trim(), length: parsedLength, crossSection });
+    await onSubmit({
+      label: label.trim(),
+      length: parsedLength,
+      crossSection,
+      memberId: memberId === PROJECT_LEVEL_MEMBER ? undefined : memberId,
+    });
     setSaving(false);
   }
 
@@ -397,6 +412,31 @@ function LumberDialog({ requirement = null, onOpenChange, onSubmit }: LumberDial
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lumber-member">Member (optional)</Label>
+            <Select
+              value={memberId}
+              onValueChange={(value) => {
+                setMemberId(value);
+                if (error) setError('');
+              }}
+            >
+              <SelectTrigger id="lumber-member">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={PROJECT_LEVEL_MEMBER}>Project-level (no member)</SelectItem>
+                {members.map((member) => (
+                  <SelectItem key={member.id} value={member.id}>
+                    {member.label} · {MEMBER_TYPE_LABELS[member.type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Link this cut to a structural member, or leave it project-level.
+            </p>
           </div>
           {error && (
             <p role="alert" className="text-sm font-medium text-destructive">
@@ -470,6 +510,15 @@ export default function StructuralMembersScreen() {
   }, [memberRows, project.stock.phenolic]);
 
   const lumberGroups = groupLumberRequirementsByCrossSection(lumberRequirements);
+  const memberById = useMemo(
+    () => new Map(members.map((member) => [member.id, member])),
+    [members],
+  );
+
+  function memberLabel(requirement: LumberRequirement): string {
+    if (!requirement.memberId) return 'Project-level';
+    return memberById.get(requirement.memberId)?.label ?? requirement.memberId;
+  }
 
   async function handleMemberSubmit(fields: StructuralMemberFields) {
     if (memberDialog.member) {
@@ -501,11 +550,7 @@ export default function StructuralMembersScreen() {
     }
   }
 
-  async function handleLumberSubmit(fields: {
-    label: string;
-    length: number;
-    crossSection: CrossSection;
-  }) {
+  async function handleLumberSubmit(fields: LumberRequirementFields) {
     if (lumberDialog.requirement) {
       await updateLumberRequirement(project.id, lumberDialog.requirement.id, fields);
     } else {
@@ -715,6 +760,7 @@ export default function StructuralMembersScreen() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Label</TableHead>
+                              <TableHead>Member</TableHead>
                               <TableHead>Length</TableHead>
                               <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
@@ -723,6 +769,9 @@ export default function StructuralMembersScreen() {
                             {group.items.map((requirement) => (
                               <TableRow key={requirement.id}>
                                 <TableCell className="font-medium">{requirement.label}</TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {memberLabel(requirement)}
+                                </TableCell>
                                 <TableCell>{formatMeters(requirement.length)}</TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end">
@@ -750,7 +799,12 @@ export default function StructuralMembersScreen() {
                               className="rounded-lg border bg-card p-3"
                             >
                               <div className="flex items-start justify-between gap-2">
-                                <p className="font-medium">{requirement.label}</p>
+                                <div>
+                                  <p className="font-medium">{requirement.label}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {memberLabel(requirement)}
+                                  </p>
+                                </div>
                                 <p className="text-sm text-muted-foreground">
                                   {formatMeters(requirement.length)}
                                 </p>
@@ -832,6 +886,7 @@ export default function StructuralMembersScreen() {
       {lumberDialog.open && (
         <LumberDialog
           requirement={lumberDialog.requirement}
+          members={members}
           onOpenChange={(open) => {
             if (!open) setLumberDialog({ open: false, requirement: null });
           }}
