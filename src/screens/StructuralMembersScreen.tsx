@@ -59,12 +59,7 @@ import type { PanelRequirement } from '@/engine/types';
 import { crossSectionLabel, formatMeters } from '@/lib/format';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
-
-const MEMBER_TYPE_LABELS: Record<StructuralMemberType, string> = {
-  column: 'Column',
-  beam: 'Beam',
-  slab: 'Slab',
-};
+import { MEMBER_TYPE_LABELS } from '@/lib/memberLabels';
 
 function summarizePanels(panels: PanelRequirement[]): string {
   const counts = new Map<string, number>();

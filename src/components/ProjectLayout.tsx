@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import {
   Link,
   NavLink,
@@ -15,6 +15,7 @@ import {
   Boxes,
   Calculator,
   Check,
+  Crosshair,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -46,6 +47,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   inventory: Package,
   optimize: Calculator,
   settings: Settings,
+  focus: Crosshair,
 };
 
 export default function ProjectLayout() {
@@ -285,13 +287,21 @@ function ProjectNavLinks({
   return (
     <>
       {PROJECT_NAV_ITEMS.map((item) => (
-        <ProjectNavLink
-          key={item.path}
-          item={item}
-          projectId={projectId}
-          annotation={nav[item.path]}
-          onNavigate={onNavigate}
-        />
+        <Fragment key={item.path}>
+          {item.separatorBefore && (
+            <div className="my-3 border-t pt-3">
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Alternative flow
+              </p>
+            </div>
+          )}
+          <ProjectNavLink
+            item={item}
+            projectId={projectId}
+            annotation={nav[item.path]}
+            onNavigate={onNavigate}
+          />
+        </Fragment>
       ))}
     </>
   );

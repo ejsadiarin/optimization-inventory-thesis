@@ -109,7 +109,17 @@ flowchart TD
 
 ---
 
-## 3. Diagram Comparison Matrix
+## 3. Alternative Flow: Member Planner (Preview)
+
+- **Screen:** `src/screens/MemberFocusScreen.tsx` (sidebar: *Member planner*, separated under *Alternative flow*; route `/projects/{id}/focus`).
+- **Purpose:** Compare a member-first workflow with the requirement-first Optimize flow. The user picks one structural member, sees its decomposed panels, and assigns an inventory piece to each panel before the cut plan is drawn.
+- **Flow:** choose member → per-panel inventory select (or **Use best matches**) → summary (reused panels, new sheets, utilization, unplaced) → sheet visualization and offcut notes.
+- **Scope:** plywood panels only; lumber requirements are independent of a member and stay in the main Optimize flow. The planner is a **preview**: choices do not consume inventory, record usage, or change saved optimization decisions. Panels left unassigned are planned from new stock; oversized panels are listed with a link to stock settings.
+- **Why separate:** the client can compare this flow against the optimized reuse-then-cuts flow without committing to either.
+
+---
+
+## 4. Diagram Comparison Matrix
 
 | Step in `schematic-diagram-flowchart.png` | Element in `app-design-flow-specifics.png` | Corresponding Code / Screen | Status |
 | :--- | :--- | :--- | :--- |

@@ -134,6 +134,11 @@ describe('ProjectOverviewScreen', () => {
       'href',
       `/projects/${project.id}/settings`,
     );
+    expect(within(menu).getByText('Alternative flow')).toBeInTheDocument();
+    expect(within(menu).getByRole('link', { name: /member planner/i })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/focus`,
+    );
   });
 
   it('shows an empty notification drawer when no plan warning exists', async () => {

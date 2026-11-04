@@ -2,6 +2,7 @@ export interface ProjectNavItem {
   path: string;
   label: string;
   end?: boolean;
+  separatorBefore?: boolean;
 }
 
 export const PROJECT_NAV_ITEMS: ProjectNavItem[] = [
@@ -10,6 +11,7 @@ export const PROJECT_NAV_ITEMS: ProjectNavItem[] = [
   { path: 'inventory', label: 'Inventory' },
   { path: 'optimize', label: 'Optimize' },
   { path: 'settings', label: 'Settings' },
+  { path: 'focus', label: 'Member planner', separatorBefore: true },
 ];
 
 export function projectBasePath(projectId: string): string {

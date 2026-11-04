@@ -5,6 +5,7 @@ import ProjectGate from '@/components/ProjectGate';
 import ProjectLayout from '@/components/ProjectLayout';
 import { ToastProvider } from '@/components/ui/toast';
 import LoginScreen from '@/screens/LoginScreen';
+import MemberFocusScreen from '@/screens/MemberFocusScreen';
 import OptimizationScreen from '@/screens/OptimizationScreen';
 import ProjectInventoryScreen from '@/screens/ProjectInventoryScreen';
 import ProjectOverviewScreen from '@/screens/ProjectOverviewScreen';
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="optimize" element={<OptimizationScreen />} />
               <Route path="summary" element={<Navigate to=".." replace />} />
               <Route path="settings" element={<ProjectSettingsScreen />} />
+              <Route path="focus" element={<MemberFocusScreen />} />
             </Route>
           </Route>
         </Route>

@@ -4,6 +4,7 @@ import type { MatchPiece } from '@/engine/types';
 export function toMatchPiece(piece: Piece): MatchPiece {
   return {
     id: piece.id,
+    label: piece.label,
     materialType: piece.materialType,
     length: piece.length,
     width: piece.width,

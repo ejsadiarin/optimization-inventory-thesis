@@ -32,6 +32,7 @@ export interface LumberRequirementInput {
 
 export interface MatchPiece {
   id: string;
+  label?: string;
   materialType: MaterialType;
   length: number;
   width: number;
