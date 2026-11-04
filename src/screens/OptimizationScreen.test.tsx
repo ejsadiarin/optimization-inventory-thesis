@@ -814,6 +814,9 @@ describe('OptimizationScreen cutting plans', () => {
 
     await user.click(screen.getByRole('tab', { name: /offcuts \(2\)/i }));
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'About Reusable offcuts' }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('offcut-completion')).toHaveTextContent('0 offcuts returned');
   });
 
@@ -917,6 +920,11 @@ describe('OptimizationScreen cutting plans', () => {
     await openCutsStep(user);
 
     expect(screen.getByTestId('cut-unplaced')).toHaveTextContent(/unplaced \(4\)/i);
+    expect(
+      within(screen.getByTestId('cut-unplaced')).getByRole('button', {
+        name: 'About Unplaced items',
+      }),
+    ).toBeInTheDocument();
     expect(screen.getAllByTestId('unplaced-panel')).toHaveLength(4);
     expect(screen.getByTestId('cut-unplaced')).toHaveTextContent(
       'C · 12.00 m × 5.00 m',

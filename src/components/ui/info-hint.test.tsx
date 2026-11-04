@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { InfoHint } from './info-hint';
 
 describe('InfoHint', () => {
@@ -17,5 +18,20 @@ describe('InfoHint', () => {
     expect(description).toHaveTextContent(
       'Track every phenolic board and lumber piece across its lifecycle.',
     );
+  });
+
+  it('opens on focus or tap and dismisses with Escape', async () => {
+    const user = userEvent.setup();
+    render(<InfoHint label="Inventory">Inventory help</InfoHint>);
+
+    const button = screen.getByRole('button', { name: 'About Inventory' });
+    const tooltip = screen.getByRole('tooltip');
+
+    expect(tooltip).toHaveClass('opacity-0');
+    await user.click(button);
+    expect(tooltip).toHaveClass('opacity-100');
+
+    await user.keyboard('{Escape}');
+    expect(tooltip).toHaveClass('opacity-0');
   });
 });

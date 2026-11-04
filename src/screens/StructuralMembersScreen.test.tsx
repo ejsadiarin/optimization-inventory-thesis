@@ -39,6 +39,21 @@ async function renderMembers(projectId: string) {
 }
 
 describe('StructuralMembersScreen', () => {
+  it('shows info hints on member and lumber card headers', async () => {
+    const project = await seedProject({ name: 'Hints Site' });
+    await renderMembers(project.id);
+
+    expect(
+      screen.getByRole('button', { name: 'About Members' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'About Lumber requirements' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Column → 4 panels/),
+    ).toBeInTheDocument();
+  });
+
   it('adds a column and shows its decomposed panels', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Members Site' });

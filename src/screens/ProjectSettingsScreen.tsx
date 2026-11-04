@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { InfoHint } from '@/components/ui/info-hint';
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -91,11 +92,13 @@ export default function ProjectSettingsScreen() {
       <form className="space-y-5" onSubmit={handleSubmit}>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Phenolic stock sheet</CardTitle>
-            <CardDescription>
-              Dimensions of a purchased board in meters. Returned offcuts inherit the
-              thickness.
-            </CardDescription>
+            <div className="flex items-center gap-1">
+              <CardTitle className="text-base">Phenolic stock sheet</CardTitle>
+              <InfoHint label="Phenolic stock sheet">
+                Dimensions of a purchased board in meters. Returned offcuts inherit the
+                thickness.
+              </InfoHint>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
@@ -148,8 +151,12 @@ export default function ProjectSettingsScreen() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Lumber stock lengths</CardTitle>
-            <CardDescription>Standard purchased lengths in meters.</CardDescription>
+            <div className="flex items-center gap-1">
+              <CardTitle className="text-base">Lumber stock lengths</CardTitle>
+              <InfoHint label="Lumber stock lengths">
+                Standard purchased lengths in meters.
+              </InfoHint>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {lumberLengths.map((value, index) => (

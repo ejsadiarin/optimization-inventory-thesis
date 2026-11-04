@@ -93,6 +93,12 @@ describe('ProjectOverviewScreen', () => {
 
     expect(await screen.findByRole('heading', { name: 'Overview Site' })).toBeInTheDocument();
     expect(
+      screen.getByRole('button', { name: 'About Project checklist' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'About Stock sizes' }),
+    ).toBeInTheDocument();
+    expect(
       await screen.findByRole('link', { name: /start with members/i }),
     ).toHaveAttribute('href', `/projects/${project.id}/members`);
 

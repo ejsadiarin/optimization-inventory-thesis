@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InfoHint } from '@/components/ui/info-hint';
 import type { OptimizationResult, PlywoodSheetPlan } from '@/engine/types';
 import { crossSectionLabel, formatDate, formatMeters } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -448,13 +449,15 @@ export default function CuttingPlans({
       {unplacedCount > 0 && (
         <Card className="border-amber-300 bg-amber-50/60" data-testid="cut-unplaced">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base text-amber-900">
-              <AlertTriangle className="h-4 w-4" />
-              Unplaced ({unplacedCount})
-            </CardTitle>
-            <CardDescription className="text-amber-800">
-              These pieces are larger than the configured stock and cannot be cut from it.
-            </CardDescription>
+            <div className="flex items-center gap-1">
+              <CardTitle className="flex items-center gap-2 text-base text-amber-900">
+                <AlertTriangle className="h-4 w-4" />
+                Unplaced ({unplacedCount})
+              </CardTitle>
+              <InfoHint label="Unplaced items">
+                These pieces are larger than the configured stock and cannot be cut from it.
+              </InfoHint>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {unplacedPanels.length > 0 && (

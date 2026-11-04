@@ -113,6 +113,9 @@ describe('ProjectInventoryScreen labels and row actions', () => {
     const project = await seedLabelledPieces();
     await renderInventory(project.id);
 
+    expect(
+      screen.getByRole('button', { name: 'About Inventory search and filters' }),
+    ).toBeInTheDocument();
     await user.type(screen.getByLabelText(/search inventory/i), 'left wall');
 
     expect(await screen.findByRole('row', { name: /left wall panel/i })).toBeInTheDocument();

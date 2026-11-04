@@ -1,7 +1,8 @@
 import { Loader2, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { InfoHint } from '@/components/ui/info-hint';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MIN_REUSABLE_OFFCUT } from '@/engine/plywood';
 import { formatMeters } from '@/lib/format';
@@ -35,11 +36,13 @@ export default function OffcutIntake({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Reusable offcuts</CardTitle>
-        <CardDescription>
-          Offcuts are at least {formatMeters(MIN_REUSABLE_OFFCUT)} in both dimensions.
-          Selected pieces are added to inventory as Good with 0 uses.
-        </CardDescription>
+        <div className="flex items-center gap-1">
+          <CardTitle className="text-base">Reusable offcuts</CardTitle>
+          <InfoHint label="Reusable offcuts">
+            Offcuts are at least {formatMeters(MIN_REUSABLE_OFFCUT)} in both dimensions.
+            Selected pieces are added to inventory as Good with 0 uses.
+          </InfoHint>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <ul className="space-y-2">

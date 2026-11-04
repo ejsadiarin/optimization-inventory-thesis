@@ -19,6 +19,7 @@ import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { useToast } from '@/components/ui/toast';
 import { Input } from '@/components/ui/input';
+import { InfoHint } from '@/components/ui/info-hint';
 import { Label } from '@/components/ui/label';
 import {
   Table,
@@ -230,6 +231,13 @@ export default function ProjectInventoryScreen() {
       />
 
       <div className="grid gap-2 rounded-lg border bg-card p-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="flex items-center gap-1 sm:col-span-2 lg:col-span-5">
+          <h2 className="text-sm font-medium">Find pieces</h2>
+          <InfoHint label="Inventory search and filters">
+            Search by label, dimensions, type, or storage location, then narrow by type,
+            condition, and usage.
+          </InfoHint>
+        </div>
         <div className="space-y-1 sm:col-span-2">
           <Label htmlFor="inventory-search">Search inventory</Label>
           <Input

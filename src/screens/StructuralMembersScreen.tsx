@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { InfoHint } from '@/components/ui/info-hint';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
@@ -568,10 +569,12 @@ export default function StructuralMembersScreen() {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-3 pb-3">
               <div className="space-y-1.5">
-                <CardTitle className="text-base">Members</CardTitle>
-                <CardDescription>
-                  Column → 4 panels · Beam → 3 panels · Slab → 1 panel
-                </CardDescription>
+                <div className="flex items-center gap-1">
+                  <CardTitle className="text-base">Members</CardTitle>
+                  <InfoHint label="Members">
+                    Column → 4 panels · Beam → 3 panels · Slab → 1 panel
+                  </InfoHint>
+                </div>
               </div>
               {memberRows.length > 0 && (
                 <Button
@@ -672,10 +675,12 @@ export default function StructuralMembersScreen() {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-3 pb-3">
               <div className="space-y-1.5">
-                <CardTitle className="text-base">Lumber requirements</CardTitle>
-                <CardDescription>
-                  Add bracing and support cuts. Requirements are grouped by cross-section.
-                </CardDescription>
+                <div className="flex items-center gap-1">
+                  <CardTitle className="text-base">Lumber requirements</CardTitle>
+                  <InfoHint label="Lumber requirements">
+                    Add bracing and support cuts. Requirements are grouped by cross-section.
+                  </InfoHint>
+                </div>
               </div>
               {lumberGroups.length > 0 && (
                 <Button size="sm" onClick={() => setLumberDialog({ open: true, requirement: null })}>

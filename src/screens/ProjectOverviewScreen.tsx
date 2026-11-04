@@ -2,7 +2,8 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Circle, Ruler } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { InfoHint } from '@/components/ui/info-hint';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import type { Project } from '@/db/types';
@@ -43,10 +44,12 @@ export default function ProjectOverviewScreen() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Project checklist</CardTitle>
-          <CardDescription>
-            Work through the required steps. Lumber and inventory are optional.
-          </CardDescription>
+          <div className="flex items-center gap-1">
+            <CardTitle className="text-base">Project checklist</CardTitle>
+            <InfoHint label="Project checklist">
+              Work through the required steps. Lumber and inventory are optional.
+            </InfoHint>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -96,8 +99,10 @@ export default function ProjectOverviewScreen() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Ruler className="h-4 w-4 text-primary" /> Stock sizes
+              <InfoHint label="Stock sizes">
+                Purchased dimensions used in cutting plans.
+              </InfoHint>
             </CardTitle>
-            <CardDescription>Purchased dimensions used in cutting plans.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <div className="flex justify-between">

@@ -50,6 +50,12 @@ describe('ProjectSettingsScreen', () => {
     await renderSettings(project);
 
     expect(screen.queryByLabelText(/cost/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'About Phenolic stock sheet' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'About Lumber stock lengths' }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/stock sheet length/i)).toHaveValue(2.44);
     expect(screen.getByLabelText(/stock sheet width/i)).toHaveValue(1.22);
     expect(screen.getByLabelText(/stock sheet thickness/i)).toHaveValue(0.018);
