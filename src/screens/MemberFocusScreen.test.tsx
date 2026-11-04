@@ -185,4 +185,45 @@ describe('MemberFocusScreen', () => {
       }),
     ).toBeDisabled();
   });
+
+  it('counts only pieces that can be assigned to distinct panels', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Focus Reuse Count Site' });
+    const beam = await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 0.2,
+      height: 0.4,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.4,
+      width: 0.6,
+      thickness: 0.018,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.4,
+      width: 0.25,
+      thickness: 0.018,
+    });
+
+    await renderFocus(project.id);
+
+    expect(screen.getByTestId(`member-reuse-${beam.id}`)).toHaveTextContent(
+      '3 panels · 2/3 panels reusable',
+    );
+
+    await user.click(screen.getByRole('button', { name: /use best matches/i }));
+
+    expect(within(screen.getByTestId('focus-summary')).getByText('2 of 3')).toBeInTheDocument();
+    const thirdPanel = screen.getByTestId(`focus-panel-${beam.id}-panel-3`);
+    expect(
+      within(thirdPanel).getByText(/all matching pieces are already assigned to other panels/i),
+    ).toBeInTheDocument();
+  });
 });

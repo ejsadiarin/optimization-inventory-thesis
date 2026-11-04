@@ -18,13 +18,15 @@ import { matchInventory } from '@/engine/match';
 import type { MatchPiece, PanelRequirement } from '@/engine/types';
 import { formatMeters, shortId } from '@/lib/format';
 import { MEMBER_TYPE_LABELS } from '@/lib/memberLabels';
+import { maxPanelAssignments } from '@/lib/panelAssignments';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
 interface MemberEntry {
   member: StructuralMember;
   panels: ReturnType<typeof decomposeMember>;
-  matchedPanels: number;
+  reusablePanels: number;
+  candidatesByPanel: Map<string, string[]>;
 }
 
 function memberDimensions(member: StructuralMember): string {
@@ -136,10 +138,22 @@ export default function MemberFocusScreen() {
       members.map((member) => {
         const panels = decomposeMember(member);
         const groups = matchInventory(toMatchRequirements(panels, []), matchPieces);
+        const candidatesByPanel = new Map(
+          groups.map((group) => [
+            group.requirement.id,
+            group.candidates.map((candidate) => candidate.pieceId),
+          ]),
+        );
         return {
           member,
           panels,
-          matchedPanels: groups.filter((group) => group.candidates.length > 0).length,
+          reusablePanels: Object.keys(
+            maxPanelAssignments(
+              panels.map((panel) => panel.id),
+              candidatesByPanel,
+            ),
+          ).length,
+          candidatesByPanel,
         };
       }),
     [members, matchPieces],
@@ -225,18 +239,12 @@ export default function MemberFocusScreen() {
   );
 
   function useBestMatches() {
-    const used = new Set<string>();
-    const next: Record<string, string> = {};
-
-    selected!.panels.forEach((panel) => {
-      const group = panelGroups.get(panel.id);
-      const candidate = group?.candidates.find((match) => !used.has(match.pieceId));
-      if (!candidate) return;
-      used.add(candidate.pieceId);
-      next[panel.id] = candidate.pieceId;
-    });
-
-    setAssignments(next);
+    setAssignments(
+      maxPanelAssignments(
+        selected!.panels.map((panel) => panel.id),
+        selected!.candidatesByPanel,
+      ),
+    );
   }
 
   function assignPiece(panelId: string, pieceId: string) {
@@ -299,9 +307,12 @@ export default function MemberFocusScreen() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {memberDimensions(entry.member)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p
+                  data-testid={`member-reuse-${entry.member.id}`}
+                  className="mt-1 text-xs text-muted-foreground"
+                >
                   {entry.panels.length} panel{entry.panels.length === 1 ? '' : 's'} ·{' '}
-                  {entry.matchedPanels}/{entry.panels.length} match inventory
+                  {entry.reusablePanels}/{entry.panels.length} panels reusable
                 </p>
               </button>
             );
@@ -328,6 +339,12 @@ export default function MemberFocusScreen() {
               const assignedMatch = group?.candidates.find(
                 (candidate) => candidate.pieceId === assignedPieceId,
               );
+              const canChoose =
+                group?.candidates.some(
+                  (candidate) => !assignmentsByPiece.has(candidate.pieceId),
+                ) ?? false;
+              const allAssignedElsewhere =
+                !assignedPiece && (group?.candidates.length ?? 0) > 0 && !canChoose;
               const color = memberColors.get(selected.member.label) ?? '#93c5fd';
 
               return (
@@ -347,9 +364,9 @@ export default function MemberFocusScreen() {
                     </div>
                     <Badge
                       variant={assignedPiece ? 'default' : 'outline'}
-                      className={assignedPiece ? '' : 'text-muted-foreground'}
+                      className={assignedPiece || canChoose ? '' : 'text-muted-foreground'}
                     >
-                      {assignedPiece ? 'Reused' : 'New stock'}
+                      {assignedPiece ? 'Reused' : canChoose ? 'Choose a piece' : 'New stock'}
                     </Badge>
                   </div>
 
@@ -384,6 +401,11 @@ export default function MemberFocusScreen() {
                     {group && group.candidates.length === 0 && (
                       <span className="text-xs text-muted-foreground">
                         No inventory piece fits this panel.
+                      </span>
+                    )}
+                    {allAssignedElsewhere && (
+                      <span className="text-xs text-muted-foreground">
+                        All matching pieces are already assigned to other panels.
                       </span>
                     )}
                   </div>
