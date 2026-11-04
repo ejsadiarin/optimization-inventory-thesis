@@ -238,8 +238,8 @@ function ProjectLayoutContent({ project }: { project: Project }) {
                             {notification.description}
                           </p>
                           <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs">
-                            {notification.items.map((item) => (
-                              <li key={item}>{item}</li>
+                            {notification.items.map((item, index) => (
+                              <li key={`${notification.id}-${index}`}>{item}</li>
                             ))}
                           </ul>
                           <Button

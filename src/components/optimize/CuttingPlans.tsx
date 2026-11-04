@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Maximize2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -389,6 +390,9 @@ export default function CuttingPlans({
     ? optimization.plywood.utilization
     : optimization.lumber.utilization;
   const returnedOffcuts = addedOffcutKeys.size;
+  const unplacedPanels = optimization.plywood.unplacedPanels;
+  const unplacedLumber = optimization.lumber.unplacedRequirements;
+  const unplacedCount = unplacedPanels.length + unplacedLumber.length;
 
   return (
     <section className="space-y-4 border-t pt-5">
@@ -444,6 +448,53 @@ export default function CuttingPlans({
           )}
         </CardContent>
       </Card>
+
+      {unplacedCount > 0 && (
+        <Card className="border-amber-300 bg-amber-50/60" data-testid="cut-unplaced">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-amber-900">
+              <AlertTriangle className="h-4 w-4" />
+              Unplaced ({unplacedCount})
+            </CardTitle>
+            <CardDescription className="text-amber-800">
+              These pieces are larger than the configured stock and cannot be cut from it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {unplacedPanels.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Panels</p>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  {unplacedPanels.map((panel) => (
+                    <li key={panel.panelId} data-testid="unplaced-panel">
+                      {panel.label} · {formatMeters(panel.length)} ×{' '}
+                      {formatMeters(panel.width)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {unplacedLumber.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Lumber</p>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  {unplacedLumber.map((requirement) => (
+                    <li key={requirement.requirementId} data-testid="unplaced-lumber">
+                      {requirement.label} · {formatMeters(requirement.length)} ·{' '}
+                      {crossSectionLabel(requirement.crossSection)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Button asChild size="sm" variant="outline">
+              <Link to="../settings">Review stock sizes</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {remainingCount === 0 ? (
         <Card>

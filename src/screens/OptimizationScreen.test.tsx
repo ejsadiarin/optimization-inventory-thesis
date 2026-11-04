@@ -886,6 +886,10 @@ describe('OptimizationScreen cutting plans', () => {
 
     expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
     expect(screen.getByText(/no plywood panels can be placed/i)).toBeInTheDocument();
+    expect(screen.getByTestId('cut-unplaced')).toHaveTextContent(/unplaced \(1\)/i);
+    expect(screen.getByTestId('unplaced-panel')).toHaveTextContent(
+      'Big Slab · 3.00 m × 1.50 m',
+    );
 
     await user.click(screen.getByRole('button', { name: /notifications \(1\)/i }));
     const drawer = await screen.findByRole('dialog');
@@ -895,6 +899,43 @@ describe('OptimizationScreen cutting plans', () => {
     expect(
       within(drawer).getByText('Big Slab (3.00 m × 1.50 m)'),
     ).toBeInTheDocument();
+  });
+
+  it('lists every unplaced panel and matches the notification items', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Oversized Column Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C',
+      length: 12,
+      width: 5,
+      height: 5,
+    });
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    expect(screen.getByTestId('cut-unplaced')).toHaveTextContent(/unplaced \(4\)/i);
+    expect(screen.getAllByTestId('unplaced-panel')).toHaveLength(4);
+    expect(screen.getByTestId('cut-unplaced')).toHaveTextContent(
+      'C · 12.00 m × 5.00 m',
+    );
+    expect(screen.getByTestId('cut-unplaced')).toHaveTextContent(
+      'C · 5.00 m × 5.00 m',
+    );
+
+    await user.click(screen.getByRole('button', { name: /notifications \(1\)/i }));
+    const drawer = await screen.findByRole('dialog');
+    expect(
+      within(drawer).getByText(/4 panels exceed the stock sheet/i),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).getAllByText('C (12.00 m × 5.00 m)'),
+    ).toHaveLength(2);
+    expect(
+      within(drawer).getAllByText('C (5.00 m × 5.00 m)'),
+    ).toHaveLength(2);
   });
 });
 

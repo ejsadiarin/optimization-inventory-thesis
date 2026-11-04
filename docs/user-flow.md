@@ -95,6 +95,7 @@ flowchart TD
 
 - **Screen:** `src/screens/OptimizationScreen.tsx` (Optimize step: *Plan cuts*)
 - **Segmented workspace:** Results are grouped into **Sheets**, **Lumber**, and **Offcuts** with counts. The step opens on Sheets when panels remain, otherwise Lumber, and visiting it records that cut plans were reviewed.
+- **Unplaced detail:** Panels and lumber requirements larger than the configured stock are listed in an **Unplaced** section above the segments, even when no sheets can be produced. The same items feed the project notification drawer, and both link to stock settings.
 - **Algorithm (`src/engine/plywood.ts` & `src/engine/lumber.ts`):**
   - Requirements not satisfied by existing inventory must be cut from new stock.
   - Uses 2D Shelf First-Fit Decreasing (ADR-0005) with strictly valid **Guillotine cuts** (ADR-0003) on standard 2.44m × 1.22m sheets.
