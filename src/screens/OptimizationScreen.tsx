@@ -122,14 +122,16 @@ export default function OptimizationScreen() {
     setLoading(true);
     setLoadError('');
     try {
-      const [members, lumberRequirements, inventoryPieces, savedPlan, storedWorkflow] =
+      const [members, lumberRequirements, inventoryPieces, storedWorkflow] =
         await Promise.all([
           listStructuralMembers(project.id),
           listLumberRequirements(project.id),
           getActivePieces(project.id),
-          getLatestCuttingPlan(project.id),
           getOptimizationWorkflow(project.id),
         ]);
+      const savedPlan = storedWorkflow
+        ? null
+        : await getLatestCuttingPlan(project.id);
 
       const panelRequirements = members.flatMap((member) => decomposeMember(member));
       const lumberRequirementInputs: LumberRequirementInput[] = lumberRequirements.map(

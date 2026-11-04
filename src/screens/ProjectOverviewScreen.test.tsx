@@ -106,7 +106,7 @@ describe('ProjectOverviewScreen', () => {
       await screen.findByRole('link', { name: /structural members.*define columns/i }),
     ).toHaveAttribute('href', `/projects/${project.id}/members`);
     expect(
-      screen.getByRole('link', { name: /reuse decisions.*accept, decline/i }),
+      screen.getByRole('link', { name: /reuse decisions.*review matches/i }),
     ).toHaveAttribute('href', `/projects/${project.id}/optimize?step=reuse`);
     expect(
       screen.getByRole('link', { name: /cut plans.*review sheet layouts/i }),

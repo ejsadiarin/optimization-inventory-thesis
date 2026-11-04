@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { daysInInventory, getActivePieces, listPieces, queryPieces } from '@/db/inventory';
+import { daysInInventory, listPieces, queryPieces } from '@/db/inventory';
 import type { PieceSortKey } from '@/db/inventory';
 import type {
   MaterialType,
@@ -129,11 +129,8 @@ export default function ProjectInventoryScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const [activePieces, allPieces] = await Promise.all([
-        getActivePieces(project.id),
-        listPieces(project.id),
-      ]);
-      setPieces(activePieces);
+      const allPieces = await listPieces(project.id);
+      setPieces(allPieces.filter((piece) => !piece.retired && piece.condition !== 'Retired'));
       setHasAnyPieces(allPieces.length > 0);
       loadedOnceRef.current = true;
       setLoadError('');

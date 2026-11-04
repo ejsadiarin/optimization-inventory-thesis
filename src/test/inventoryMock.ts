@@ -77,14 +77,14 @@ export async function getPiece(projectId: string, id: string): Promise<Piece | u
 }
 
 export async function listPieces(projectId: string): Promise<Piece[]> {
-  return pieces.filter((piece) => piece.projectId === projectId);
-}
-
-export async function getActivePieces(projectId: string): Promise<Piece[]> {
   if (failNextInventoryLoad) {
     failNextInventoryLoad = false;
     throw new Error('Inventory load failed.');
   }
+  return pieces.filter((piece) => piece.projectId === projectId);
+}
+
+export async function getActivePieces(projectId: string): Promise<Piece[]> {
   return (await listPieces(projectId)).filter(
     (piece) => !piece.retired && piece.condition !== 'Retired',
   );

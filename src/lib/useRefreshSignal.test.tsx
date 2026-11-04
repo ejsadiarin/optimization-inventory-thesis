@@ -1,8 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { triggerRefresh, useRefreshSignal } from './useRefreshSignal';
 
 afterEach(() => {
+  vi.restoreAllMocks();
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
     get: () => 'visible',
@@ -10,29 +11,34 @@ afterEach(() => {
 });
 
 describe('useRefreshSignal', () => {
-  it('increments on window focus, reconnect, and a visible tab change', () => {
+  it('coalesces refresh events that arrive together', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const { result } = renderHook(() => useRefreshSignal());
     expect(result.current).toBe(0);
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event('online'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      triggerRefresh();
+    });
+    expect(result.current).toBe(1);
+  });
+
+  it('increments again after the cooldown', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const { result } = renderHook(() => useRefreshSignal());
 
     act(() => {
       window.dispatchEvent(new Event('focus'));
     });
     expect(result.current).toBe(1);
 
+    now.mockReturnValue(1_000_800);
     act(() => {
       window.dispatchEvent(new Event('online'));
     });
     expect(result.current).toBe(2);
-
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    expect(result.current).toBe(3);
-
-    act(() => {
-      triggerRefresh();
-    });
-    expect(result.current).toBe(4);
   });
 
   it('ignores a tab change while the document is hidden', () => {

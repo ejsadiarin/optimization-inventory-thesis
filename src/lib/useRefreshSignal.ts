@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const REFRESH_EVENT = 'app:refresh';
+const REFRESH_COOLDOWN_MS = 750;
 
 export function triggerRefresh(): void {
   if (typeof window !== 'undefined') {
@@ -10,9 +11,13 @@ export function triggerRefresh(): void {
 
 export function useRefreshSignal(): number {
   const [signal, setSignal] = useState(0);
+  const lastRefreshRef = useRef(0);
 
   useEffect(() => {
     function refresh() {
+      const now = Date.now();
+      if (now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) return;
+      lastRefreshRef.current = now;
       setSignal((current) => current + 1);
     }
 

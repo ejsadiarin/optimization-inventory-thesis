@@ -61,7 +61,7 @@ const CHECKLIST_DEFINITIONS: ReadonlyArray<
   {
     id: 'reuse',
     label: 'Reuse decisions',
-    description: 'Accept, decline, or plan each requirement from new stock.',
+    description: 'Review matches; unmatched requirements fall back to new stock.',
     path: 'optimize?step=reuse',
     optional: false,
   },
