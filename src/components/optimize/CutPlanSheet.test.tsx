@@ -83,6 +83,7 @@ describe('CutPlanSheet', () => {
     expect(rotated).toHaveAttribute('height', '1');
     expect(rotated).toHaveAttribute('fill', COLORS.get('B1'));
     expect(screen.getByTestId('panel-B1-panel-1')).toHaveAttribute('data-rotated', 'true');
+    expect(screen.getByText('rotated')).toBeInTheDocument();
   });
 
   it('labels panels with their member label and dimensions in meters', () => {

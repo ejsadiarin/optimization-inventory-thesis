@@ -152,6 +152,16 @@ export function SheetDiagram({
                 <tspan x={centerX} y={centerY + fontSize * 0.8} fontSize={fontSize * 0.8}>
                   {panel.length.toFixed(2)} × {panel.width.toFixed(2)} m
                 </tspan>
+                {panel.rotated && (
+                  <tspan
+                    x={centerX}
+                    y={centerY + fontSize * 1.55}
+                    fontSize={fontSize * 0.62}
+                    fill="#475569"
+                  >
+                    rotated
+                  </tspan>
+                )}
               </text>
             )}
           </g>
