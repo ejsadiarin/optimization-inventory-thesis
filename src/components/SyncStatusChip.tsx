@@ -28,10 +28,8 @@ function formatTime(isoDate: string): string {
 export default function SyncStatusChip() {
   const { status, lastSyncedAt } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const label =
-    status === 'synced' && lastSyncedAt
-      ? `${LABELS.synced} · ${formatTime(lastSyncedAt)}`
-      : LABELS[status];
+  const time = status === 'synced' && lastSyncedAt ? formatTime(lastSyncedAt) : '';
+  const label = time ? `${LABELS[status]} · ${time}` : LABELS[status];
 
   return (
     <span
@@ -40,7 +38,8 @@ export default function SyncStatusChip() {
       title={label}
       className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${CLASSES[status]}`}
     >
-      {label}
+      {LABELS[status]}
+      {time && <span className="hidden sm:inline"> · {time}</span>}
     </span>
   );
 }

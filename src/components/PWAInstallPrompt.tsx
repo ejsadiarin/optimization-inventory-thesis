@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+export interface PWAInstallPromptProps {
+  className?: string;
+}
 
 export interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -22,7 +27,7 @@ function isStandalone(): boolean {
   );
 }
 
-export default function PWAInstallPrompt() {
+export default function PWAInstallPrompt({ className }: PWAInstallPromptProps = {}) {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -72,7 +77,10 @@ export default function PWAInstallPrompt() {
     <aside
       role="region"
       aria-label="Install app"
-      className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-md items-start gap-3 rounded-lg border bg-card p-4 shadow-lg"
+      className={cn(
+        'fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-md items-start gap-3 rounded-lg border bg-card p-4 shadow-lg',
+        className,
+      )}
     >
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
         <Download className="h-4 w-4" />

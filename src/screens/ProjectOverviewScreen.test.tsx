@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { seedProject } from '@/test/fixtures';
+import { resetViewport, useMobileViewport } from '@/test/viewport';
 import type { LumberRequirement, Piece, StructuralMember } from '@/db/types';
 
 const mocks = vi.hoisted(() => ({
@@ -43,6 +44,10 @@ beforeEach(() => {
   mocks.getActivePieces.mockReset().mockResolvedValue([]);
   mocks.getOptimizationWorkflow.mockReset().mockResolvedValue(null);
   mocks.getLatestCuttingPlan.mockReset().mockResolvedValue(null);
+});
+
+afterEach(() => {
+  resetViewport();
 });
 
 function renderProject(projectId: string) {
@@ -114,31 +119,66 @@ describe('ProjectOverviewScreen', () => {
     expect(screen.getAllByText('Optional').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('shows the project sidebar and opens the mobile menu', async () => {
-    const user = userEvent.setup();
+  it('shows the project sidebar with navigation', async () => {
     const project = await seedProject({ name: 'Sidebar Site' });
     renderProject(project.id);
 
-    expect(
-      await screen.findByRole('navigation', { name: 'Project' }),
-    ).toBeInTheDocument();
+    const nav = await screen.findByRole('navigation', { name: 'Project' });
 
-    await user.click(screen.getByRole('button', { name: 'Open project menu' }));
-
-    const menu = await screen.findByRole('dialog');
-    expect(within(menu).getByRole('link', { name: /members/i })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: /members/i })).toHaveAttribute(
       'href',
       `/projects/${project.id}/members`,
     );
-    expect(within(menu).getByRole('link', { name: /settings/i })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: /members/i })).toHaveAttribute(
+      'title',
+      'Members',
+    );
+    expect(within(nav).getByRole('link', { name: /settings/i })).toHaveAttribute(
       'href',
       `/projects/${project.id}/settings`,
     );
-    expect(within(menu).getByText('Alternative flow')).toBeInTheDocument();
-    expect(within(menu).getByRole('link', { name: /member planner/i })).toHaveAttribute(
+    expect(within(nav).getByText('Alternative flow')).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: /member planner/i })).toHaveAttribute(
       'href',
       `/projects/${project.id}/focus`,
     );
+  });
+
+  it('shows bottom navigation and account actions on mobile', async () => {
+    useMobileViewport();
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Mobile Site' });
+    renderProject(project.id);
+
+    expect(
+      screen.queryByRole('navigation', { name: 'Project' }),
+    ).not.toBeInTheDocument();
+
+    const nav = await screen.findByRole('navigation', { name: 'Project sections' });
+
+    expect(within(nav).getByRole('link', { name: /members/i })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/members`,
+    );
+    expect(within(nav).getByRole('link', { name: /settings/i })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/settings`,
+    );
+    expect(within(nav).getByRole('link', { name: /member planner/i })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/focus`,
+    );
+    expect(within(nav).getByText('Planner')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open account menu' }));
+
+    const menu = await screen.findByRole('dialog');
+    expect(within(menu).getByRole('link', { name: /projects/i })).toHaveAttribute(
+      'href',
+      '/',
+    );
+    expect(within(menu).getByRole('button', { name: /lock project/i })).toBeInTheDocument();
+    expect(within(menu).getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 
   it('shows an empty notification drawer when no plan warning exists', async () => {

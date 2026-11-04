@@ -15,11 +15,11 @@ import {
   Boxes,
   Calculator,
   Check,
+  CircleUserRound,
   Crosshair,
   LayoutDashboard,
   Lock,
   LogOut,
-  Menu,
   Package,
   Settings,
   type LucideIcon,
@@ -34,6 +34,7 @@ import {
 import { useAuth } from '@/auth/AuthProvider';
 import type { Project } from '@/db/types';
 import { lockProject } from '@/lib/projectSession';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { useProjectProgress } from '@/lib/useProjectProgress';
 import type { ProjectNavAnnotation } from '@/lib/projectProgress';
 import { PROJECT_NAV_ITEMS, projectNavHref, type ProjectNavItem } from '@/screens/projectNav';
@@ -66,7 +67,8 @@ function ProjectLayoutContent({ project }: { project: Project }) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { nav, notifications, reload } = useProjectProgress();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const isDesktop = useIsDesktop();
+  const [accountOpen, setAccountOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const basePath = projectId ? `/projects/${projectId}` : '/';
@@ -83,107 +85,75 @@ function ProjectLayoutContent({ project }: { project: Project }) {
   }
 
   return (
-    <div className="min-h-dvh bg-muted/30 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="hidden border-r bg-background lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
-        <div className="flex items-center gap-2 border-b p-3">
-          <Button asChild size="icon" variant="ghost" aria-label="Back to projects">
-            <Link to="/">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{project.name}</p>
-            <p className="text-xs text-muted-foreground">Formwork workspace</p>
-          </div>
-        </div>
-        <nav aria-label="Project" className="flex-1 space-y-1 overflow-y-auto p-3">
-          <ProjectNavLinks projectId={projectId} nav={nav} />
-        </nav>
-        <div className="space-y-2 border-t p-3">
-          {user && (
-            <p className="truncate px-1 text-xs text-muted-foreground">
-              {user.displayName || user.email}
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" onClick={lock} type="button">
-              <Lock className="h-4 w-4" /> Lock
+    <div className="min-h-dvh bg-muted/30 md:grid md:grid-cols-[4.5rem_minmax(0,1fr)] lg:grid-cols-[16rem_minmax(0,1fr)]">
+      {isDesktop && (
+        <aside className="border-r bg-background md:sticky md:top-0 md:flex md:h-dvh md:flex-col">
+          <div className="flex items-center gap-2 border-b p-3 md:justify-center lg:justify-start">
+            <Button asChild size="icon" variant="ghost" aria-label="Back to projects">
+              <Link to="/">
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label="Sign out"
-              onClick={() => void signOut()}
-              type="button"
-            >
-              <LogOut className="h-4 w-4" /> Sign out
-            </Button>
+            <div className="hidden min-w-0 lg:block">
+              <p className="truncate text-sm font-semibold">{project.name}</p>
+              <p className="text-xs text-muted-foreground">Formwork workspace</p>
+            </div>
           </div>
-        </div>
-      </aside>
+          <nav aria-label="Project" className="flex-1 space-y-1 overflow-y-auto p-2 lg:p-3">
+            <ProjectNavLinks projectId={projectId} nav={nav} />
+          </nav>
+          <div className="space-y-2 border-t p-2 lg:p-3">
+            {user && (
+              <p className="hidden truncate px-1 text-xs text-muted-foreground lg:block">
+                {user.displayName || user.email}
+              </p>
+            )}
+            <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={lock}
+                type="button"
+                aria-label="Lock project"
+                title="Lock project"
+                className="w-full px-0 lg:px-3"
+              >
+                <Lock className="h-4 w-4" /> <span className="hidden lg:inline">Lock</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => void signOut()}
+                type="button"
+                className="w-full px-0 lg:px-3"
+              >
+                <LogOut className="h-4 w-4" /> <span className="hidden lg:inline">Sign out</span>
+              </Button>
+            </div>
+          </div>
+        </aside>
+      )}
 
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
           <div className="flex h-14 items-center justify-between gap-2 px-3 sm:px-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Open project menu"
-                  onClick={() => setMenuOpen(true)}
-                  type="button"
-                  className="lg:hidden"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-                <DialogContent className="left-0 top-0 flex h-dvh w-72 max-w-[85vw] translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-r p-0">
-                  <DialogTitle className="sr-only">Project menu</DialogTitle>
-                  <div className="flex items-center gap-2 border-b p-3">
-                    <Button asChild size="icon" variant="ghost" aria-label="Back to projects">
-                      <Link to="/" onClick={() => setMenuOpen(false)}>
-                        <ArrowLeft className="h-5 w-5" />
-                      </Link>
-                    </Button>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{project.name}</p>
-                      <p className="text-xs text-muted-foreground">Formwork workspace</p>
-                    </div>
-                  </div>
-                  <nav aria-label="Project" className="flex-1 space-y-1 overflow-y-auto p-3">
-                    <ProjectNavLinks
-                      projectId={projectId}
-                      nav={nav}
-                      onNavigate={() => setMenuOpen(false)}
-                    />
-                  </nav>
-                  <div className="space-y-2 border-t p-3">
-                    {user && (
-                      <p className="truncate px-1 text-xs text-muted-foreground">
-                        {user.displayName || user.email}
-                      </p>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button size="sm" variant="outline" onClick={lock} type="button">
-                        <Lock className="h-4 w-4" /> Lock
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label="Sign out"
-                        onClick={() => void signOut()}
-                        type="button"
-                      >
-                        <LogOut className="h-4 w-4" /> Sign out
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <span className="truncate text-sm font-semibold lg:hidden">{project.name}</span>
-              <span className="hidden text-sm font-medium text-muted-foreground lg:inline">
-                {activeItem?.label ?? 'Overview'}
-              </span>
+            <div className="flex min-w-0 items-center gap-1">
+              {isDesktop ? (
+                <span className="text-sm font-medium text-muted-foreground">
+                  {activeItem?.label ?? 'Overview'}
+                </span>
+              ) : (
+                <>
+                  <Button asChild size="icon" variant="ghost" aria-label="Back to projects">
+                    <Link to="/">
+                      <ArrowLeft className="h-5 w-5" />
+                    </Link>
+                  </Button>
+                  <span className="truncate text-sm font-semibold">{project.name}</span>
+                </>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <Dialog open={notificationsOpen} onOpenChange={setNotificationsOpen}>
@@ -263,14 +233,66 @@ function ProjectLayoutContent({ project }: { project: Project }) {
                 </DialogContent>
               </Dialog>
               <SyncStatusChip />
+              {!isDesktop && (
+                <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Open account menu"
+                    onClick={() => setAccountOpen(true)}
+                    type="button"
+                  >
+                    <CircleUserRound className="h-5 w-5" />
+                  </Button>
+                  <DialogContent className="left-auto right-0 top-0 flex h-dvh w-[min(22rem,100vw)] max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-l p-0">
+                    <div className="space-y-1 border-b p-4 pr-12">
+                      <DialogTitle className="text-base">Project menu</DialogTitle>
+                      <p className="truncate text-sm text-muted-foreground">{project.name}</p>
+                    </div>
+                    <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                      {user && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {user.displayName || user.email}
+                        </p>
+                      )}
+                      <Button asChild variant="outline" className="w-full justify-start">
+                        <Link to="/" onClick={() => setAccountOpen(false)}>
+                          <ArrowLeft className="h-4 w-4" /> Projects
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setAccountOpen(false);
+                          lock();
+                        }}
+                        type="button"
+                      >
+                        <Lock className="h-4 w-4" /> Lock project
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => void signOut()}
+                        type="button"
+                      >
+                        <LogOut className="h-4 w-4" /> Sign out
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
         </header>
-        <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        <main className="flex-1 px-4 pb-24 pt-5 sm:px-6 sm:pt-6 md:pb-6">
           <Outlet context={project} />
         </main>
-        <PWAInstallPrompt />
+        <PWAInstallPrompt className={isDesktop ? undefined : 'bottom-20'} />
       </div>
+
+      {!isDesktop && <ProjectBottomNav projectId={projectId} nav={nav} />}
     </div>
   );
 }
@@ -289,8 +311,8 @@ function ProjectNavLinks({
       {PROJECT_NAV_ITEMS.map((item) => (
         <Fragment key={item.path}>
           {item.separatorBefore && (
-            <div className="my-3 border-t pt-3">
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="my-2 border-t pt-2 lg:my-3 lg:pt-3">
+              <p className="hidden px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:block">
                 Alternative flow
               </p>
             </div>
@@ -319,35 +341,121 @@ function ProjectNavLink({
   onNavigate?: () => void;
 }) {
   const Icon = NAV_ICONS[item.path] ?? LayoutDashboard;
+  const accessibleName =
+    annotation?.count !== undefined
+      ? `${item.label} (${annotation.count} outstanding)`
+      : annotation?.complete
+        ? `${item.label} (complete)`
+        : item.label;
 
   return (
     <NavLink
       to={projectId ? projectNavHref(projectId, item.path) : '/'}
       end={item.end}
       onClick={onNavigate}
+      title={item.label}
+      aria-label={accessibleName}
       className={({ isActive }) =>
         [
-          'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+          'relative mx-auto flex h-10 w-10 items-center justify-center rounded-md text-sm font-medium transition-colors lg:mx-0 lg:h-auto lg:w-full lg:justify-start lg:gap-2.5 lg:px-3 lg:py-2',
           isActive
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
         ].join(' ')
       }
     >
-      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      <Icon className="h-5 w-5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
+      <span className="hidden min-w-0 flex-1 truncate lg:inline">{item.label}</span>
       {annotation?.count !== undefined && (
-        <Badge
-          variant="secondary"
-          className="px-1.5 py-0 text-[10px] leading-4"
-          aria-label={`${annotation.count} outstanding`}
-        >
-          {annotation.count}
-        </Badge>
+        <>
+          <Badge
+            variant="secondary"
+            className="hidden px-1.5 py-0 text-[10px] leading-4 lg:inline-flex"
+            aria-label={`${annotation.count} outstanding`}
+          >
+            {annotation.count}
+          </Badge>
+          <span
+            aria-hidden="true"
+            className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary lg:hidden"
+          />
+        </>
       )}
       {annotation?.complete && (
-        <Check className="h-3.5 w-3.5 shrink-0" aria-label={`${item.label} complete`} />
+        <Check
+          className="hidden h-3.5 w-3.5 shrink-0 lg:block"
+          aria-label={`${item.label} complete`}
+        />
       )}
     </NavLink>
+  );
+}
+
+function ProjectBottomNav({
+  projectId,
+  nav,
+}: {
+  projectId?: string;
+  nav: Partial<Record<string, ProjectNavAnnotation>>;
+}) {
+  return (
+    <nav
+      aria-label="Project sections"
+      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden"
+    >
+      <div className="grid grid-cols-6 pb-[env(safe-area-inset-bottom)]">
+        {PROJECT_NAV_ITEMS.map((item) => {
+          const Icon = NAV_ICONS[item.path] ?? LayoutDashboard;
+          const annotation = nav[item.path];
+          const accessibleName =
+            annotation?.count !== undefined
+              ? `${item.label} (${annotation.count} outstanding)`
+              : annotation?.complete
+                ? `${item.label} (complete)`
+                : item.label;
+
+          return (
+            <NavLink
+              key={item.path}
+              to={projectId ? projectNavHref(projectId, item.path) : '/'}
+              end={item.end}
+              aria-label={accessibleName}
+              className={({ isActive }) =>
+                [
+                  'relative flex min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 pb-1.5 pt-2 text-[10px] font-medium leading-tight transition-colors',
+                  isActive
+                    ? 'text-primary'
+                    : 'text-muted-foreground hover:text-foreground',
+                ].join(' ')
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className={[
+                      'absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary transition-opacity',
+                      isActive ? 'opacity-100' : 'opacity-0',
+                    ].join(' ')}
+                  />
+                  <span className="relative">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                    {annotation?.count !== undefined && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute -right-1.5 -top-1 h-1.5 w-1.5 rounded-full bg-primary"
+                      />
+                    )}
+                  </span>
+                  <span className="w-full truncate text-center">
+                    {item.shortLabel ?? item.label}
+                  </span>
+                </>
+              )}
+            </NavLink>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
