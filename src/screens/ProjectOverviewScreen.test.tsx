@@ -151,7 +151,7 @@ describe('ProjectOverviewScreen', () => {
     );
 
     expect(
-      await screen.findByRole('heading', { name: /structural members/i }),
+      await screen.findByRole('heading', { level: 1, name: /structural members/i }),
     ).toBeInTheDocument();
   });
 

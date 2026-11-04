@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -11,7 +11,7 @@ import {
   listStructuralMembers,
 } from '@/db/members';
 import { seedProject } from '@/test/fixtures';
-import { resetMembersMock } from '@/test/membersMock';
+import { failNextListStructuralMembers, resetMembersMock } from '@/test/membersMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
@@ -20,6 +20,27 @@ import { unlockProject } from '@/lib/projectSession';
 beforeEach(async () => {
   resetMembersMock();
 });
+
+afterEach(() => {
+  delete (window as { matchMedia?: unknown }).matchMedia;
+});
+
+function useMobileViewport() {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 async function renderMembers(projectId: string) {
   unlockProject(projectId);
@@ -30,7 +51,7 @@ async function renderMembers(projectId: string) {
       </TestAuthProvider>
     </MemoryRouter>,
   );
-  await screen.findByRole('heading', { name: /structural members/i });
+  await screen.findByRole('heading', { level: 1, name: /structural members/i });
 }
 
 describe('StructuralMembersScreen', () => {
@@ -38,6 +59,7 @@ describe('StructuralMembersScreen', () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Members Site' });
     await renderMembers(project.id);
+    await screen.findByText(/no structural members yet/i);
 
     await user.click(screen.getByRole('button', { name: /add member/i }));
 
@@ -91,7 +113,7 @@ describe('StructuralMembersScreen', () => {
     expect(members[0]).toMatchObject({ label: 'B2', length: 4.5 });
   });
 
-  it('deletes a member', async () => {
+  it('asks for confirmation before deleting a member', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Members Site' });
     await createStructuralMember({
@@ -105,9 +127,80 @@ describe('StructuralMembersScreen', () => {
     await renderMembers(project.id);
 
     await user.click(await screen.findByRole('button', { name: /delete S1/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/delete S1\?/i)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: /^cancel$/i }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('S1')).toBeInTheDocument();
+    expect(await listStructuralMembers(project.id)).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /delete S1/i }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: /delete member/i,
+      }),
+    );
 
     expect(await screen.findByText(/no structural members yet/i)).toBeInTheDocument();
     expect(await listStructuralMembers(project.id)).toEqual([]);
+  });
+
+  it('shows a load error and retries', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Members Site' });
+    failNextListStructuralMembers();
+
+    await renderMembers(project.id);
+
+    expect(
+      await screen.findByText(/could not load structural members/i),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+
+    expect(await screen.findByText(/no structural members yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/could not load structural members/i)).not.toBeInTheDocument();
+  });
+
+  it('renders members and lumber as cards on mobile', async () => {
+    const project = await seedProject({ name: 'Members Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 0.4,
+      width: 0.25,
+      height: 3,
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2.4,
+      crossSection: '2x3',
+    });
+    useMobileViewport();
+
+    await renderMembers(project.id);
+
+    const memberCards = await screen.findByTestId('member-cards');
+    expect(within(memberCards).getByText('C1')).toBeInTheDocument();
+    expect(within(memberCards).getByText(/4 panels/i)).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    const lumberCards = screen.getByTestId('lumber-cards-2x3');
+    expect(within(lumberCards).getByText('Brace A')).toBeInTheDocument();
+    expect(within(lumberCards).getByText(/2\.40 m/i)).toBeInTheDocument();
+  });
+
+  it('offers one primary action in each empty state', async () => {
+    const project = await seedProject({ name: 'Members Site' });
+    await renderMembers(project.id);
+
+    expect(await screen.findByText(/no structural members yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /add member/i })).toHaveLength(1);
+    expect(screen.getByText(/no lumber requirements yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /add lumber/i })).toHaveLength(1);
   });
 
   it('warns when a decomposed panel exceeds the stock sheet', async () => {
@@ -156,6 +249,7 @@ describe('StructuralMembersScreen', () => {
       crossSection: '2x2',
     });
     await renderMembers(project.id);
+    await screen.findByText('Existing brace');
 
     await user.click(screen.getByRole('button', { name: /add lumber/i }));
     const dialog = await screen.findByRole('dialog');

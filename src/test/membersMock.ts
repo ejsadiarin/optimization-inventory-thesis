@@ -12,6 +12,11 @@ import type {
 let members: StructuralMember[] = [];
 let requirements: LumberRequirement[] = [];
 let sequence = 0;
+let failNextMembersLoad = false;
+
+export function failNextListStructuralMembers(): void {
+  failNextMembersLoad = true;
+}
 
 function nextCreatedAt(): string {
   const createdAt = new Date(Date.UTC(2026, 0, 1, 0, 0, 0, sequence)).toISOString();
@@ -45,6 +50,7 @@ export function resetMembersMock(): void {
   members = [];
   requirements = [];
   sequence = 0;
+  failNextMembersLoad = false;
 }
 
 export async function createStructuralMember(
@@ -61,6 +67,10 @@ export async function createStructuralMember(
 }
 
 export async function listStructuralMembers(projectId: string): Promise<StructuralMember[]> {
+  if (failNextMembersLoad) {
+    failNextMembersLoad = false;
+    throw new Error('Members load failed.');
+  }
   return members
     .filter((member) => member.projectId === projectId)
     .sort(byCreatedAt);
