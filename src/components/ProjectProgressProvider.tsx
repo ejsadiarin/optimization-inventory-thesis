@@ -1,9 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { decidedCount, reviewRequirements } from '@/components/optimize/reuseReview';
 import { getActivePieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
@@ -45,6 +41,7 @@ export function ProjectProgressProvider({
   children: ReactNode;
 }) {
   const refreshSignal = useRefreshSignal();
+  const location = useLocation();
   const [reloadToken, setReloadToken] = useState(0);
   const [state, setState] = useState({
     loading: true,
@@ -121,7 +118,7 @@ export function ProjectProgressProvider({
     return () => {
       cancelled = true;
     };
-  }, [project.id, refreshSignal, reloadToken]);
+  }, [project.id, refreshSignal, reloadToken, location.pathname]);
 
   const checklist = buildProjectChecklist(state.counts);
   const nav = buildNavAnnotations(state.counts);
