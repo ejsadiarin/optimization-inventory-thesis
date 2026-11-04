@@ -24,6 +24,20 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    watch: {
+      ignored: [
+        '**/meeting-screenshots/**',
+        '**/docs/figures/**',
+        '**/.playwright-mcp/**',
+        '**/emulator-data/**',
+        '**/coverage/**',
+        '**/dist/**',
+        '**/*.test.ts',
+        '**/*.test.tsx',
+      ],
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
