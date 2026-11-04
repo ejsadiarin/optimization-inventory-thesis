@@ -321,6 +321,7 @@ describe('OptimizationScreen matching', () => {
       /dimensions are exact/i,
     );
     expect(screen.getByTestId('reused-piece-0')).toHaveTextContent(/2 panels/i);
+    expect(screen.getByTestId('reused-piece-legend-0')).toHaveTextContent('B1');
   });
 
   it('declines a candidate without consuming it or satisfying the requirement', async () => {
