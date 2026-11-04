@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MIN_REUSABLE_OFFCUT } from '@/engine/plywood';
-import { formatMeters } from '@/lib/format';
+import { formatMeters, shortId } from '@/lib/format';
 import type { ReusableOffcutEntry } from './offcuts';
 
 export interface OffcutIntakeProps {
@@ -55,7 +55,11 @@ export default function OffcutIntake({
               >
                 <div className="flex items-center gap-2">
                   <Checkbox
-                    aria-label={`Keep offcut ${index + 1} from sheet ${entry.sheetIndex + 1}`}
+                    aria-label={
+                      entry.pieceId
+                        ? `Keep offcut ${index + 1} from reused piece ${shortId(entry.pieceId)}`
+                        : `Keep offcut ${index + 1} from sheet ${entry.sheetIndex + 1}`
+                    }
                     checked={selectedOffcutKeys.has(entry.key)}
                     disabled={added}
                     onCheckedChange={(checked) => onToggleOffcut(entry.key, checked === true)}
@@ -64,7 +68,11 @@ export default function OffcutIntake({
                     <p className="text-sm font-medium">
                       {formatMeters(entry.offcut.length)} × {formatMeters(entry.offcut.width)}
                     </p>
-                    <p className="text-xs text-muted-foreground">Sheet {entry.sheetIndex + 1}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.pieceId
+                        ? `Reused piece ${shortId(entry.pieceId)}`
+                        : `Sheet ${entry.sheetIndex + 1}`}
+                    </p>
                   </div>
                 </div>
                 {added && (

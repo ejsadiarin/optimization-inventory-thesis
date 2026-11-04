@@ -1,9 +1,12 @@
 import type {
+  MatchPiece,
   Offcut,
+  PanelStockPacking,
   PlacedPanel,
   PlywoodPanel,
   PlywoodPlan,
   PlywoodSheetPlan,
+  ReuseAllocation,
   StockSize,
   UnplacedPanel,
   UnplacedReason,
@@ -238,6 +241,70 @@ function packSheets(
   }
 
   return { sheets, unplacedPanels, oversizedPanels };
+}
+
+export function packPanelsIntoStock(
+  panels: readonly PlywoodPanel[],
+  stockSize: StockSize,
+): PanelStockPacking {
+  const packed = packSheets(panels, stockSize, true);
+  const firstSheet = packed.sheets[0];
+  const plan = buildSheetPlan(
+    firstSheet ?? { index: 0, shelves: [] },
+    stockSize,
+  );
+  const placedPanelIds = plan.panels.map((panel) => panel.panelId);
+  const placed = new Set(placedPanelIds);
+
+  return {
+    plan,
+    placedPanelIds,
+    unplacedPanelIds: panels
+      .filter((panel) => !placed.has(panel.id))
+      .map((panel) => panel.id),
+  };
+}
+
+/**
+ * Greedily nests panels into reusable phenolic pieces, largest piece first.
+ * Each piece is packed as its own stock sheet, so a panel is never assigned
+ * twice and placements cannot overlap.
+ */
+export function allocatePanelsToPieces(
+  panels: readonly PlywoodPanel[],
+  pieces: readonly MatchPiece[],
+): ReuseAllocation[] {
+  const remaining = new Map(panels.map((panel) => [panel.id, panel]));
+  const allocations: ReuseAllocation[] = [];
+  const usablePieces = pieces
+    .filter(
+      (piece) =>
+        piece.materialType === 'phenolic' &&
+        !piece.retired &&
+        piece.condition !== 'Retired',
+    )
+    .sort(
+      (a, b) =>
+        b.length * b.width - a.length * a.width || a.id.localeCompare(b.id),
+    );
+
+  for (const piece of usablePieces) {
+    if (remaining.size === 0) break;
+    const packing = packPanelsIntoStock([...remaining.values()], {
+      length: piece.length,
+      width: piece.width,
+    });
+    if (packing.placedPanelIds.length === 0) continue;
+
+    allocations.push({
+      pieceId: piece.id,
+      plan: packing.plan,
+      panelIds: packing.placedPanelIds,
+    });
+    packing.placedPanelIds.forEach((panelId) => remaining.delete(panelId));
+  }
+
+  return allocations;
 }
 
 export function optimizePlywood(

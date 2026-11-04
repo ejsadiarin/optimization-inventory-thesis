@@ -118,6 +118,73 @@ describe('reviewRequirements', () => {
     expect(review!.status).toBe('needsDecision');
   });
 
+  it('keeps a partly used piece available while the remaining area still fits', () => {
+    const pieceId = 'piece-1';
+    const groups = [
+      group(
+        'bottom',
+        [candidate(pieceId, { materialType: 'phenolic', length: 2.44, width: 0.6 })],
+        { materialType: 'phenolic', length: 2, width: 0.2 },
+      ),
+      group(
+        'side',
+        [candidate(pieceId, { materialType: 'phenolic', length: 2.44, width: 0.6 })],
+        { materialType: 'phenolic', length: 2, width: 0.4 },
+      ),
+    ];
+
+    const reviews = reviewRequirements(
+      groups,
+      new Set(['bottom']),
+      new Map([['bottom', pieceId]]),
+      new Set(),
+    );
+
+    expect(reviews[0]!.status).toBe('satisfied');
+    expect(reviews[1]!.availableCandidates.map((item) => item.pieceId)).toEqual([
+      pieceId,
+    ]);
+    expect(reviews[1]!.sharedPieceCandidateIds).toEqual([pieceId]);
+    expect(reviews[1]!.assignedElsewhereCount).toBe(0);
+    expect(reviews[1]!.status).toBe('needsDecision');
+  });
+
+  it('hides a partly used piece once the remaining area no longer fits', () => {
+    const pieceId = 'piece-1';
+    const groups = [
+      group(
+        'bottom',
+        [candidate(pieceId, { materialType: 'phenolic', length: 2.44, width: 0.6 })],
+        { materialType: 'phenolic', length: 2, width: 0.2 },
+      ),
+      group(
+        'side-1',
+        [candidate(pieceId, { materialType: 'phenolic', length: 2.44, width: 0.6 })],
+        { materialType: 'phenolic', length: 2, width: 0.4 },
+      ),
+      group(
+        'side-2',
+        [candidate(pieceId, { materialType: 'phenolic', length: 2.44, width: 0.6 })],
+        { materialType: 'phenolic', length: 2, width: 0.4 },
+      ),
+    ];
+
+    const reviews = reviewRequirements(
+      groups,
+      new Set(['bottom', 'side-1']),
+      new Map([
+        ['bottom', pieceId],
+        ['side-1', pieceId],
+      ]),
+      new Set(),
+    );
+
+    expect(reviews[2]!.availableCandidates).toEqual([]);
+    expect(reviews[2]!.assignedElsewhereCount).toBe(1);
+    expect(reviews[2]!.sharedPieceCandidateIds).toEqual([]);
+    expect(reviews[2]!.status).toBe('newStock');
+  });
+
   it('counts decided requirements', () => {
     const groups = [
       group('a', [candidate('p1')]),

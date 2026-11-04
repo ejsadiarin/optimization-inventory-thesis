@@ -149,7 +149,21 @@ export default function PieceDetailDialog({
                       <TableCell className="text-muted-foreground">
                         {log.length - index}
                       </TableCell>
-                      <TableCell className="font-medium">{entry.structuralMemberLabel}</TableCell>
+                      <TableCell className="font-medium">
+                        {entry.requirementLabels?.length
+                          ? entry.requirementLabels.join(', ')
+                          : entry.structuralMemberLabel}
+                        {(entry.requirementIds?.length ??
+                          entry.requirementLabels?.length ??
+                          0) > 1 && (
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            ·{' '}
+                            {entry.requirementIds?.length ??
+                              entry.requirementLabels?.length}{' '}
+                            panels
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{formatDate(entry.date)}</TableCell>
                     </TableRow>
                   ))}

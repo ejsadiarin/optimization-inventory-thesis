@@ -186,6 +186,53 @@ describe('MemberFocusScreen', () => {
     ).toBeDisabled();
   });
 
+  it('lets a second panel share a piece and shows its remaining space', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Focus Nesting Site' });
+    const beam = await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 0.2,
+      height: 0.4,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 0.6,
+      thickness: 0.018,
+    });
+
+    await renderFocus(project.id);
+
+    expect(screen.getByTestId(`member-reuse-${beam.id}`)).toHaveTextContent(
+      '3 panels · 2/3 panels reusable',
+    );
+
+    await user.click(screen.getByRole('button', { name: /use best matches/i }));
+
+    expect(within(screen.getByTestId('focus-summary')).getByText('2 of 3')).toBeInTheDocument();
+    expect(screen.getByTestId(`focus-piece-plan-${piece.id}`)).toHaveTextContent(
+      /2 panels/,
+    );
+    expect(
+      screen.getAllByText(/remaining space/i).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByTestId(`focus-remaining-${beam.id}-panel-1`).textContent,
+    ).not.toBe(
+      screen.getByTestId(`focus-remaining-${beam.id}-panel-2`).textContent,
+    );
+    expect(screen.getAllByText(/no saw kerf/i).length).toBeGreaterThan(0);
+
+    const thirdPanel = screen.getByTestId(`focus-panel-${beam.id}-panel-3`);
+    expect(
+      within(thirdPanel).getByRole('option', { name: /2\.44 m × 0\.60 m/i }),
+    ).toBeDisabled();
+  });
+
   it('counts only pieces that can be assigned to distinct panels', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Focus Reuse Count Site' });

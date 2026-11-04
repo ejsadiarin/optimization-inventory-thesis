@@ -1,5 +1,10 @@
 import { declinedKey } from '@/db/workflow';
-import type { InventoryMatch, MatchGroup } from '@/engine/types';
+import { canFitRequirementAlongside } from '@/lib/panelAssignments';
+import type {
+  InventoryMatch,
+  MatchGroup,
+  MatchRequirement,
+} from '@/engine/types';
 
 export type ReuseStatus = 'needsDecision' | 'satisfied' | 'newStock' | 'noMatch';
 
@@ -24,6 +29,7 @@ export interface RequirementReview {
   availableCandidates: InventoryMatch[];
   declinedCandidates: InventoryMatch[];
   assignedElsewhereCount: number;
+  sharedPieceCandidateIds: string[];
 }
 
 export interface ReviewSection {
@@ -39,7 +45,19 @@ export function reviewRequirements(
   acceptedByRequirement: ReadonlyMap<string, string>,
   declinedCandidates: ReadonlySet<string>,
 ): RequirementReview[] {
+  const requirementById = new Map(
+    groups.map((group) => [group.requirement.id, group.requirement]),
+  );
   const assignedPieceIds = new Set(acceptedByRequirement.values());
+  const requirementsByPiece = new Map<string, MatchRequirement[]>();
+
+  for (const [requirementId, pieceId] of acceptedByRequirement) {
+    const requirement = requirementById.get(requirementId);
+    if (!requirement) continue;
+    const existing = requirementsByPiece.get(pieceId) ?? [];
+    existing.push(requirement);
+    requirementsByPiece.set(pieceId, existing);
+  }
 
   return groups.map((group) => {
     const requirementId = group.requirement.id;
@@ -47,18 +65,40 @@ export function reviewRequirements(
     const declined = group.candidates.filter((candidate) =>
       declinedCandidates.has(declinedKey(requirementId, candidate.pieceId)),
     );
-    const assignedElsewhereCount = group.candidates.filter(
-      (candidate) =>
-        candidate.pieceId !== acceptedPieceId &&
-        assignedPieceIds.has(candidate.pieceId) &&
-        !declinedCandidates.has(declinedKey(requirementId, candidate.pieceId)),
-    ).length;
+    let assignedElsewhereCount = 0;
+    const sharedPieceCandidateIds: string[] = [];
     const available = group.candidates.filter((candidate) => {
       if (declinedCandidates.has(declinedKey(requirementId, candidate.pieceId))) {
         return false;
       }
       if (candidate.pieceId === acceptedPieceId) return true;
-      return !assignedPieceIds.has(candidate.pieceId);
+
+      const existing = (requirementsByPiece.get(candidate.pieceId) ?? []).filter(
+        (requirement) => requirement.id !== requirementId,
+      );
+      if (existing.length === 0) {
+        // A piece assigned to a requirement that is no longer in the group
+        // list still occupies the piece; conservatively treat it as unavailable.
+        if (assignedPieceIds.has(candidate.pieceId)) {
+          assignedElsewhereCount += 1;
+          return false;
+        }
+        return true;
+      }
+
+      if (
+        canFitRequirementAlongside(
+          group.requirement,
+          existing,
+          candidate.piece,
+        )
+      ) {
+        sharedPieceCandidateIds.push(candidate.pieceId);
+        return true;
+      }
+
+      assignedElsewhereCount += 1;
+      return false;
     });
 
     let status: ReuseStatus;
@@ -81,6 +121,7 @@ export function reviewRequirements(
       availableCandidates: available,
       declinedCandidates: declined,
       assignedElsewhereCount,
+      sharedPieceCandidateIds,
     };
   });
 }

@@ -13,12 +13,20 @@ import { getActivePieces } from '@/db/inventory';
 import { listStructuralMembers } from '@/db/members';
 import type { Piece, Project, StructuralMember } from '@/db/types';
 import { decomposeMember } from '@/engine/decompose';
-import { optimizeProject, toMatchRequirements } from '@/engine';
-import { matchInventory } from '@/engine/match';
-import type { MatchPiece, PanelRequirement } from '@/engine/types';
+import { optimizeProject } from '@/engine';
+import type {
+  InventoryMatch,
+  MatchPiece,
+  MatchRequirement,
+  PanelRequirement,
+} from '@/engine/types';
 import { formatMeters, shortId } from '@/lib/format';
 import { MEMBER_TYPE_LABELS } from '@/lib/memberLabels';
-import { maxPanelAssignments } from '@/lib/panelAssignments';
+import {
+  allocationsForAssignments,
+  assignPanelsToPieces,
+  canFitRequirementAlongside,
+} from '@/lib/panelAssignments';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
@@ -26,7 +34,17 @@ interface MemberEntry {
   member: StructuralMember;
   panels: ReturnType<typeof decomposeMember>;
   reusablePanels: number;
-  candidatesByPanel: Map<string, string[]>;
+}
+
+function matchRequirementForPanel(panel: PanelRequirement): MatchRequirement {
+  return {
+    id: panel.id,
+    materialType: 'phenolic',
+    label: panel.label,
+    memberId: panel.memberId,
+    length: panel.length,
+    width: panel.width,
+  };
 }
 
 function memberDimensions(member: StructuralMember): string {
@@ -137,23 +155,11 @@ export default function MemberFocusScreen() {
     () =>
       members.map((member) => {
         const panels = decomposeMember(member);
-        const groups = matchInventory(toMatchRequirements(panels, []), matchPieces);
-        const candidatesByPanel = new Map(
-          groups.map((group) => [
-            group.requirement.id,
-            group.candidates.map((candidate) => candidate.pieceId),
-          ]),
-        );
         return {
           member,
           panels,
-          reusablePanels: Object.keys(
-            maxPanelAssignments(
-              panels.map((panel) => panel.id),
-              candidatesByPanel,
-            ),
-          ).length,
-          candidatesByPanel,
+          reusablePanels: assignPanelsToPieces(panels, matchPieces)
+            .coveredPanelCount,
         };
       }),
     [members, matchPieces],
@@ -177,6 +183,16 @@ export default function MemberFocusScreen() {
       satisfiedRequirementIds: new Set(Object.keys(assignments)),
     });
   }, [selected, project.stock, project.costs, matchPieces, assignments]);
+
+  const pieceAllocations = useMemo(
+    () =>
+      allocationsForAssignments(
+        new Map(Object.entries(assignments)),
+        (selected?.panels ?? []).map(matchRequirementForPanel),
+        matchPieces,
+      ),
+    [assignments, selected, matchPieces],
+  );
 
   const pageHeader = (
     <PageHeader
@@ -234,17 +250,8 @@ export default function MemberFocusScreen() {
   const memberColors = buildMemberColorMap(
     memberEntries.map((entry) => entry.member.label),
   );
-  const assignmentsByPiece = new Map(
-    Object.entries(assignments).map(([panelId, pieceId]) => [pieceId, panelId]),
-  );
-
   function useBestMatches() {
-    setAssignments(
-      maxPanelAssignments(
-        selected!.panels.map((panel) => panel.id),
-        selected!.candidatesByPanel,
-      ),
-    );
+    setAssignments(assignPanelsToPieces(selected!.panels, matchPieces).assignments);
   }
 
   function assignPiece(panelId: string, pieceId: string) {
@@ -254,12 +261,27 @@ export default function MemberFocusScreen() {
         delete next[panelId];
         return next;
       }
-      Object.entries(next).forEach(([key, value]) => {
-        if (key !== panelId && value === pieceId) delete next[key];
-      });
       next[panelId] = pieceId;
       return next;
     });
+  }
+
+  function candidateFits(
+    candidate: InventoryMatch,
+    panel: PanelRequirement,
+  ): boolean {
+    const existing = selected!.panels
+      .filter(
+        (other) =>
+          other.id !== panel.id &&
+          assignments[other.id] === candidate.pieceId,
+      )
+      .map(matchRequirementForPanel);
+    return canFitRequirementAlongside(
+      matchRequirementForPanel(panel),
+      existing,
+      candidate.piece,
+    );
   }
 
   return (
@@ -339,10 +361,29 @@ export default function MemberFocusScreen() {
               const assignedMatch = group?.candidates.find(
                 (candidate) => candidate.pieceId === assignedPieceId,
               );
+              const allocation = pieceAllocations.find(
+                (item) => item.pieceId === assignedPieceId,
+              );
+              const placedPanels = allocation?.plan.panels ?? [];
+              const placedIndex = placedPanels.findIndex(
+                (placed) => placed.panelId === panel.id,
+              );
+              const stockArea = allocation
+                ? allocation.plan.stock.length * allocation.plan.stock.width
+                : 0;
+              const remainingAfterPanel =
+                allocation && placedIndex >= 0
+                  ? stockArea -
+                    placedPanels
+                      .slice(0, placedIndex + 1)
+                      .reduce(
+                        (area, placed) => area + placed.length * placed.width,
+                        0,
+                      )
+                  : allocation?.plan.offcutArea;
               const canChoose =
-                group?.candidates.some(
-                  (candidate) => !assignmentsByPiece.has(candidate.pieceId),
-                ) ?? false;
+                group?.candidates.some((candidate) => candidateFits(candidate, panel)) ??
+                false;
               const allAssignedElsewhere =
                 !assignedPiece && (group?.candidates.length ?? 0) > 0 && !canChoose;
               const color = memberColors.get(selected.member.label) ?? '#93c5fd';
@@ -388,10 +429,7 @@ export default function MemberFocusScreen() {
                         <option
                           key={candidate.pieceId}
                           value={candidate.pieceId}
-                          disabled={
-                            assignmentsByPiece.get(candidate.pieceId) !== undefined &&
-                            assignmentsByPiece.get(candidate.pieceId) !== panel.id
-                          }
+                          disabled={!candidateFits(candidate, panel)}
                         >
                           {pieceLabel(candidate.piece)} · {formatMeters(candidate.piece.length)} ×{' '}
                           {formatMeters(candidate.piece.width)}
@@ -423,6 +461,14 @@ export default function MemberFocusScreen() {
                             ? `Trim to size · ${assignedMatch.surplusArea.toFixed(2)} m² surplus`
                             : 'Exact fit · no trim needed'}
                         </p>
+                        {allocation && remainingAfterPanel !== undefined && (
+                          <p data-testid={`focus-remaining-${panel.id}`}>
+                            Remaining space after this panel{' '}
+                            {remainingAfterPanel.toFixed(2)} m² ·{' '}
+                            {allocation.panelIds.length} panel
+                            {allocation.panelIds.length === 1 ? '' : 's'} on this piece
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -430,6 +476,36 @@ export default function MemberFocusScreen() {
               );
             })}
           </ul>
+
+          {pieceAllocations.length > 0 && (
+            <div className="space-y-3 border-t pt-3">
+              <h3 className="text-sm font-semibold">Reused pieces</h3>
+              {pieceAllocations.map((allocation, index) => (
+                <div
+                  key={allocation.pieceId}
+                  data-testid={`focus-piece-plan-${allocation.pieceId}`}
+                  className="space-y-2 rounded-md border p-3"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    {formatMeters(allocation.plan.stock.length)} ×{' '}
+                    {formatMeters(allocation.plan.stock.width)} ·{' '}
+                    {allocation.panelIds.length} panel
+                    {allocation.panelIds.length === 1 ? '' : 's'} · remaining{' '}
+                    {allocation.plan.offcutArea.toFixed(2)} m²
+                  </p>
+                  <SheetDiagram
+                    sheet={allocation.plan}
+                    memberColors={memberColors}
+                    svgId={`focus-piece-${index}`}
+                  />
+                  <SheetNotes sheet={allocation.plan} />
+                  <p className="text-xs text-muted-foreground">
+                    Dimensions are exact; no saw kerf or blade allowance is included.
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

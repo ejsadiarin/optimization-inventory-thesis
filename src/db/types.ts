@@ -88,6 +88,8 @@ export interface UsageLogEntry {
   structuralMemberLabel: string;
   date: string;
   createdAt: string;
+  requirementIds?: string[];
+  requirementLabels?: string[];
 }
 
 export type JsonValue =

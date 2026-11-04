@@ -12,8 +12,17 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InfoHint } from '@/components/ui/info-hint';
-import type { OptimizationResult, PlywoodSheetPlan } from '@/engine/types';
-import { crossSectionLabel, formatDate, formatMeters } from '@/lib/format';
+import type {
+  OptimizationResult,
+  PlywoodSheetPlan,
+  ReuseAllocation,
+} from '@/engine/types';
+import {
+  crossSectionLabel,
+  formatDate,
+  formatMeters,
+  shortId,
+} from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MEMBER_COLORS } from './memberColors';
 import { SheetDiagram, SheetNotes } from './CutPlanSheet';
@@ -342,6 +351,7 @@ function SheetWorkspace({
 export interface CuttingPlansProps {
   optimization: OptimizationResult;
   memberColors: ReadonlyMap<string, string>;
+  reuseAllocations: readonly ReuseAllocation[];
   reusableOffcuts: readonly ReusableOffcutEntry[];
   selectedOffcutKeys: ReadonlySet<string>;
   addedOffcutKeys: ReadonlySet<string>;
@@ -358,6 +368,7 @@ export interface CuttingPlansProps {
 export default function CuttingPlans({
   optimization,
   memberColors,
+  reuseAllocations,
   reusableOffcuts,
   selectedOffcutKeys,
   addedOffcutKeys,
@@ -373,7 +384,12 @@ export default function CuttingPlans({
   const remainingCount =
     optimization.remainingPanels.length + optimization.remainingLumberRequirements.length;
   const hasPanels = optimization.remainingPanels.length > 0;
-  const defaultSegment: CutSegment = hasPanels ? 'sheets' : 'lumber';
+  const defaultSegment: CutSegment =
+    remainingCount === 0 && reusableOffcuts.length > 0
+      ? 'offcuts'
+      : hasPanels
+        ? 'sheets'
+        : 'lumber';
   const [selectedSegment, setSelectedSegment] = useState<CutSegment | null>(null);
   const segment = selectedSegment ?? defaultSegment;
 
@@ -496,7 +512,48 @@ export default function CuttingPlans({
         </Card>
       )}
 
-      {remainingCount === 0 ? (
+      {reuseAllocations.length > 0 && (
+        <Card data-testid="reused-pieces">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              Reused pieces ({reuseAllocations.length})
+            </CardTitle>
+            <CardDescription>
+              Nested panels from reusable inventory. Dimensions are exact and include
+              no saw kerf or blade allowance.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {reuseAllocations.map((allocation, index) => (
+              <div
+                key={allocation.pieceId}
+                data-testid={`reused-piece-${index}`}
+                className="space-y-2 rounded-md border p-3"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-mono text-sm font-semibold">
+                    {shortId(allocation.pieceId)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatMeters(allocation.plan.stock.length)} ×{' '}
+                    {formatMeters(allocation.plan.stock.width)} ·{' '}
+                    {allocation.panelIds.length} panel
+                    {allocation.panelIds.length === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <SheetDiagram
+                  sheet={allocation.plan}
+                  memberColors={memberColors}
+                  svgId={`reused-piece-svg-${index}`}
+                />
+                <SheetNotes sheet={allocation.plan} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {remainingCount === 0 && (
         <Card>
           <CardContent className="py-8 text-center">
             <p className="font-medium">No cuts needed</p>
@@ -506,7 +563,9 @@ export default function CuttingPlans({
             </p>
           </CardContent>
         </Card>
-      ) : (
+      )}
+
+      {remainingCount > 0 || reusableOffcuts.length > 0 ? (
         <>
           <Tabs
             value={segment}
@@ -611,7 +670,7 @@ export default function CuttingPlans({
             </TabsContent>
           </Tabs>
         </>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -84,9 +84,11 @@ flowchart TD
   - Takes the decomposed requirements from Phase 2 and matches them against active pieces in inventory.
   - **Matching Criteria:** Same material type, sufficient dimensions (`piece.L >= req.L` and `piece.W >= req.W`), and non-retired condition.
   - **Ranking:** Uses a *Smallest-Fit* heuristic to prioritize pieces that fit with minimum leftover margin, preserving larger offcuts for bigger future panels.
+- **Reuse allocation:** an accepted piece is treated as a small stock sheet. The shelf packer nests as many accepted panels as fit, allows 90° rotation, and records each placement plus the leftover rectangles. One `2.44m × 1.22m` piece can therefore cover several panels of the same or different requirements. A piece is never assigned twice and placements cannot overlap.
 - **User Interaction:**
-  - Engineers review candidates grouped by structural member and can **Accept** or **Decline**. Requirements with no available candidate are marked **New stock** automatically. Decisions persist per project and survive reloads.
-  - Accepting marks the requirement satisfied, increments the piece's `usageCount`, and records an entry in `usageLog` linked to that structural member (e.g. `C1`).
+  - Engineers review candidates grouped by structural member and can **Accept** or **Decline**. A candidate piece already used by another panel stays available while its remaining area still fits the new panel, and the row shows a “shares piece” hint. Requirements with no available candidate or remaining space are marked **New stock** automatically. Decisions persist per project and survive reloads.
+  - Accepting marks the requirement satisfied. The first accepted panel increments the piece's `usageCount` and creates a `usageLog` entry linked to that structural member (e.g. `C1`); additional panels from the same piece are added to the same entry without another usage increment.
+  - Dimensions in a reuse plan are exact and include no saw kerf or blade allowance.
 
 ---
 
@@ -99,6 +101,7 @@ flowchart TD
 - **Algorithm (`src/engine/plywood.ts` & `src/engine/lumber.ts`):**
   - Requirements not satisfied by existing inventory must be cut from new stock.
   - Uses 2D Shelf First-Fit Decreasing (ADR-0005) with strictly valid **Guillotine cuts** (ADR-0003) on standard 2.44m × 1.22m sheets.
+- **Reused pieces:** accepted reuse allocations are shown above the segments as their own cut diagrams (`SheetDiagram` + `SheetNotes`), with panel placements and leftovers, alongside the new-stock sheets. The note states that dimensions are exact and no saw kerf is included.
 - **Visual Cut Plan Sheet (`src/components/optimize/CutPlanSheet.tsx`):**
   - Renders interactive SVGs showing the exact layout of panels on each sheet with dimensions and member color tags.
   - Hatched regions display cutting waste and remaining usable offcuts.
@@ -113,8 +116,9 @@ flowchart TD
 
 - **Screen:** `src/screens/MemberFocusScreen.tsx` (sidebar: *Member planner*, separated under *Alternative flow*; route `/projects/{id}/focus`).
 - **Purpose:** Compare a member-first workflow with the requirement-first Optimize flow. The user picks one structural member, sees its decomposed panels, and assigns an inventory piece to each panel before the cut plan is drawn.
-- **Flow:** choose member → per-panel inventory select (or **Use best matches**) → summary (reused panels, new sheets, utilization, unplaced) → sheet visualization and offcut notes.
-- **Scope:** plywood panels only; lumber requirements are independent of a member and stay in the main Optimize flow. The planner is a **preview**: choices do not consume inventory, record usage, or change saved optimization decisions. Panels left unassigned are planned from new stock; oversized panels are listed with a link to stock settings.
+- **Flow:** choose member → per-panel inventory select (or **Use best matches**) → summary (reused panels, new sheets, utilization, unplaced) → reused-piece diagrams with remaining space, then sheet visualization and offcut notes.
+- **Nesting:** a second panel may select a piece already used by another panel while the remaining area still fits; the planner repacks the piece and shows the resulting diagram and leftovers. Summary counts are panels covered, not pieces consumed.
+- **Scope:** plywood panels only; lumber requirements are independent of a member and stay in the main Optimize flow. The planner is a **preview**: choices do not consume inventory, record usage, or change saved optimization decisions. Panels left unassigned are planned from new stock; oversized panels are listed with a link to stock settings. Reuse dimensions are exact and include no saw kerf.
 - **Why separate:** the client can compare this flow against the optimized reuse-then-cuts flow without committing to either.
 
 ---

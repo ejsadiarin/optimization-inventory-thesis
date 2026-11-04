@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Loader2, PackageSearch } from 'lucide-react';
 import CuttingPlans from '@/components/optimize/CuttingPlans';
+import { SheetDiagram } from '@/components/optimize/CutPlanSheet';
 import MatchGroups from '@/components/optimize/MatchGroups';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
 import { offcutKey, type ReusableOffcutEntry } from '@/components/optimize/offcuts';
@@ -14,12 +15,17 @@ import {
   type ReuseStatus,
 } from '@/components/optimize/reuseReview';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { useToast } from '@/components/ui/toast';
-import { addPiece, getActivePieces, recordUsage } from '@/db/inventory';
+import {
+  addPiece,
+  addUsageRequirements,
+  getActivePieces,
+  recordUsage,
+} from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import {
   filterCuttingPlanSnapshot,
@@ -31,6 +37,7 @@ import {
   emptyWorkflow,
   getOptimizationWorkflow,
   invalidateWorkflow,
+  placementsForWorkflow,
   resetRequirementDecisions,
   restoreDeclinedCandidate,
   saveOptimizationWorkflow,
@@ -46,10 +53,16 @@ import type {
   LumberRequirementInput,
   MatchGroup,
   MatchPiece,
+  MatchRequirement,
   PanelRequirement,
 } from '@/engine/types';
 import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
-import { shortId } from '@/lib/format';
+import { formatMeters, shortId } from '@/lib/format';
+import {
+  allocationsForAssignments,
+  assignPanelsToPieces,
+  canFitRequirementAlongside,
+} from '@/lib/panelAssignments';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
@@ -60,6 +73,14 @@ const STEPS: ReadonlyArray<{ id: OptimizationStep; label: string; description: s
 
 function parseStep(value: string | null): OptimizationStep | null {
   return value === 'reuse' || value === 'cuts' ? value : null;
+}
+
+function usageLabelFor(
+  requirement: Pick<MatchRequirement, 'label' | 'panelIndex'>,
+): string {
+  return requirement.panelIndex
+    ? `${requirement.label} panel ${requirement.panelIndex}`
+    : requirement.label;
 }
 
 export default function OptimizationScreen() {
@@ -258,9 +279,19 @@ export default function OptimizationScreen() {
     [panels],
   );
 
-  const reusableOffcuts = useMemo<ReusableOffcutEntry[]>(
+  const reuseAllocations = useMemo(
     () =>
-      optimization.plywood.sheets.flatMap((sheet) =>
+      allocationsForAssignments(
+        acceptedByRequirement,
+        groups.map((group) => group.requirement),
+        pieces,
+      ),
+    [acceptedByRequirement, groups, pieces],
+  );
+
+  const reusableOffcuts = useMemo<ReusableOffcutEntry[]>(
+    () => [
+      ...optimization.plywood.sheets.flatMap((sheet) =>
         sheet.offcuts
           .filter((offcut) => offcut.reusable)
           .map((offcut) => ({
@@ -269,8 +300,32 @@ export default function OptimizationScreen() {
             offcut,
           })),
       ),
-    [optimization.plywood.sheets],
+      ...reuseAllocations.flatMap((allocation) =>
+        allocation.plan.offcuts
+          .filter((offcut) => offcut.reusable)
+          .map((offcut) => ({
+            key: offcutKey(0, offcut, allocation.pieceId),
+            sheetIndex: 0,
+            offcut,
+            pieceId: allocation.pieceId,
+          })),
+      ),
+    ],
+    [optimization.plywood.sheets, reuseAllocations],
   );
+
+  const proposedSharedPieces = useMemo(() => {
+    const panelsById = new Map(panels.map((panel) => [panel.id, panel]));
+    return assignPanelsToPieces(panels, pieces).allocations
+      .filter((allocation) => allocation.panelIds.length > 1)
+      .map((allocation) => ({
+        allocation,
+        panelLabels: allocation.panelIds.flatMap((panelId) => {
+          const panel = panelsById.get(panelId);
+          return panel ? [usageLabelFor(panel)] : [];
+        }),
+      }));
+  }, [panels, pieces]);
 
   function handleStepChange(next: OptimizationStep) {
     if (loading || loadError) return;
@@ -291,51 +346,100 @@ export default function OptimizationScreen() {
     setError('');
     if (satisfiedRequirementIds.has(group.requirement.id)) return;
 
-    const assignedElsewhere = Array.from(acceptedByRequirement.entries()).some(
-      ([requirementId, pieceId]) =>
-        requirementId !== group.requirement.id && pieceId === candidate.pieceId,
+    const requirementById = new Map<string, MatchRequirement>(
+      groups.map((item) => [item.requirement.id, item.requirement]),
     );
-    if (assignedElsewhere) {
-      setError('This piece is already assigned to another requirement.');
+    const requirementsOnPiece = Array.from(acceptedByRequirement.entries())
+      .filter(
+        ([requirementId, pieceId]) =>
+          requirementId !== group.requirement.id &&
+          pieceId === candidate.pieceId,
+      )
+      .map(([requirementId]) => requirementById.get(requirementId))
+      .filter(
+        (requirement): requirement is MatchRequirement =>
+          requirement !== undefined,
+      );
+    if (
+      !canFitRequirementAlongside(
+        group.requirement,
+        requirementsOnPiece,
+        candidate.piece,
+      )
+    ) {
+      setError('This piece does not have enough remaining space for this panel.');
       return;
     }
 
+    const pieceAlreadyUsed = Array.from(acceptedByRequirement.values()).includes(
+      candidate.pieceId,
+    );
+    const usageLabel = usageLabelFor(group.requirement);
     const inspectionDue =
+      !pieceAlreadyUsed &&
       (candidate.piece.usageCount ?? 0) + 1 === INSPECTION_USAGE_THRESHOLD;
-    let updated: Piece;
+    let updated: Piece | undefined;
     try {
-      updated = await recordUsage(candidate.piece.id, project.id, group.requirement.label);
+      if (pieceAlreadyUsed) {
+        await addUsageRequirements(
+          candidate.piece.id,
+          project.id,
+          [group.requirement.id],
+          [usageLabel],
+        );
+      } else {
+        updated = await recordUsage(
+          candidate.piece.id,
+          project.id,
+          group.requirement.label,
+          undefined,
+          [group.requirement.id],
+          [usageLabel],
+        );
+      }
     } catch {
       setError('Could not record usage for this piece. It may have been retired.');
       return;
     }
 
-    updateWorkflow((current) => ({
-      ...current,
-      satisfiedRequirementIds: [
-        ...current.satisfiedRequirementIds,
-        group.requirement.id,
-      ],
-      acceptedByRequirement: {
+    updateWorkflow((current) => {
+      const acceptedByRequirement = {
         ...current.acceptedByRequirement,
         [group.requirement.id]: candidate.pieceId,
-      },
-    }));
-    setPieces((current) =>
-      current.map((piece) =>
-        piece.id === candidate.pieceId
-          ? {
-              ...piece,
-              usageCount: updated.usageCount,
-              condition: updated.condition,
-              retired: updated.retired,
-            }
-          : piece,
-      ),
-    );
+      };
+      return {
+        ...current,
+        satisfiedRequirementIds: [
+          ...current.satisfiedRequirementIds,
+          group.requirement.id,
+        ],
+        acceptedByRequirement,
+        placements: placementsForWorkflow(
+          acceptedByRequirement,
+          groups.map((item) => item.requirement),
+          pieces,
+        ),
+      };
+    });
+    if (updated) {
+      setPieces((current) =>
+        current.map((piece) =>
+          piece.id === candidate.pieceId
+            ? {
+                ...piece,
+                usageCount: updated.usageCount,
+                condition: updated.condition,
+                retired: updated.retired,
+              }
+            : piece,
+        ),
+      );
+    }
     toast({
       title: `Accepted ${group.requirement.label}`,
-      description: `${shortId(candidate.pieceId)} · usage ${updated.usageCount}${
+      description: `${shortId(candidate.pieceId)} · usage ${
+        updated?.usageCount ?? candidate.piece.usageCount ?? 0
+      }${pieceAlreadyUsed ? ' · shares piece' : ''}${
         inspectionDue ? ' · flagged for inspection after this use' : ''
       }`,
       variant: inspectionDue ? 'warning' : 'success',
@@ -620,6 +724,59 @@ export default function OptimizationScreen() {
               ))}
             </div>
 
+            {proposedSharedPieces.length > 0 && (
+              <Card data-testid="piece-review">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    Pieces serving multiple panels ({proposedSharedPieces.length})
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Proposed nesting from available inventory. Accept each panel below to
+                    keep this cut plan; dimensions are exact and include no saw kerf.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {proposedSharedPieces.map(({ allocation, panelLabels }, index) => {
+                    const reusableOffcuts = allocation.plan.offcuts.filter(
+                      (offcut) => offcut.reusable,
+                    );
+                    return (
+                      <div
+                        key={allocation.pieceId}
+                        data-testid={`piece-review-${allocation.pieceId}`}
+                        className="space-y-2 rounded-md border p-3"
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="font-mono text-sm font-semibold">
+                            {shortId(allocation.pieceId)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {panelLabels.join(', ')}
+                          </p>
+                        </div>
+                        <SheetDiagram
+                          sheet={allocation.plan}
+                          memberColors={memberColors}
+                          svgId={`piece-review-${index}`}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Leftover {allocation.plan.offcutArea.toFixed(2)} m²
+                          {reusableOffcuts.length > 0
+                            ? ` · reusable offcut ${reusableOffcuts
+                                .map(
+                                  (offcut) =>
+                                    `${formatMeters(offcut.length)} × ${formatMeters(offcut.width)}`,
+                                )
+                                .join(', ')}`
+                            : ' · no reusable offcut'}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
+
             {filteredReviews.length === 0 ? (
               <Card>
                 <CardContent className="space-y-3 py-8 text-center">
@@ -649,6 +806,7 @@ export default function OptimizationScreen() {
         <CuttingPlans
           optimization={optimization}
           memberColors={memberColors}
+          reuseAllocations={reuseAllocations}
           reusableOffcuts={reusableOffcuts}
           selectedOffcutKeys={selectedOffcutKeys}
           addedOffcutKeys={addedOffcutKeys}

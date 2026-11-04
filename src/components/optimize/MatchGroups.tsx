@@ -231,6 +231,9 @@ function ReviewCard({
                     key={candidate.pieceId}
                     requirementLabel={requirement.label}
                     candidate={candidate}
+                    sharedPiece={review.sharedPieceCandidateIds.includes(
+                      candidate.pieceId,
+                    )}
                     onAccept={() => onAccept(group, candidate)}
                     onDecline={() => onDecline(group, candidate)}
                   />
@@ -324,11 +327,18 @@ function emptyCandidateMessage(review: RequirementReview): string {
 interface CandidateRowProps {
   requirementLabel: string;
   candidate: InventoryMatch;
+  sharedPiece: boolean;
   onAccept: () => void;
   onDecline: () => void;
 }
 
-function CandidateRow({ requirementLabel, candidate, onAccept, onDecline }: CandidateRowProps) {
+function CandidateRow({
+  requirementLabel,
+  candidate,
+  sharedPiece,
+  onAccept,
+  onDecline,
+}: CandidateRowProps) {
   const usageCount = candidate.piece.usageCount ?? 0;
   const inspectionNext = usageCount + 1 === INSPECTION_USAGE_THRESHOLD;
 
@@ -356,6 +366,12 @@ function CandidateRow({ requirementLabel, candidate, onAccept, onDecline }: Cand
           )}
         </div>
       </div>
+
+      {sharedPiece && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          shares piece · remaining space fits
+        </p>
+      )}
 
       <div className="mt-3 flex gap-2">
         <Button

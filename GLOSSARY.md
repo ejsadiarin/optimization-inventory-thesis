@@ -85,12 +85,16 @@ A cut that goes straight across the full width or height of the remaining piece,
 _Avoid_: Free cut, arbitrary cut
 
 **Match-and-Flag**:
-The system's approach to reusing inventory pieces: find pieces with sufficient dimensions, rank them by smallest-fit-first, and flag pieces that need trimming as "requires cutting." The system does not generate a new cutting plan for reuse pieces.
+The system's approach to reusing inventory pieces: find pieces with sufficient dimensions, rank them by smallest-fit-first, and flag pieces that need trimming as "requires cutting." Accepted panels are then nested into the chosen piece by the reuse allocator.
 _Avoid_: Cut-to-fit, auto-recut
 
 **Reuse Decision**:
 The engineer's explicit choice about a formwork requirement: accept a candidate inventory piece or decline a candidate. A declined candidate is not offered again for that requirement until decisions are reset; an accepted piece records a usage. A requirement with no available candidate is classified as new stock automatically rather than by an explicit action.
 _Avoid_: Match, selection (when referring to the engineer's decision)
+
+**Reuse Allocation**:
+The placement of one or more formwork panels inside a reusable inventory piece, treating the piece as a small stock sheet. The allocator uses shelf packing with 90° rotation, records each panel's position and dimensions, and reports the leftover rectangles. A single piece may satisfy several requirements, but no panel is assigned twice and placements never overlap. Usage is counted once per piece per optimization session; leftovers at least 0.30 m in both dimensions are reusable offcuts. Dimensions are exact and include no saw kerf or blade allowance.
+_Avoid_: One-piece-per-panel assignment, reuse match (a match is only a candidate; an allocation is the accepted placement)
 
 **Shelf**:
 A horizontal row of panels placed left-to-right on a stock sheet during cutting optimization. When a panel doesn't fit the current shelf, a new shelf starts below it. The shelf height is set by the tallest panel in that row.

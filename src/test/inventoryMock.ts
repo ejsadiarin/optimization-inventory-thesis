@@ -158,6 +158,8 @@ export async function recordUsage(
   projectId: string,
   structuralMemberLabel: string,
   date = new Date().toISOString(),
+  requirementIds: readonly string[] = [],
+  requirementLabels: readonly string[] = [],
 ): Promise<Piece> {
   const index = pieces.findIndex((piece) => piece.id === pieceId);
   const piece = index === -1 ? undefined : pieces[index]!;
@@ -184,7 +186,37 @@ export async function recordUsage(
     structuralMemberLabel,
     date,
     createdAt: nextTimestamp(),
+    ...(requirementIds.length > 0 ? { requirementIds: [...requirementIds] } : {}),
+    ...(requirementLabels.length > 0
+      ? { requirementLabels: [...requirementLabels] }
+      : {}),
   });
 
   return updated;
+}
+
+export async function addUsageRequirements(
+  pieceId: string,
+  projectId: string,
+  requirementIds: readonly string[],
+  requirementLabels: readonly string[] = [],
+): Promise<UsageLogEntry | null> {
+  const entries = usageLog
+    .filter((entry) => entry.projectId === projectId && entry.pieceId === pieceId)
+    .sort(
+      (a, b) =>
+        Date.parse(b.date) - Date.parse(a.date) ||
+        Date.parse(b.createdAt) - Date.parse(a.createdAt),
+    );
+  const latest = entries[0];
+  if (!latest) return null;
+
+  latest.requirementIds = Array.from(
+    new Set([...(latest.requirementIds ?? []), ...requirementIds]),
+  );
+  const labels = Array.from(
+    new Set([...(latest.requirementLabels ?? []), ...requirementLabels]),
+  );
+  if (labels.length > 0) latest.requirementLabels = labels;
+  return latest;
 }

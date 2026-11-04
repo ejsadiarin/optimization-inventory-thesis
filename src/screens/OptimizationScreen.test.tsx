@@ -93,6 +93,37 @@ describe('OptimizationScreen matching', () => {
     expect(screen.getAllByText(/requires cutting/i).length).toBeGreaterThan(0);
   });
 
+  it('shows a per-piece nesting review above the requirement cards', async () => {
+    const project = await seedProject({ name: 'Piece Review Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 0.2,
+      height: 0.4,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderOptimize(project.id);
+
+    const review = screen.getByTestId('piece-review');
+    expect(review).toHaveTextContent(shortId(piece.id));
+    expect(review).toHaveTextContent('B1 panel 1');
+    expect(review).toHaveTextContent('B1 panel 2');
+    expect(review).toHaveTextContent(/leftover/i);
+    expect(review).toHaveTextContent(/reusable offcut/i);
+    expect(
+      screen.getByTestId(`piece-review-${piece.id}`),
+    ).toBeInTheDocument();
+  });
+
   it('accepts a match, increments usage, logs the member, and satisfies the requirement', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Optimize Site' });
@@ -230,6 +261,66 @@ describe('OptimizationScreen matching', () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^accept /i })).not.toBeInTheDocument();
     await expect(getUsageLog(project.id, piece.id)).resolves.toHaveLength(1);
+  });
+
+  it('nests a second panel in one piece without incrementing usage again', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Nested Reuse Site' });
+    const beam = await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 0.2,
+      height: 0.4,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 0.6,
+      thickness: 0.018,
+    });
+
+    await renderOptimize(project.id);
+    expect(screen.getAllByRole('button', { name: /accept .* for b1/i })).toHaveLength(3);
+
+    await user.click(
+      screen.getAllByRole('button', { name: /accept .* for b1/i })[0]!,
+    );
+    expect(await screen.findByText(/accepted b1/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/shares piece · remaining space fits/i).length,
+    ).toBeGreaterThan(0);
+
+    await user.click(
+      screen.getAllByRole('button', { name: /accept .* for b1/i })[0]!,
+    );
+
+    await waitFor(async () => {
+      const stored = await getOptimizationWorkflow(project.id);
+      expect(stored?.satisfiedRequirementIds).toHaveLength(2);
+    });
+
+    await expect(getPiece(project.id, piece.id)).resolves.toMatchObject({
+      usageCount: 1,
+    });
+    const log = await getUsageLog(project.id, piece.id);
+    expect(log).toHaveLength(1);
+    expect(log[0]!.requirementIds).toEqual([
+      `${beam.id}-panel-1`,
+      `${beam.id}-panel-2`,
+    ]);
+    expect(log[0]!.requirementLabels).toEqual([
+      'B1 panel 1',
+      'B1 panel 2',
+    ]);
+
+    await openCutsStep(user);
+    expect(screen.getByTestId('reused-pieces')).toHaveTextContent(
+      /dimensions are exact/i,
+    );
+    expect(screen.getByTestId('reused-piece-0')).toHaveTextContent(/2 panels/i);
   });
 
   it('declines a candidate without consuming it or satisfying the requirement', async () => {
@@ -740,6 +831,61 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.getByRole('checkbox', { name: /offcut 1 from sheet 1/i })).toBeDisabled();
     expect(screen.getByText('Added')).toBeInTheDocument();
     expect(addButton).toBeDisabled();
+  });
+
+  it('offers leftover space from reused pieces as reusable inventory offcuts', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Reused Offcut Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 2.2,
+      width: 0.3,
+      height: 0,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderOptimize(project.id);
+    await user.click(screen.getByRole('button', { name: /accept .* for s1/i }));
+    expect(await screen.findByText(/accepted s1/i)).toBeInTheDocument();
+
+    await openCutsStep(user);
+
+    expect(
+      screen.getByRole('tab', { name: /offcuts \(1\)/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2.44 m × 0.92 m')).toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox', {
+      name: new RegExp(`keep offcut 1 from reused piece ${shortId(piece.id)}`, 'i'),
+    });
+    expect(checkbox).toBeEnabled();
+
+    await user.click(checkbox);
+    await user.click(
+      screen.getByRole('button', { name: /add selected to inventory/i }),
+    );
+
+    expect(
+      await screen.findByText(/returned 1 offcut to inventory/i),
+    ).toBeInTheDocument();
+    const pieces = await listPieces(project.id);
+    const added = pieces.find((item) => item.source === 'Cut plan offcut');
+    expect(added).toMatchObject({
+      materialType: 'phenolic',
+      thickness: 0.018,
+      condition: 'Good',
+      usageCount: 0,
+      source: 'Cut plan offcut',
+    });
+    expect(added!.length).toBeCloseTo(2.44);
+    expect(added!.width).toBeCloseTo(0.92);
   });
 
   it('creates returned offcuts with an overridden project stock thickness', async () => {

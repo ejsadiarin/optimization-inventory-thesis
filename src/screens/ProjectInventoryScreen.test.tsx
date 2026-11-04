@@ -282,6 +282,38 @@ describe('ProjectInventoryScreen lifecycle and history', () => {
     expect(screen.getByRole('heading', { name: /usage log/i })).toBeInTheDocument();
   });
 
+  it('names every panel served by one usage entry and keeps the panel count', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Usage Labels Site' });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+      storageLocation: 'Rack A',
+    });
+    await recordUsage(
+      piece.id,
+      project.id,
+      'B1',
+      '2026-02-01T00:00:00.000Z',
+      ['req-1', 'req-2'],
+      ['B1 panel 1', 'B1 panel 2'],
+    );
+
+    await renderInventory(project.id);
+
+    const row = await screen.findByRole('row', { name: /rack a/i });
+    await user.click(within(row).getByRole('button', { name: /view piece/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByText('B1 panel 1, B1 panel 2'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/2 panels/)).toBeInTheDocument();
+  });
+
   it('lets an engineer override an inspected piece back to Good', async () => {
     const user = userEvent.setup();
     const { project, piece } = await seedUsedPiece();

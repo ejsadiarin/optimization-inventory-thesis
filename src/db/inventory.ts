@@ -222,6 +222,8 @@ export async function recordUsage(
   projectId: string,
   structuralMemberLabel: string,
   date = new Date().toISOString(),
+  requirementIds: readonly string[] = [],
+  requirementLabels: readonly string[] = [],
 ): Promise<Piece> {
   const scopedProjectId = requireProjectId(projectId);
   const piece = await getPiece(scopedProjectId, pieceId);
@@ -257,12 +259,51 @@ export async function recordUsage(
     structuralMemberLabel,
     date,
     createdAt: now,
+    ...(requirementIds.length > 0 ? { requirementIds: [...requirementIds] } : {}),
+    ...(requirementLabels.length > 0
+      ? { requirementLabels: [...requirementLabels] }
+      : {}),
   });
   queueWrite(batch.commit());
 
   const updated = await getPiece(scopedProjectId, pieceId);
   if (!updated) throw new Error('Piece not found after recording usage.');
   return updated;
+}
+
+/**
+ * Adds panels served by the same piece to its most recent usage entry. One
+ * piece is used once per optimization session, so additional panels update that
+ * entry instead of adding another usage.
+ */
+export async function addUsageRequirements(
+  pieceId: string,
+  projectId: string,
+  requirementIds: readonly string[],
+  requirementLabels: readonly string[] = [],
+): Promise<UsageLogEntry | null> {
+  const scopedProjectId = requireProjectId(projectId);
+  const [latest] = await getUsageLog(scopedProjectId, pieceId);
+  if (!latest) return null;
+
+  const mergedIds = Array.from(
+    new Set([...(latest.requirementIds ?? []), ...requirementIds]),
+  );
+  const mergedLabels = Array.from(
+    new Set([...(latest.requirementLabels ?? []), ...requirementLabels]),
+  );
+  queueWrite(
+    updateDoc(projectDoc(scopedProjectId, 'usageLog', latest.id), {
+      requirementIds: mergedIds,
+      ...(mergedLabels.length > 0 ? { requirementLabels: mergedLabels } : {}),
+    }),
+  );
+
+  return {
+    ...latest,
+    requirementIds: mergedIds,
+    ...(mergedLabels.length > 0 ? { requirementLabels: mergedLabels } : {}),
+  };
 }
 
 export type PieceSortKey =

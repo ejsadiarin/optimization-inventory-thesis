@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_REUSABLE_OFFCUT, optimizePlywood } from './plywood';
-import type { Offcut, PlacedPanel, PlywoodPanel } from './types';
+import {
+  allocatePanelsToPieces,
+  MIN_REUSABLE_OFFCUT,
+  optimizePlywood,
+  packPanelsIntoStock,
+} from './plywood';
+import type { MatchPiece, Offcut, PlacedPanel, PlywoodPanel } from './types';
 
 const STOCK = { length: 2.44, width: 1.22 };
 const STOCK_AREA = STOCK.length * STOCK.width;
@@ -256,5 +261,125 @@ describe('optimizePlywood', () => {
     expect(plan.utilization).toBeLessThan(100);
     const reusablePercent = (plan.reusableOffcutArea / plan.stockArea) * 100;
     expect(plan.utilization + plan.waste + reusablePercent).toBeCloseTo(100, 6);
+  });
+});
+
+function matchPiece(
+  id: string,
+  length: number,
+  width: number,
+  overrides: Partial<MatchPiece> = {},
+): MatchPiece {
+  return {
+    id,
+    materialType: 'phenolic',
+    condition: 'Good',
+    retired: false,
+    length,
+    width,
+    ...overrides,
+  };
+}
+
+describe('packPanelsIntoStock', () => {
+  it('nests several panels inside one reusable piece', () => {
+    const panels = Array.from({ length: 4 }, (_, index) =>
+      panel(`brace-${index}`, 2.2, 0.3),
+    );
+
+    const packing = packPanelsIntoStock(panels, STOCK);
+
+    expect(packing.placedPanelIds).toEqual(panels.map((item) => item.id));
+    expect(packing.unplacedPanelIds).toEqual([]);
+    expect(packing.plan.stock).toEqual(STOCK);
+    expect(packing.plan.panels).toHaveLength(4);
+    expect(packing.plan.utilization).toBeGreaterThan(85);
+  });
+
+  it('rotates a panel that only fits the reusable piece sideways', () => {
+    const packing = packPanelsIntoStock(
+      [panel('rotated', 2.2, 0.3)],
+      { length: 0.3, width: 2.2 },
+    );
+
+    expect(packing.plan.panels[0]).toMatchObject({
+      panelId: 'rotated',
+      x: 0,
+      y: 0,
+      length: 0.3,
+      width: 2.2,
+      rotated: true,
+    });
+  });
+
+  it('packs mixed panel sizes and reports panels that spill over', () => {
+    const panels = [
+      panel('large', 2.2, 0.3),
+      panel('medium', 1.0, 0.6),
+      panel('square', 0.8, 0.8),
+      panel('extra', 2.2, 0.3),
+      panel('more', 2.2, 0.3),
+      panel('last', 2.2, 0.3),
+    ];
+
+    const packing = packPanelsIntoStock(panels, STOCK);
+
+    expect(packing.placedPanelIds).toEqual(
+      expect.arrayContaining(['square', 'medium', 'extra']),
+    );
+    expect(packing.unplacedPanelIds).toEqual(
+      expect.arrayContaining(['large', 'last', 'more']),
+    );
+    expect(packing.placedPanelIds.length + packing.unplacedPanelIds.length).toBe(
+      panels.length,
+    );
+  });
+
+  it('offers leftovers at least 0.30 m in both dimensions as reusable offcuts', () => {
+    const packing = packPanelsIntoStock([panel('slim', 2.14, 0.92)], STOCK);
+
+    expect(packing.plan.offcuts).toHaveLength(2);
+    expect(packing.plan.offcuts.every((offcut) => offcut.reusable)).toBe(true);
+    expect(packing.plan.reusableOffcutArea).toBeGreaterThan(0);
+
+    const tight = packPanelsIntoStock([panel('tight', 2.439, 1.219)], STOCK);
+    expect(tight.plan.offcuts.every((offcut) => !offcut.reusable)).toBe(true);
+  });
+});
+
+describe('allocatePanelsToPieces', () => {
+  it('assigns several panels to one piece without double-booking', () => {
+    const panels = Array.from({ length: 5 }, (_, index) =>
+      panel(`p${index}`, 2.2, 0.3),
+    );
+    const pieces = [matchPiece('piece-a', 2.44, 1.22), matchPiece('piece-b', 2.44, 1.22)];
+
+    const allocations = allocatePanelsToPieces(panels, pieces);
+    const allocatedIds = allocations.flatMap((allocation) => allocation.panelIds);
+
+    expect(allocations).toHaveLength(2);
+    expect(allocatedIds).toHaveLength(5);
+    expect(new Set(allocatedIds).size).toBe(5);
+    expect(allocations[0]!.panelIds).toHaveLength(4);
+    expect(allocations[1]!.panelIds).toHaveLength(1);
+  });
+
+  it('never assigns more panels than a piece can hold', () => {
+    const panels = [panel('a', 0.7, 0.7), panel('b', 0.7, 0.7)];
+    const allocations = allocatePanelsToPieces(panels, [matchPiece('small', 1, 1)]);
+
+    expect(allocations).toHaveLength(1);
+    expect(allocations[0]!.panelIds).toHaveLength(1);
+  });
+
+  it('skips retired and non-phenolic pieces', () => {
+    const panels = [panel('a', 0.6, 0.6)];
+    const allocations = allocatePanelsToPieces(panels, [
+      matchPiece('retired', 2.44, 1.22, { retired: true }),
+      matchPiece('lumber', 3, 0, { materialType: 'lumber', crossSection: '2x3' }),
+      matchPiece('good', 2.44, 1.22),
+    ]);
+
+    expect(allocations.map((allocation) => allocation.pieceId)).toEqual(['good']);
   });
 });

@@ -2,12 +2,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   disableNetwork,
   enableNetwork,
+  setDoc,
   waitForPendingWrites,
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { projectDoc } from '@/lib/firestore-helpers';
 import { createProject } from './projects';
-import { emptyWorkflow, getOptimizationWorkflow, saveOptimizationWorkflow } from './workflow';
+import {
+  emptyWorkflow,
+  getOptimizationWorkflow,
+  OPTIMIZATION_WORKFLOW_ID,
+  saveOptimizationWorkflow,
+} from './workflow';
 import type { OptimizationWorkflow } from './workflow';
 import type { ProjectOwner } from './types';
 import {
@@ -93,6 +100,60 @@ describe('optimization workflow on Firestore', () => {
 
     await expect(getOptimizationWorkflow(projectId)).resolves.toEqual(scoped);
     await expect(getOptimizationWorkflow(otherProjectId)).resolves.toEqual(other);
+  });
+
+  it('persists several requirements allocated to one piece', async () => {
+    const projectId = await createTestProject('Nested Site');
+    const nested = workflow({
+      satisfiedRequirementIds: ['req-1', 'req-2'],
+      acceptedByRequirement: { 'req-1': 'piece-1', 'req-2': 'piece-1' },
+      placements: {
+        'req-1': {
+          pieceId: 'piece-1',
+          x: 0,
+          y: 0,
+          length: 2.2,
+          width: 0.3,
+          rotated: false,
+        },
+        'req-2': {
+          pieceId: 'piece-1',
+          x: 0,
+          y: 0.3,
+          length: 2.2,
+          width: 0.3,
+          rotated: false,
+        },
+      },
+    });
+
+    await saveOptimizationWorkflow(projectId, nested);
+    await waitForPendingWrites(requireDb());
+
+    await expect(getOptimizationWorkflow(projectId)).resolves.toEqual(nested);
+  });
+
+  it('reads a v2 document as a v3 allocation workflow', async () => {
+    const projectId = await createTestProject('Legacy Workflow Site');
+
+    await setDoc(
+      projectDoc(projectId, 'workflow', OPTIMIZATION_WORKFLOW_ID),
+      {
+        satisfiedRequirementIds: ['req-1', 'req-2'],
+        acceptedByRequirement: { 'req-1': 'piece-1', 'req-2': 'piece-1' },
+        declinedCandidates: [],
+        step: 'reuse',
+        cutPlansReviewedAt: null,
+        schemaVersion: 2,
+      },
+    );
+    await waitForPendingWrites(requireDb());
+
+    await expect(getOptimizationWorkflow(projectId)).resolves.toMatchObject({
+      schemaVersion: 3,
+      satisfiedRequirementIds: ['req-1', 'req-2'],
+      acceptedByRequirement: { 'req-1': 'piece-1', 'req-2': 'piece-1' },
+    });
   });
 
   it('queues an offline save and applies it after reconnect', async () => {

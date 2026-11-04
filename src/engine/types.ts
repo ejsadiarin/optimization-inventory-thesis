@@ -121,6 +121,18 @@ export interface PlywoodSheetPlan {
   waste: number;
 }
 
+export interface PanelStockPacking {
+  plan: PlywoodSheetPlan;
+  placedPanelIds: string[];
+  unplacedPanelIds: string[];
+}
+
+export interface ReuseAllocation {
+  pieceId: string;
+  plan: PlywoodSheetPlan;
+  panelIds: string[];
+}
+
 export interface PlywoodPlan {
   stock: StockSize;
   sheets: PlywoodSheetPlan[];
