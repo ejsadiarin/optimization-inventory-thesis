@@ -13,6 +13,7 @@ describe('PageHeader', () => {
     );
 
     expect(screen.getByRole('heading', { level: 1, name: 'Inventory' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'About Inventory' })).toBeInTheDocument();
     expect(screen.getByText('Track every phenolic board and lumber piece.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add piece' })).toBeInTheDocument();
   });
