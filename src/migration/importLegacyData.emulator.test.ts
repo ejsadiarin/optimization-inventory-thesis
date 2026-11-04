@@ -70,7 +70,7 @@ describe('importLegacyData', () => {
       accessCode: 'ABCDEF',
       createdAt: '2026-01-01T00:00:00.000Z',
       costs: { phenolicPerSheet: 850, lumberPerPiece: 120 },
-      stock: { phenolic: { length: 2.44, width: 1.22 }, lumberLengths: [2.4, 3.0] },
+      stock: { phenolic: { length: 2.44, width: 1.22, thickness: 0.018 }, lumberLengths: [2.4, 3.0] },
     };
     await legacyDb.projects.add(legacyProject);
     await legacyDb.structuralMembers.add({
@@ -194,7 +194,7 @@ describe('importLegacyData', () => {
       accessCode: 'ABCDEF',
       createdAt: '2026-01-01T00:00:00.000Z',
       costs: { phenolicPerSheet: 850, lumberPerPiece: 120 },
-      stock: { phenolic: { length: 2.44, width: 1.22 }, lumberLengths: [2.4] },
+      stock: { phenolic: { length: 2.44, width: 1.22, thickness: 0.018 }, lumberLengths: [2.4] },
     };
     await legacyDb.projects.add(legacyProject);
 
@@ -212,7 +212,7 @@ describe('importLegacyData', () => {
       accessCode: '',
       createdAt: '2026-01-01T00:00:00.000Z',
       costs: { phenolicPerSheet: 850, lumberPerPiece: 120 },
-      stock: { phenolic: { length: 2.44, width: 1.22 }, lumberLengths: [2.4] },
+      stock: { phenolic: { length: 2.44, width: 1.22, thickness: 0.018 }, lumberLengths: [2.4] },
     };
     await legacyDb.projects.add(legacyProject);
 
@@ -233,7 +233,7 @@ describe('importLegacyData', () => {
       accessCode: 'ABCDEF',
       createdAt: '2026-01-01T00:00:00.000Z',
       costs: { phenolicPerSheet: 850, lumberPerPiece: 120 },
-      stock: { phenolic: { length: 2.44, width: 1.22 }, lumberLengths: [2.4] },
+      stock: { phenolic: { length: 2.44, width: 1.22, thickness: 0.018 }, lumberLengths: [2.4] },
     };
     await legacyDb.projects.add(legacyProject);
 

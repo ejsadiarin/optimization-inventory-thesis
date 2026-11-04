@@ -697,6 +697,7 @@ describe('OptimizationScreen cutting plans', () => {
 
     await renderOptimize(project.id);
     await openCutsStep(user);
+    const summaryBefore = screen.getByTestId('cut-summary').textContent;
     await user.click(screen.getByRole('tab', { name: /offcuts \(2\)/i }));
 
     const checkboxes = screen.getAllByRole('checkbox');
@@ -709,8 +710,14 @@ describe('OptimizationScreen cutting plans', () => {
     expect(addButton).toBeEnabled();
     await user.click(addButton);
 
-    expect(await screen.findByText(/added 1 offcut/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/returned 1 offcut to inventory/i),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('offcut-completion')).toHaveTextContent('1 offcut returned');
+    expect(
+      screen.getByText(/available in the next optimization session/i),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('cut-summary').textContent).toBe(summaryBefore);
 
     const pieces = await listPieces(project.id);
     const added = pieces.filter((piece) => piece.source === 'Cut plan offcut');
@@ -719,7 +726,7 @@ describe('OptimizationScreen cutting plans', () => {
       materialType: 'phenolic',
       condition: 'Good',
       usageCount: 0,
-      thickness: 0.012,
+      thickness: 0.018,
       storageLocation: '',
       source: 'Cut plan offcut',
     });
@@ -730,6 +737,34 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.getByRole('checkbox', { name: /offcut 1 from sheet 1/i })).toBeDisabled();
     expect(screen.getByText('Added')).toBeInTheDocument();
     expect(addButton).toBeDisabled();
+  });
+
+  it('creates returned offcuts with an overridden project stock thickness', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({
+      name: 'Thick Offcut Site',
+      stock: { phenolic: { length: 2.44, width: 1.22, thickness: 0.02 } },
+    });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 2.14,
+      width: 0.92,
+      height: 0,
+    });
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+    await user.click(screen.getByRole('tab', { name: /offcuts \(2\)/i }));
+    await user.click(screen.getAllByRole('checkbox')[0]!);
+    await user.click(screen.getByRole('button', { name: /add selected to inventory/i }));
+
+    expect(
+      await screen.findByText(/returned 1 offcut to inventory/i),
+    ).toBeInTheDocument();
+    const pieces = await listPieces(project.id);
+    expect(pieces.find((piece) => piece.source === 'Cut plan offcut')?.thickness).toBe(0.02);
   });
 
   it('shows summary stats and keeps accurate segment counts', async () => {

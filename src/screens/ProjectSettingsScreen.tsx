@@ -22,6 +22,9 @@ export default function ProjectSettingsScreen() {
   const [lumberCost, setLumberCost] = useState(String(project.costs.lumberPerPiece));
   const [sheetLength, setSheetLength] = useState(String(project.stock.phenolic.length));
   const [sheetWidth, setSheetWidth] = useState(String(project.stock.phenolic.width));
+  const [sheetThickness, setSheetThickness] = useState(
+    String(project.stock.phenolic.thickness),
+  );
   const [lumberLengths, setLumberLengths] = useState<string[]>(
     project.stock.lumberLengths.map(String),
   );
@@ -55,6 +58,7 @@ export default function ProjectSettingsScreen() {
           phenolic: {
             length: toNumber(sheetLength, project.stock.phenolic.length),
             width: toNumber(sheetWidth, project.stock.phenolic.width),
+            thickness: toNumber(sheetThickness, project.stock.phenolic.thickness),
           },
           lumberLengths: parsedLengths.length > 0 ? parsedLengths : DEFAULT_STOCK.lumberLengths,
         },
@@ -81,6 +85,7 @@ export default function ProjectSettingsScreen() {
     setLumberCost(String(DEFAULT_COSTS.lumberPerPiece));
     setSheetLength(String(DEFAULT_STOCK.phenolic.length));
     setSheetWidth(String(DEFAULT_STOCK.phenolic.width));
+    setSheetThickness(String(DEFAULT_STOCK.phenolic.thickness));
     setLumberLengths(DEFAULT_STOCK.lumberLengths.map(String));
   }
 
@@ -133,9 +138,12 @@ export default function ProjectSettingsScreen() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Phenolic stock sheet</CardTitle>
-            <CardDescription>Dimensions of a purchased board in meters.</CardDescription>
+            <CardDescription>
+              Dimensions of a purchased board in meters. Returned offcuts inherit the
+              thickness.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="sheet-length">Stock sheet length (m)</Label>
               <Input
@@ -163,6 +171,21 @@ export default function ProjectSettingsScreen() {
                 onChange={(event) => {
                   markDirty();
                   setSheetWidth(event.target.value);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sheet-thickness">Stock sheet thickness (m)</Label>
+              <Input
+                id="sheet-thickness"
+                type="number"
+                min="0"
+                step="0.001"
+                inputMode="decimal"
+                value={sheetThickness}
+                onChange={(event) => {
+                  markDirty();
+                  setSheetThickness(event.target.value);
                 }}
               />
             </div>

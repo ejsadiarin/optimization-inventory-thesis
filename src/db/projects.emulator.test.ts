@@ -4,6 +4,7 @@ import {
   enableNetwork,
   getDoc,
   getDocFromServer,
+  updateDoc,
   waitForPendingWrites,
   type Firestore,
 } from 'firebase/firestore';
@@ -128,17 +129,32 @@ describe('projects on Firestore', () => {
 
     const updated = await updateProjectSettings(created.project.id, {
       costs: { phenolicPerSheet: 920, lumberPerPiece: 145 },
-      stock: { phenolic: { length: 2.5, width: 1.25 }, lumberLengths: [3.0, 4.5] },
+      stock: { phenolic: { length: 2.5, width: 1.25, thickness: 0.02 }, lumberLengths: [3.0, 4.5] },
     });
 
     expect(updated?.costs).toEqual({ phenolicPerSheet: 920, lumberPerPiece: 145 });
     expect(updated?.stock).toEqual({
-      phenolic: { length: 2.5, width: 1.25 },
+      phenolic: { length: 2.5, width: 1.25, thickness: 0.02 },
       lumberLengths: [3.0, 4.5],
     });
 
     await expect(getProject(created.project.id)).resolves.toMatchObject({
       costs: { phenolicPerSheet: 920, lumberPerPiece: 145 },
+    });
+  });
+
+  it('backfills the phenolic thickness for projects saved before the setting existed', async () => {
+    const created = await createProject({ name: 'Legacy Site' }, owner);
+    await waitForPendingWrites(requireDb());
+    await updateDoc(projectRef(created.project.id), {
+      stock: { phenolic: { length: 2.44, width: 1.22 }, lumberLengths: [2.4] },
+    });
+
+    await expect(getProject(created.project.id)).resolves.toMatchObject({
+      stock: {
+        phenolic: { length: 2.44, width: 1.22, thickness: 0.018 },
+        lumberLengths: [2.4],
+      },
     });
   });
 

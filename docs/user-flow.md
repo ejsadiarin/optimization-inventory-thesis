@@ -24,7 +24,7 @@ flowchart TD
         OPT_M -->|"Accept Reuse Matches"| LOG["Record Usage & Increment Count"]
         OPT_M -->|"Unmatched Remainder"| OPT_C["Optimize: Cut Plans\n(2D Guillotine & 1D FFD)"]
         
-        OPT_C -->|"Usable Offcuts (>= 0.5m)"| INV
+        OPT_C -->|"Usable Offcuts (>= 0.3m)"| INV
         OPT_C --> SUM["Summary Tab\n(Utilization, Savings ₱, Waste, CSV)"]
         LOG --> SUM
     end
@@ -99,7 +99,7 @@ flowchart TD
   - Hatched regions display cutting waste and remaining usable offcuts.
   - Sheets can be exported as SVG or PNG images.
 - **Offcut Intake (`src/components/optimize/OffcutIntake.tsx`):**
-  - Offcuts exceeding the thesis reuse threshold (≥ 0.5m) are surfaced with a one-click **Add to inventory** button to immediately feed back into inventory for future pours.
+  - Offcuts meeting the thesis reuse threshold (≥ 0.3 m in both dimensions) are surfaced with a one-click **Add to inventory** button to immediately feed back into inventory for future pours.
 
 ---
 

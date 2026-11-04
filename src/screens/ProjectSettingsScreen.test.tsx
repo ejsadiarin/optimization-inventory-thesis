@@ -53,6 +53,7 @@ describe('ProjectSettingsScreen', () => {
     expect(screen.getByLabelText(/lumber cost/i)).toHaveValue(120);
     expect(screen.getByLabelText(/stock sheet length/i)).toHaveValue(2.44);
     expect(screen.getByLabelText(/stock sheet width/i)).toHaveValue(1.22);
+    expect(screen.getByLabelText(/stock sheet thickness/i)).toHaveValue(0.018);
     expect(screen.getByRole('spinbutton', { name: /lumber stock length 1/i })).toHaveValue(2.4);
     expect(screen.getByRole('spinbutton', { name: /lumber stock length 5/i })).toHaveValue(6);
   });
@@ -77,12 +78,19 @@ describe('ProjectSettingsScreen', () => {
     await user.clear(sheetLength);
     await user.type(sheetLength, '3');
 
+    const sheetThickness = screen.getByLabelText(/stock sheet thickness/i);
+    await user.clear(sheetThickness);
+    await user.type(sheetThickness, '0.02');
+
     await user.click(screen.getByRole('button', { name: /save settings/i }));
 
     expect(await screen.findByText(/settings saved/i)).toBeInTheDocument();
     expect(mocks.updateProjectSettings).toHaveBeenCalledWith(project.id, {
       costs: { phenolicPerSheet: 920, lumberPerPiece: 120 },
-      stock: { phenolic: { length: 3, width: 1.22 }, lumberLengths: [2.4, 3.0, 3.6, 4.8, 6.0] },
+      stock: {
+        phenolic: { length: 3, width: 1.22, thickness: 0.02 },
+        lumberLengths: [2.4, 3.0, 3.6, 4.8, 6.0],
+      },
     });
   });
 

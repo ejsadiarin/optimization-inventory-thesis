@@ -91,7 +91,7 @@ Basically - like fill in the blanks with the "correct", optimized material (dime
     - material type
     - quantity
     - condition of material
-    - dimension - throw away if 0.5m
+    - dimension - throw away if below 0.3m in either dimension
         - height
         - width
         - thickness

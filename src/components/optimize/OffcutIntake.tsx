@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { MIN_REUSABLE_OFFCUT } from '@/engine/plywood';
 import { formatMeters } from '@/lib/format';
 import type { ReusableOffcutEntry } from './offcuts';
 
@@ -11,7 +12,6 @@ export interface OffcutIntakeProps {
   selectedOffcutKeys: ReadonlySet<string>;
   addedOffcutKeys: ReadonlySet<string>;
   addingOffcuts: boolean;
-  intakeMessage: string;
   intakeError: string;
   onToggleOffcut: (key: string, checked: boolean) => void;
   onAddOffcuts: () => void;
@@ -22,7 +22,6 @@ export default function OffcutIntake({
   selectedOffcutKeys,
   addedOffcutKeys,
   addingOffcuts,
-  intakeMessage,
   intakeError,
   onToggleOffcut,
   onAddOffcuts,
@@ -38,7 +37,8 @@ export default function OffcutIntake({
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Reusable offcuts</CardTitle>
         <CardDescription>
-          Select offcuts to keep. They are added to inventory as Good with 0 uses.
+          Offcuts are at least {formatMeters(MIN_REUSABLE_OFFCUT)} in both dimensions.
+          Selected pieces are added to inventory as Good with 0 uses.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -77,11 +77,6 @@ export default function OffcutIntake({
         {intakeError && (
           <p role="alert" className="text-sm font-medium text-destructive">
             {intakeError}
-          </p>
-        )}
-        {intakeMessage && (
-          <p role="status" className="text-sm font-medium text-emerald-700">
-            {intakeMessage}
           </p>
         )}
 

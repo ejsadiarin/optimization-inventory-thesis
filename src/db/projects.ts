@@ -21,7 +21,7 @@ export const DEFAULT_COSTS: ProjectCosts = {
 };
 
 export const DEFAULT_STOCK: ProjectStock = {
-  phenolic: { length: 2.44, width: 1.22 },
+  phenolic: { length: 2.44, width: 1.22, thickness: 0.018 },
   lumberLengths: [2.4, 3.0, 3.6, 4.8, 6.0],
 };
 
@@ -55,6 +55,7 @@ function copyStock(stock: Partial<ProjectStock> = {}): ProjectStock {
     phenolic: {
       length: stock.phenolic?.length ?? DEFAULT_STOCK.phenolic.length,
       width: stock.phenolic?.width ?? DEFAULT_STOCK.phenolic.width,
+      thickness: stock.phenolic?.thickness ?? DEFAULT_STOCK.phenolic.thickness,
     },
     lumberLengths: [...(stock.lumberLengths ?? DEFAULT_STOCK.lumberLengths)],
   };
@@ -69,7 +70,7 @@ function toPublicProject(stored: StoredProject): Project {
     schemaVersion: stored.schemaVersion,
     createdAt: stored.createdAt,
     costs: stored.costs,
-    stock: stored.stock,
+    stock: copyStock(stored.stock),
   };
 }
 

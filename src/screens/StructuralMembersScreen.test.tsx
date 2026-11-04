@@ -130,7 +130,7 @@ describe('StructuralMembersScreen', () => {
   it('uses the project stock override when checking oversized panels', async () => {
     const project = await seedProject({
       name: 'Members Site',
-      stock: { phenolic: { length: 6, width: 3.5 } },
+      stock: { phenolic: { length: 6, width: 3.5, thickness: 0.018 } },
     });
     await createStructuralMember({
       projectId: project.id,

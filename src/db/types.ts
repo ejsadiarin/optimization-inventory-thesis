@@ -15,6 +15,7 @@ export interface ProjectCosts {
 export interface PhenolicStockSize {
   length: number;
   width: number;
+  thickness: number;
 }
 
 export interface ProjectStock {

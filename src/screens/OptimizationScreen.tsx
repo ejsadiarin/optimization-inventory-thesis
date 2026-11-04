@@ -53,8 +53,6 @@ import { shortId } from '@/lib/format';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
-const OFFCUT_THICKNESS = 0.012;
-
 const STEPS: ReadonlyArray<{ id: OptimizationStep; label: string; description: string }> = [
   { id: 'reuse', label: 'Reuse inventory', description: 'Choose reusable pieces' },
   { id: 'cuts', label: 'Plan cuts', description: 'Arrange remaining stock' },
@@ -80,7 +78,6 @@ export default function OptimizationScreen() {
   const [error, setError] = useState('');
   const [selectedOffcutKeys, setSelectedOffcutKeys] = useState<Set<string>>(() => new Set());
   const [addedOffcutKeys, setAddedOffcutKeys] = useState<Set<string>>(() => new Set());
-  const [intakeMessage, setIntakeMessage] = useState('');
   const [intakeError, setIntakeError] = useState('');
   const [addingOffcuts, setAddingOffcuts] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReuseStatus>('needsDecision');
@@ -421,7 +418,7 @@ export default function OptimizationScreen() {
           materialType: 'phenolic',
           length: entry.offcut.length,
           width: entry.offcut.width,
-          thickness: OFFCUT_THICKNESS,
+          thickness: project.stock.phenolic.thickness,
           condition: 'Good',
           dateAdded,
           source: 'Cut plan offcut',
@@ -429,9 +426,11 @@ export default function OptimizationScreen() {
       }
       setAddedOffcutKeys((current) => new Set([...current, ...pending.map((entry) => entry.key)]));
       setSelectedOffcutKeys(new Set());
-      setIntakeMessage(
-        `Added ${pending.length} offcut${pending.length === 1 ? '' : 's'} to inventory.`,
-      );
+      toast({
+        title: `Returned ${pending.length} offcut${pending.length === 1 ? '' : 's'} to inventory`,
+        description: 'Added as Good with 0 uses. Available in the next optimization session.',
+        variant: 'success',
+      });
     } catch (caught) {
       setIntakeError(
         caught instanceof Error ? caught.message : 'Could not add offcuts to inventory.',
@@ -673,7 +672,6 @@ export default function OptimizationScreen() {
           selectedOffcutKeys={selectedOffcutKeys}
           addedOffcutKeys={addedOffcutKeys}
           addingOffcuts={addingOffcuts}
-          intakeMessage={intakeMessage}
           intakeError={intakeError}
           cutPlansReviewedAt={workflow.cutPlansReviewedAt}
           onToggleOffcut={toggleOffcut}

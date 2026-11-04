@@ -7,7 +7,7 @@ export const DEFAULT_TEST_COSTS: ProjectCosts = {
 };
 
 export const DEFAULT_TEST_STOCK: ProjectStock = {
-  phenolic: { length: 2.44, width: 1.22 },
+  phenolic: { length: 2.44, width: 1.22, thickness: 0.018 },
   lumberLengths: [2.4, 3.0, 3.6, 4.8, 6.0],
 };
 

@@ -344,7 +344,6 @@ export interface CuttingPlansProps {
   selectedOffcutKeys: ReadonlySet<string>;
   addedOffcutKeys: ReadonlySet<string>;
   addingOffcuts: boolean;
-  intakeMessage: string;
   intakeError: string;
   cutPlansReviewedAt: string | null;
   onToggleOffcut: (key: string, checked: boolean) => void;
@@ -361,7 +360,6 @@ export default function CuttingPlans({
   selectedOffcutKeys,
   addedOffcutKeys,
   addingOffcuts,
-  intakeMessage,
   intakeError,
   cutPlansReviewedAt,
   onToggleOffcut,
@@ -591,7 +589,6 @@ export default function CuttingPlans({
                     selectedOffcutKeys={selectedOffcutKeys}
                     addedOffcutKeys={addedOffcutKeys}
                     addingOffcuts={addingOffcuts}
-                    intakeMessage={intakeMessage}
                     intakeError={intakeError}
                     onToggleOffcut={onToggleOffcut}
                     onAddOffcuts={onAddOffcuts}
