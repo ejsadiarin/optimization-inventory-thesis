@@ -198,6 +198,16 @@ export default function OptimizationScreen() {
     );
   }, [searchParams, workflow.step, loading, loadError, updateWorkflow]);
 
+  useEffect(() => {
+    if (loading || loadError || step !== 'cuts') return;
+    const reviewedAt = new Date().toISOString();
+    updateWorkflow((current) =>
+      current.cutPlansReviewedAt === null
+        ? { ...current, cutPlansReviewedAt: reviewedAt }
+        : current,
+    );
+  }, [step, loading, loadError, updateWorkflow]);
+
   const optimization = useMemo(
     () =>
       optimizeProject({
@@ -665,6 +675,7 @@ export default function OptimizationScreen() {
           addingOffcuts={addingOffcuts}
           intakeMessage={intakeMessage}
           intakeError={intakeError}
+          cutPlansReviewedAt={workflow.cutPlansReviewedAt}
           onToggleOffcut={toggleOffcut}
           onAddOffcuts={() => void handleAddOffcuts()}
           onExportSheet={exportSheet}

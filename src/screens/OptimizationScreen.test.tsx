@@ -630,18 +630,29 @@ describe('OptimizationScreen cutting plans', () => {
     await openCutsStep(user);
 
     expect(screen.getByRole('heading', { name: /cutting plans/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /sheets \(1\)/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
     expect(screen.getByText('0.60 × 0.60 m')).toBeInTheDocument();
     expect(screen.getAllByText('S1').length).toBeGreaterThan(0);
 
+    await user.click(screen.getByRole('tab', { name: /lumber \(1\)/i }));
+    expect(screen.getByRole('tab', { name: /lumber \(1\)/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
     expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
     expect(screen.getByText(/stock 1 · 2\.40 m/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Brace A/).length).toBeGreaterThan(0);
     expect(screen.getByText(/longer than the longest stock length/i)).toBeInTheDocument();
     expect(screen.getByText(/estimated savings/i)).toBeInTheDocument();
+    expect(screen.getByTestId('cut-utilization')).toHaveTextContent(/%/);
   });
 
-  it('recomputes plans and shows the all-satisfied state after accepting a reuse match', async () => {
+  it('recomputes plans and shows the no-cuts state after accepting a reuse match', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Replan Site' });
     await createStructuralMember({
@@ -664,9 +675,11 @@ describe('OptimizationScreen cutting plans', () => {
     await user.click(screen.getByRole('button', { name: /accept/i }));
     await openCutsStep(user);
 
+    expect(await screen.findByText(/no cuts needed/i)).toBeInTheDocument();
     expect(
-      await screen.findByText(/all requirements satisfied by reused pieces/i),
+      screen.getByText(/all requirements are satisfied by reused pieces/i),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /sheets/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
   });
 
@@ -684,9 +697,11 @@ describe('OptimizationScreen cutting plans', () => {
 
     await renderOptimize(project.id);
     await openCutsStep(user);
+    await user.click(screen.getByRole('tab', { name: /offcuts \(2\)/i }));
 
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes).toHaveLength(2);
+    expect(screen.getByTestId('offcut-completion')).toHaveTextContent('0 offcuts returned');
     const addButton = screen.getByRole('button', { name: /add selected to inventory/i });
     expect(addButton).toBeDisabled();
 
@@ -695,6 +710,7 @@ describe('OptimizationScreen cutting plans', () => {
     await user.click(addButton);
 
     expect(await screen.findByText(/added 1 offcut/i)).toBeInTheDocument();
+    expect(screen.getByTestId('offcut-completion')).toHaveTextContent('1 offcut returned');
 
     const pieces = await listPieces(project.id);
     const added = pieces.filter((piece) => piece.source === 'Cut plan offcut');
@@ -714,6 +730,100 @@ describe('OptimizationScreen cutting plans', () => {
     expect(screen.getByRole('checkbox', { name: /offcut 1 from sheet 1/i })).toBeDisabled();
     expect(screen.getByText('Added')).toBeInTheDocument();
     expect(addButton).toBeDisabled();
+  });
+
+  it('shows summary stats and keeps accurate segment counts', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Segments Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 2.14,
+      width: 0.92,
+      height: 0,
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    expect(screen.getByTestId('cut-summary')).toHaveTextContent(/sheets used/i);
+    expect(screen.getByTestId('cut-summary')).toHaveTextContent(/estimated savings/i);
+    expect(screen.getByTestId('cut-utilization')).toHaveTextContent(/%/);
+
+    expect(screen.getByRole('tab', { name: /sheets \(1\)/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: /lumber \(1\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /offcuts \(2\)/i })).toBeInTheDocument();
+    expect(screen.getByTestId('cut-plan-sheet-0')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /lumber \(1\)/i }));
+    expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /offcuts \(2\)/i }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(screen.getByTestId('offcut-completion')).toHaveTextContent('0 offcuts returned');
+  });
+
+  it('defaults to the lumber segment when no panels remain', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Lumber Default Site' });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Brace A',
+      length: 2,
+      crossSection: '2x3',
+    });
+
+    await renderOptimize(project.id);
+    await openCutsStep(user);
+
+    expect(screen.getByRole('tab', { name: /lumber \(1\)/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByText(/2×3 lumber/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('cut-plan-sheet-0')).not.toBeInTheDocument();
+  });
+
+  it('records the cut-plans-reviewed marker and restores it after reload', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Reviewed Site' });
+    await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+
+    const first = await renderOptimize(project.id);
+    await openCutsStep(user);
+    await waitFor(() => {
+      expect(screen.getByTestId('cut-plans-reviewed')).toBeInTheDocument();
+    });
+    const stored = await getOptimizationWorkflow(project.id);
+    expect(stored?.cutPlansReviewedAt).toEqual(expect.any(String));
+    const reviewedAt = stored!.cutPlansReviewedAt;
+
+    first.unmount();
+    await renderOptimize(project.id);
+
+    expect(screen.getByTestId('cut-plans-reviewed')).toHaveTextContent(
+      /cut plans reviewed/i,
+    );
+    const restored = await getOptimizationWorkflow(project.id);
+    expect(restored?.cutPlansReviewedAt).toBe(reviewedAt);
   });
 
   it('flags panels that are larger than the stock sheet', async () => {
