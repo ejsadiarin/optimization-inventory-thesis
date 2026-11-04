@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
@@ -109,6 +109,28 @@ describe('ProjectOverviewScreen', () => {
       screen.getByRole('link', { name: /summary.*review utilization/i }),
     ).toHaveAttribute('href', `/projects/${project.id}/summary`);
     expect(screen.getAllByText('Optional').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('shows the project sidebar and opens the mobile menu', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Sidebar Site' });
+    renderProject(project.id);
+
+    expect(
+      await screen.findByRole('navigation', { name: 'Project' }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open project menu' }));
+
+    const menu = await screen.findByRole('dialog');
+    expect(within(menu).getByRole('link', { name: /members/i })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/members`,
+    );
+    expect(within(menu).getByRole('link', { name: /settings/i })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/settings`,
+    );
   });
 
   it('shows completion and outstanding work once the project progresses', async () => {
