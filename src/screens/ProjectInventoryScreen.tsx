@@ -76,7 +76,10 @@ function PieceActions({ piece, onView, onEdit }: PieceActionsProps) {
         size="sm"
         variant="ghost"
         aria-label={`View piece ${shortId(piece.id)}`}
-        onClick={() => onView(piece)}
+        onClick={(event) => {
+          event.stopPropagation();
+          onView(piece);
+        }}
       >
         View
       </Button>
@@ -85,7 +88,10 @@ function PieceActions({ piece, onView, onEdit }: PieceActionsProps) {
         size="sm"
         variant="ghost"
         aria-label={`Edit piece ${shortId(piece.id)}`}
-        onClick={() => onEdit(piece)}
+        onClick={(event) => {
+          event.stopPropagation();
+          onEdit(piece);
+        }}
       >
         Edit
       </Button>
@@ -196,7 +202,7 @@ export default function ProjectInventoryScreen() {
           <Input
             id="inventory-search"
             value={search}
-            placeholder="Dimensions, type, or location"
+            placeholder="Label, dimensions, type, or location"
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
@@ -332,9 +338,32 @@ export default function ProjectInventoryScreen() {
                 </TableHeader>
                 <TableBody>
                   {visiblePieces.map((piece) => (
-                    <TableRow key={piece.id}>
-                      <TableCell className="font-mono text-xs" title={piece.id}>
-                        {shortId(piece.id)}
+                    <TableRow
+                      key={piece.id}
+                      tabIndex={0}
+                      className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={() => setDetailPiece(piece)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setDetailPiece(piece);
+                        }
+                      }}
+                    >
+                      <TableCell>
+                        {piece.label ? (
+                          <div className="space-y-0.5">
+                            <p className="font-medium">{piece.label}</p>
+                            <p className="font-mono text-xs text-muted-foreground" title={piece.id}>
+                              {shortId(piece.id)}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-xs" title={piece.id}>
+                            {shortId(piece.id)}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>{formatPieceDimensions(piece)}</TableCell>
                       <TableCell>{materialTypeLabel(piece.materialType)}</TableCell>
@@ -362,41 +391,53 @@ export default function ProjectInventoryScreen() {
             ) : (
               <ul data-testid="piece-cards" className="space-y-2 p-3">
                 {visiblePieces.map((piece) => (
-                  <li key={piece.id} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 space-y-1">
-                        <p className="font-mono text-xs" title={piece.id}>
-                          {shortId(piece.id)}
-                        </p>
-                        <p className="font-medium">{formatPieceDimensions(piece)}</p>
+                  <li key={piece.id} className="rounded-lg border">
+                    <button
+                      type="button"
+                      aria-label={`Open piece ${shortId(piece.id)}`}
+                      className="w-full space-y-2 rounded-t-lg p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={() => setDetailPiece(piece)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          {piece.label && (
+                            <p className="font-medium">{piece.label}</p>
+                          )}
+                          <p className="font-mono text-xs" title={piece.id}>
+                            {shortId(piece.id)}
+                          </p>
+                          <p className="font-medium">{formatPieceDimensions(piece)}</p>
+                        </div>
+                        <Badge variant="outline" className={conditionBadgeClass(piece.condition)}>
+                          {piece.condition}
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className={conditionBadgeClass(piece.condition)}>
-                        {piece.condition}
-                      </Badge>
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                        <div>
+                          <dt className="text-muted-foreground">Type</dt>
+                          <dd>{materialTypeLabel(piece.materialType)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Usage</dt>
+                          <dd>{piece.usageCount}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Location</dt>
+                          <dd className="truncate">{piece.storageLocation.trim() || '—'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Days in inventory</dt>
+                          <dd>{daysInInventory(piece.dateAdded)} d</dd>
+                        </div>
+                      </dl>
+                    </button>
+                    <div className="px-3 pb-3">
+                      <PieceActions
+                        piece={piece}
+                        onView={setDetailPiece}
+                        onEdit={openEditForm}
+                      />
                     </div>
-                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                      <div>
-                        <dt className="text-muted-foreground">Type</dt>
-                        <dd>{materialTypeLabel(piece.materialType)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Usage</dt>
-                        <dd>{piece.usageCount}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Location</dt>
-                        <dd className="truncate">{piece.storageLocation.trim() || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Days in inventory</dt>
-                        <dd>{daysInInventory(piece.dateAdded)} d</dd>
-                      </div>
-                    </dl>
-                    <PieceActions
-                      piece={piece}
-                      onView={setDetailPiece}
-                      onEdit={openEditForm}
-                    />
                   </li>
                 ))}
               </ul>

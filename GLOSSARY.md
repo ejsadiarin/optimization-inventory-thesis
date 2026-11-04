@@ -101,7 +101,7 @@ A per-piece record of each time a material is used as formwork. Each entry recor
 _Avoid_: Reuse history, usage record
 
 **Piece**:
-A single physical unit of material tracked individually in inventory. Each piece has its own ID, dimensions, condition, and usage count, even if identical pieces exist.
+A single physical unit of material tracked individually in inventory. Each piece has its own ID, dimensions, condition, and usage count, even if identical pieces exist. An optional label lets the engineer name it for the site (for example, "Left wall panel").
 _Avoid_: Item, unit (when referring to tracked inventory)
 
 **Stock Size**:

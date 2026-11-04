@@ -6,6 +6,7 @@ function piece(overrides: Partial<Piece> = {}): Piece {
   return {
     id: 'piece-1',
     projectId: 'project-1',
+    label: 'Left wall panel',
     materialType: 'phenolic',
     length: 2.44,
     width: 1.22,
@@ -26,8 +27,8 @@ describe('piecesToCsv', () => {
 
     expect(csv).toBe(
       [
-        'id,projectId,materialType,length,width,thickness,crossSection,condition,usageCount,storageLocation,dateAdded,retired,source',
-        'piece-1,project-1,phenolic,2.44,1.22,0.018,,Good,2,Rack A,2026-01-02T03:04:05.000Z,false,manual',
+        'id,projectId,label,materialType,length,width,thickness,crossSection,condition,usageCount,storageLocation,dateAdded,retired,source',
+        'piece-1,project-1,Left wall panel,phenolic,2.44,1.22,0.018,,Good,2,Rack A,2026-01-02T03:04:05.000Z,false,manual',
         '',
       ].join('\r\n'),
     );
@@ -37,6 +38,7 @@ describe('piecesToCsv', () => {
     const csv = piecesToCsv([
       piece({
         id: 'piece-2',
+        label: undefined,
         materialType: 'lumber',
         length: 3,
         width: 0,
@@ -47,7 +49,7 @@ describe('piecesToCsv', () => {
       }),
     ]);
 
-    expect(csv).toContain('piece-2,project-1,lumber,3,0,0,2x3,Retired,2,Rack A');
+    expect(csv).toContain('piece-2,project-1,,lumber,3,0,0,2x3,Retired,2,Rack A');
     expect(csv).toContain(',2026-01-02T03:04:05.000Z,true,manual');
   });
 

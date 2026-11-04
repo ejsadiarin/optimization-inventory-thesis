@@ -373,7 +373,7 @@ describe('ProjectSummaryScreen', () => {
     const blob = createObjectURL.mock.calls[0]![0] as Blob;
     const csv = await blobText(blob);
 
-    expect(csv).toContain('id,projectId,materialType,length,width,thickness');
+    expect(csv).toContain('id,projectId,label,materialType,length,width,thickness');
     expect(csv).toContain(active.id);
     expect(csv).toContain(retired.id);
     expect(csv).toContain(',true,');

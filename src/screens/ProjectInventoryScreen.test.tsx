@@ -56,6 +56,7 @@ describe('ProjectInventoryScreen', () => {
     await screen.findByText(/no pieces in inventory yet/i);
 
     await user.click(screen.getByRole('button', { name: /add piece/i }));
+    await user.type(screen.getByLabelText(/label \(optional\)/i), 'Left wall panel');
     await user.selectOptions(screen.getByLabelText(/material type/i), 'phenolic');
     await user.type(screen.getByLabelText(/^length/i), '1.22');
     await user.type(screen.getByLabelText(/^width/i), '2.44');
@@ -64,6 +65,7 @@ describe('ProjectInventoryScreen', () => {
     await user.click(screen.getByRole('button', { name: /save piece/i }));
 
     const row = await screen.findByRole('row', { name: /rack a/i });
+    expect(within(row).getByText('Left wall panel')).toBeInTheDocument();
     expect(within(row).getByText(/phenolic board/i)).toBeInTheDocument();
     expect(within(row).getByText(/1\.22 × 2\.44 × 0\.02 m/i)).toBeInTheDocument();
     expect(within(row).getByText('Good')).toBeInTheDocument();
@@ -73,10 +75,83 @@ describe('ProjectInventoryScreen', () => {
     expect(pieces).toHaveLength(1);
     expect(pieces[0]).toMatchObject({
       projectId: project.id,
+      label: 'Left wall panel',
       materialType: 'phenolic',
       storageLocation: 'Rack A',
       usageCount: 0,
     });
+  });
+});
+
+describe('ProjectInventoryScreen labels and row actions', () => {
+  async function seedLabelledPieces() {
+    const project = await seedProject({ name: 'Labelled Site' });
+    await addPiece({
+      projectId: project.id,
+      label: 'Left wall panel',
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+      storageLocation: 'Rack A',
+    });
+    await addPiece({
+      projectId: project.id,
+      label: 'Right wall panel',
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+      storageLocation: 'Rack B',
+    });
+    return project;
+  }
+
+  it('searches inventory by optional label', async () => {
+    const user = userEvent.setup();
+    const project = await seedLabelledPieces();
+    await renderInventory(project.id);
+
+    await user.type(screen.getByLabelText(/search inventory/i), 'left wall');
+
+    expect(await screen.findByRole('row', { name: /left wall panel/i })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /right wall panel/i })).not.toBeInTheDocument();
+  });
+
+  it('opens the piece detail when a row is clicked', async () => {
+    const user = userEvent.setup();
+    const project = await seedLabelledPieces();
+    await renderInventory(project.id);
+
+    await user.click(await screen.findByRole('row', { name: /left wall panel/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Piece details')).toBeInTheDocument();
+    expect(within(dialog).getByText('Left wall panel')).toBeInTheDocument();
+  });
+
+  it('opens the piece detail with Enter on a focused row', async () => {
+    const user = userEvent.setup();
+    const project = await seedLabelledPieces();
+    await renderInventory(project.id);
+
+    const row = await screen.findByRole('row', { name: /left wall panel/i });
+    row.focus();
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/piece details/i);
+  });
+
+  it('keeps Edit isolated from the row click', async () => {
+    const user = userEvent.setup();
+    const project = await seedLabelledPieces();
+    await renderInventory(project.id);
+
+    const row = await screen.findByRole('row', { name: /left wall panel/i });
+    await user.click(within(row).getByRole('button', { name: /edit piece/i }));
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/edit piece/i);
+    expect(screen.queryByText(/piece details/i)).not.toBeInTheDocument();
   });
 });
 
@@ -107,6 +182,7 @@ describe('ProjectInventoryScreen resilience and empty states', () => {
   });
 
   it('renders inventory as cards on mobile', async () => {
+    const user = userEvent.setup();
     useMobileViewport();
     const project = await seedProject({ name: 'Mobile Inventory Site' });
     await addPiece({
@@ -127,6 +203,9 @@ describe('ProjectInventoryScreen resilience and empty states', () => {
       within(list).getByRole('button', { name: /view piece/i }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    await user.click(within(list).getByRole('button', { name: /open piece/i }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/piece details/i);
   });
 });
 

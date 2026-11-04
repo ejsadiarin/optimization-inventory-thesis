@@ -81,6 +81,12 @@ export default function PieceDetailDialog({
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-3 text-sm">
+          {piece.label && (
+            <div className="col-span-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Label</p>
+              <p className="font-medium">{piece.label}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Material type</p>
             <p className="font-medium">{materialTypeLabel(piece.materialType)}</p>

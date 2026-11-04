@@ -70,7 +70,8 @@ flowchart TD
 
 - **Screen:** `src/screens/ProjectInventoryScreen.tsx`
 - **Features:**
-  - **Material Logging:** Engineers register pieces with Material Type (Phenolic Board vs. Lumber cross-sections `2×2`, `2×3`, `2×4`), dimensions (Length, Width, Thickness), Condition (`Good` or `For Inspection`), and Storage Location.
+  - **Material Logging:** Engineers register pieces with Material Type (Phenolic Board vs. Lumber cross-sections `2×2`, `2×3`, `2×4`), dimensions (Length, Width, Thickness), an optional label for site identification, Condition (`Good` or `For Inspection`), and Storage Location.
+  - **Open a piece:** Selecting anywhere on a table row or card opens its detail; Edit stays a separate action.
   - **Usage Count & Inspection Threshold:** Tracks `usageCount`. When a piece reaches **5 uses**, the app flags it `For Inspection` (ADR-0004).
   - **Retire/Exclude:** Damaged pieces can be marked `Retired` to exclude them from the optimization algorithm.
 

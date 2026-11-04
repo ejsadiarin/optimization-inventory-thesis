@@ -67,6 +67,7 @@ export interface LumberRequirement {
 export interface Piece {
   id: string;
   projectId: string;
+  label?: string;
   materialType: MaterialType;
   length: number;
   width: number;

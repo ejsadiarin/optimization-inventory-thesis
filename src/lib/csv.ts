@@ -3,6 +3,7 @@ import type { Piece } from '@/db/types';
 const COLUMNS = [
   'id',
   'projectId',
+  'label',
   'materialType',
   'length',
   'width',
@@ -27,6 +28,7 @@ function pieceToRow(piece: Piece): string {
   return [
     piece.id,
     piece.projectId,
+    piece.label ?? '',
     piece.materialType,
     String(piece.length),
     String(piece.width),

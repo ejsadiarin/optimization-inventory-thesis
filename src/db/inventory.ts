@@ -30,6 +30,7 @@ import { queueWrite } from '@/lib/syncStatus';
 
 export interface AddPieceInput {
   projectId: string;
+  label?: string;
   materialType: MaterialType;
   length: number;
   width?: number;
@@ -72,6 +73,7 @@ export async function addPiece(input: AddPieceInput): Promise<Piece> {
   const piece: Piece = {
     id: generateId(),
     projectId,
+    label: input.label?.trim() || undefined,
     materialType: input.materialType,
     length: input.length,
     ...dimensions,
@@ -84,12 +86,13 @@ export async function addPiece(input: AddPieceInput): Promise<Piece> {
   };
 
   validateDimensions(piece);
-  const { crossSection, ...rest } = piece;
+  const { crossSection, label, ...rest } = piece;
   queueWrite(
-    setDoc(
-      projectDoc(projectId, 'pieces', piece.id),
-      crossSection ? { ...rest, crossSection } : rest,
-    ),
+    setDoc(projectDoc(projectId, 'pieces', piece.id), {
+      ...rest,
+      ...(crossSection ? { crossSection } : {}),
+      ...(label ? { label } : {}),
+    }),
   );
   return piece;
 }
@@ -139,6 +142,7 @@ export async function getUsageLog(
 }
 
 export interface UpdatePieceInput {
+  label?: string;
   length?: number;
   width?: number;
   thickness?: number;
@@ -167,6 +171,7 @@ export async function updatePiece(
   });
   const merged: Piece = {
     ...piece,
+    label: (input.label !== undefined ? input.label.trim() : piece.label ?? '') || undefined,
     length: input.length ?? piece.length,
     ...dimensions,
     condition: input.condition ?? piece.condition,
@@ -177,6 +182,7 @@ export async function updatePiece(
   validateDimensions(merged);
   queueWrite(
     updateDoc(reference, {
+      label: merged.label ?? '',
       length: merged.length,
       width: merged.width,
       thickness: merged.thickness,
@@ -294,6 +300,7 @@ export function queryPieces(pieces: Piece[], query: PieceQuery = {}): Piece[] {
 
     const haystack = [
       piece.id,
+      piece.label ?? '',
       piece.materialType,
       piece.materialType === 'phenolic' ? 'phenolic board plywood' : 'lumber coco',
       piece.length.toFixed(2),

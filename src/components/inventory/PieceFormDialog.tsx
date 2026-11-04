@@ -34,6 +34,7 @@ export default function PieceFormDialog({
   onSaved,
 }: PieceFormDialogProps) {
   const editing = Boolean(piece);
+  const [label, setLabel] = useState(piece?.label ?? '');
   const [materialType, setMaterialType] = useState<MaterialType>(piece?.materialType ?? 'phenolic');
   const [length, setLength] = useState(piece ? String(piece.length) : '');
   const [width, setWidth] = useState(piece ? String(piece.width) : '');
@@ -79,6 +80,7 @@ export default function PieceFormDialog({
       });
       const saved = piece
         ? await updatePiece(projectId, piece.id, {
+            label,
             length: parsedLength,
             ...dimensions,
             condition,
@@ -86,6 +88,7 @@ export default function PieceFormDialog({
           })
         : await addPiece({
             projectId,
+            label,
             materialType,
             length: parsedLength,
             ...dimensions,
@@ -120,6 +123,16 @@ export default function PieceFormDialog({
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="piece-label">Label (optional)</Label>
+            <Input
+              id="piece-label"
+              value={label}
+              placeholder="e.g. Left wall panel"
+              onChange={(event) => setLabel(event.target.value)}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="piece-material-type">Material type</Label>
             <select

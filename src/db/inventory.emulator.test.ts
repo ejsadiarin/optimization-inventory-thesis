@@ -77,7 +77,7 @@ describe('inventory pieces on Firestore', () => {
     const projectId = await createTestProject('Inventory Site');
     const otherProjectId = await createTestProject('Other Site');
 
-    const first = await addPhenolicPiece(projectId);
+    const first = await addPhenolicPiece(projectId, { label: 'Left wall panel' });
     const second = await addPiece({
       projectId,
       materialType: 'lumber',
@@ -92,6 +92,7 @@ describe('inventory pieces on Firestore', () => {
     expect(pieces.map((piece) => piece.id).sort()).toEqual([first.id, second.id].sort());
     expect(first).toMatchObject({
       projectId,
+      label: 'Left wall panel',
       materialType: 'phenolic',
       condition: 'Good',
       usageCount: 0,
@@ -110,6 +111,7 @@ describe('inventory pieces on Firestore', () => {
     const piece = await addPhenolicPiece(projectId);
 
     const updated = await updatePiece(projectId, piece.id, {
+      label: 'Renamed panel',
       length: 1.1,
       condition: 'For Inspection',
       storageLocation: 'Rack B',
@@ -118,6 +120,7 @@ describe('inventory pieces on Firestore', () => {
     expect(updated).toMatchObject({
       id: piece.id,
       projectId,
+      label: 'Renamed panel',
       length: 1.1,
       width: 2.44,
       thickness: 0.018,
@@ -313,8 +316,9 @@ describe('inventory usage log on Firestore', () => {
       /piece not found/i,
     );
 
+    const { label: _label, ...pieceWithoutLabel } = piece;
     await setDoc(projectDoc(otherProjectId, 'pieces', piece.id), {
-      ...piece,
+      ...pieceWithoutLabel,
       projectId,
     });
     await expect(recordUsage(piece.id, otherProjectId, 'C1')).rejects.toThrow(

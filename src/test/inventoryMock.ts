@@ -55,6 +55,7 @@ export async function addPiece(input: AddPieceInput): Promise<Piece> {
   const piece: Piece = {
     id: generateId(),
     projectId: input.projectId,
+    label: input.label?.trim() || undefined,
     materialType: input.materialType,
     length: input.length,
     ...dimensions,
@@ -121,6 +122,7 @@ export async function updatePiece(
   });
   const merged: Piece = {
     ...piece,
+    label: (input.label !== undefined ? input.label.trim() : piece.label ?? '') || undefined,
     length: input.length ?? piece.length,
     ...dimensions,
     condition: input.condition ?? piece.condition,
