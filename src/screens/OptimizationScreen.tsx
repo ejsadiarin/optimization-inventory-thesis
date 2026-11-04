@@ -94,6 +94,7 @@ export default function OptimizationScreen() {
   const [pieces, setPieces] = useState<MatchPiece[]>([]);
   const [workflow, setWorkflow] = useState<OptimizationWorkflow>(() => emptyWorkflow());
   const dirtyWorkflowRef = useRef(false);
+  const loadedOnceRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
@@ -140,7 +141,7 @@ export default function OptimizationScreen() {
   }, [searchParams]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!loadedOnceRef.current) setLoading(true);
     setLoadError('');
     try {
       const [members, lumberRequirements, inventoryPieces, storedWorkflow] =
@@ -187,6 +188,7 @@ export default function OptimizationScreen() {
       setLumberInputs(lumberRequirementInputs);
       setPieces(matchPieces);
       setWorkflow(nextWorkflow);
+      loadedOnceRef.current = true;
 
       if (
         (storedWorkflow && nextWorkflow !== storedWorkflow) ||
@@ -195,7 +197,9 @@ export default function OptimizationScreen() {
         dirtyWorkflowRef.current = true;
       }
     } catch {
-      setLoadError('Could not load optimization data. Check your connection and try again.');
+      if (!loadedOnceRef.current) {
+        setLoadError('Could not load optimization data. Check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
@@ -140,6 +140,9 @@ describe('MemberFocusScreen', () => {
     expect(
       screen.getByRole('group', { name: /inventory piece/i }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId(`focus-piece-legend-${piece.id}`)).toHaveTextContent(
+      'S1',
+    );
 
     const [stored] = await listPieces(project.id);
     expect(stored?.id).toBe(piece.id);
@@ -447,5 +450,63 @@ describe('MemberFocusScreen', () => {
     expect(
       within(unplaced).getByRole('link', { name: /review stock sizes/i }),
     ).toHaveAttribute('href', `/projects/${project.id}/settings`);
+  });
+
+  it('keeps the selected member and manual choices during a background refresh', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Focus Refresh Site' });
+    const first = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    const second = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S2',
+      length: 0.6,
+      width: 0.6,
+      height: 0,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 0.6,
+      width: 0.6,
+      thickness: 0.018,
+    });
+
+    await renderFocus(project.id);
+    expect(screen.getByTestId(`member-option-${first.id}`)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.click(screen.getByTestId(`member-option-${second.id}`));
+    expect(screen.getByTestId(`member-option-${second.id}`)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.selectOptions(screen.getByLabelText('Inventory piece'), '');
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('0 of 1'),
+    ).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId(`member-option-${second.id}`)).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    });
+    expect(
+      within(screen.getByTestId('focus-summary')).getByText('0 of 1'),
+    ).toBeInTheDocument();
   });
 });

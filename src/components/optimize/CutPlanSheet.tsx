@@ -177,6 +177,40 @@ export function SheetDiagram({
   );
 }
 
+export function SheetPanelLegend({
+  sheet,
+  memberColors,
+  testId,
+}: {
+  sheet: PlywoodSheetPlan;
+  memberColors: ReadonlyMap<string, string>;
+  testId?: string;
+}) {
+  if (sheet.panels.length === 0) return null;
+
+  return (
+    <ul
+      data-testid={testId}
+      className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+    >
+      {sheet.panels.map((panel, index) => (
+        <li key={`${panel.panelId}-${index}`} className="inline-flex items-center gap-1">
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 rounded-sm border border-foreground/30"
+            style={{ backgroundColor: memberColors.get(panel.label) ?? MEMBER_COLORS[0] }}
+          />
+          <span className="font-medium text-foreground">{panel.label}</span>
+          <span>
+            {formatMeters(panel.length)} × {formatMeters(panel.width)}
+            {panel.rotated ? ' · rotated' : ''}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function SheetNotes({ sheet }: { sheet: PlywoodSheetPlan }) {
   const stockArea = sheet.stock.length * sheet.stock.width;
   const reusableOffcutPercent =

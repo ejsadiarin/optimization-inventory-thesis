@@ -25,7 +25,7 @@ import {
 } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MEMBER_COLORS } from './memberColors';
-import { SheetDiagram, SheetNotes } from './CutPlanSheet';
+import { SheetDiagram, SheetNotes, SheetPanelLegend } from './CutPlanSheet';
 import OffcutIntake from './OffcutIntake';
 import type { ReusableOffcutEntry } from './offcuts';
 
@@ -545,6 +545,11 @@ export default function CuttingPlans({
                   sheet={allocation.plan}
                   memberColors={memberColors}
                   svgId={`reused-piece-svg-${index}`}
+                />
+                <SheetPanelLegend
+                  sheet={allocation.plan}
+                  memberColors={memberColors}
+                  testId={`reused-piece-legend-${index}`}
                 />
                 <SheetNotes sheet={allocation.plan} />
               </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { ArrowRight, Crosshair, Loader2, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
-import { SheetDiagram, SheetNotes } from '@/components/optimize/CutPlanSheet';
+import { SheetDiagram, SheetNotes, SheetPanelLegend } from '@/components/optimize/CutPlanSheet';
 import { getActivePieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import type { LumberRequirement, Piece, Project, StructuralMember } from '@/db/types';
@@ -124,10 +124,12 @@ export default function MemberFocusScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
+  const loadedOnceRef = useRef(false);
+  const autoAppliedMemberRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    if (!loadedOnceRef.current) setLoading(true);
     setLoadError('');
     void Promise.all([
       listStructuralMembers(project.id),
@@ -136,13 +138,18 @@ export default function MemberFocusScreen() {
     ])
       .then(([nextMembers, nextPieces, nextLumber]) => {
         if (!active) return;
+        loadedOnceRef.current = true;
         setMembers(nextMembers);
         setPieces(nextPieces);
         setLumberRequirements(nextLumber);
-        setSelectedId(nextMembers[0]?.id ?? null);
+        setSelectedId((current) =>
+          nextMembers.some((member) => member.id === current)
+            ? current
+            : (nextMembers[0]?.id ?? null),
+        );
       })
       .catch(() => {
-        if (active) {
+        if (active && !loadedOnceRef.current) {
           setLoadError('Could not load members or inventory. Check your connection and try again.');
         }
       })
@@ -189,11 +196,38 @@ export default function MemberFocusScreen() {
   useEffect(() => {
     if (loading) return;
     if (!selected) {
+      autoAppliedMemberRef.current = null;
       setAssignments({});
       return;
     }
 
-    setAssignments(assignPanelsToPieces(selected.panels, matchPieces).assignments);
+    if (autoAppliedMemberRef.current !== selected.member.id) {
+      autoAppliedMemberRef.current = selected.member.id;
+      setAssignments(assignPanelsToPieces(selected.panels, matchPieces).assignments);
+      return;
+    }
+
+    // A background refresh must not discard manual choices. Keep only
+    // assignments whose panel and piece still exist and are not double-booked.
+    setAssignments((current) => {
+      const panelIds = new Set(selected.panels.map((panel) => panel.id));
+      const pieceIds = new Set(matchPieces.map((piece) => piece.id));
+      const usedPieces = new Set<string>();
+      const next: Record<string, string> = {};
+
+      for (const [panelId, pieceId] of Object.entries(current)) {
+        if (!panelIds.has(panelId) || !pieceIds.has(pieceId) || usedPieces.has(pieceId)) {
+          continue;
+        }
+        next[panelId] = pieceId;
+        usedPieces.add(pieceId);
+      }
+
+      const unchanged =
+        Object.keys(next).length === Object.keys(current).length &&
+        Object.entries(next).every(([panelId, pieceId]) => current[panelId] === pieceId);
+      return unchanged ? current : next;
+    });
   }, [loading, selected, matchPieces]);
 
   const pieceAllocations = useMemo(
@@ -568,6 +602,11 @@ export default function MemberFocusScreen() {
                       ariaLabel={`Inventory piece ${shortId(allocation.pieceId)} · ${formatMeters(allocation.plan.stock.length)} × ${formatMeters(allocation.plan.stock.width)}`}
                     />
                   </div>
+                  <SheetPanelLegend
+                    sheet={allocation.plan}
+                    memberColors={memberColors}
+                    testId={`focus-piece-legend-${allocation.pieceId}`}
+                  />
                   <SheetNotes sheet={allocation.plan} />
                   <p className="text-xs text-muted-foreground">
                     Dimensions are exact; no saw kerf or blade allowance is included.
