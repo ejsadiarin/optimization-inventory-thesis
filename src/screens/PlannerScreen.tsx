@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Loader2, PackageSearch } from 'lucide-react';
 import OffcutIntake from '@/components/optimize/OffcutIntake';
 import { offcutKey, type ReusableOffcutEntry } from '@/components/optimize/offcuts';
@@ -79,13 +79,15 @@ function boardMembers(board: PlannerBoard): string[] {
 function BoardPreview({
   board,
   memberColors,
+  highlightPanelIds,
   onExportSvg,
   onExportPng,
 }: {
   board: PlannerBoard;
   memberColors: ReadonlyMap<string, string>;
-  onExportSvg: (board: PlannerBoard) => void;
-  onExportPng: (board: PlannerBoard) => void;
+  highlightPanelIds?: ReadonlySet<string>;
+  onExportSvg?: (board: PlannerBoard) => void;
+  onExportPng?: (board: PlannerBoard) => void;
 }) {
   if (!board.plan) return null;
   const members = boardMembers(board);
@@ -107,6 +109,7 @@ function BoardPreview({
         sheet={board.plan}
         memberColors={memberColors}
         svgId={`planner-${board.key}`}
+        highlightPanelIds={highlightPanelIds}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
@@ -114,26 +117,28 @@ function BoardPreview({
           {board.panels.length} panel{board.panels.length === 1 ? '' : 's'} ·{' '}
           {board.plan.utilization.toFixed(0)}% used
         </p>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={`Export ${title} as SVG`}
-            onClick={() => onExportSvg(board)}
-          >
-            SVG
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={`Export ${title} as PNG`}
-            onClick={() => onExportPng(board)}
-          >
-            PNG
-          </Button>
-        </div>
+        {onExportSvg && onExportPng && (
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label={`Export ${title} as SVG`}
+              onClick={() => onExportSvg(board)}
+            >
+              SVG
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label={`Export ${title} as PNG`}
+              onClick={() => onExportPng(board)}
+            >
+              PNG
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -143,6 +148,7 @@ export default function PlannerScreen() {
   const project = useOutletContext<Project>();
   const { toast } = useToast();
   const refreshSignal = useRefreshSignal();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [members, setMembers] = useState<StructuralMember[]>([]);
   const [lumber, setLumber] = useState<LumberRequirement[]>([]);
   const [pieces, setPieces] = useState<MatchPiece[]>([]);
@@ -239,6 +245,48 @@ export default function PlannerScreen() {
     [members, lumber, pieces, project.stock, project.costs, plan],
   );
 
+  const scope = searchParams.get('scope') === 'member' ? 'member' : 'project';
+  const requestedMemberId = searchParams.get('member') ?? '';
+  const selectedMemberId = members.some((member) => member.id === requestedMemberId)
+    ? requestedMemberId
+    : (members[0]?.id ?? '');
+  const selectedMember = members.find((member) => member.id === selectedMemberId);
+  const memberProjection =
+    scope === 'member' && selectedMemberId
+      ? state.memberProjections.get(selectedMemberId)
+      : undefined;
+  const visibleReviews =
+    scope === 'project'
+      ? state.reviews
+      : state.reviews.filter(
+          (review) => review.group.requirement.memberId === selectedMemberId,
+        );
+  const visibleBoards = useMemo(
+    () => (scope === 'project' ? state.boards : (memberProjection?.boards ?? [])),
+    [scope, state.boards, memberProjection],
+  );
+
+  function changeScope(nextScope: 'project' | 'member') {
+    const next = new URLSearchParams(searchParams);
+    if (nextScope === 'project') {
+      next.delete('scope');
+      next.delete('member');
+    } else {
+      next.set('scope', 'member');
+      if (!next.get('member') && members[0]) {
+        next.set('member', members[0].id);
+      }
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  function changeMember(memberId: string) {
+    const next = new URLSearchParams(searchParams);
+    next.set('scope', 'member');
+    next.set('member', memberId);
+    setSearchParams(next, { replace: true });
+  }
+
   const memberColors = useMemo(
     () =>
       buildMemberColorMap(
@@ -250,13 +298,13 @@ export default function PlannerScreen() {
   );
 
   const reusedBoards = useMemo(
-    () => state.boards.filter((board) => board.source === 'reuse'),
-    [state.boards],
+    () => visibleBoards.filter((board) => board.source === 'reuse'),
+    [visibleBoards],
   );
 
   const newStockBoards = useMemo(
-    () => state.boards.filter((board) => board.source === 'new_stock'),
-    [state.boards],
+    () => visibleBoards.filter((board) => board.source === 'new_stock'),
+    [visibleBoards],
   );
 
   const reusableOffcuts = useMemo<ReusableOffcutEntry[]>(
@@ -360,6 +408,13 @@ export default function PlannerScreen() {
     committing ||
     state.reviews.length === 0 ||
     state.counts.needsDecision > 0;
+  const reviewedTotal =
+    scope === 'project' ? state.counts.requirements : visibleReviews.length;
+  const reviewedDecided =
+    scope === 'project'
+      ? state.counts.decided
+      : visibleReviews.filter((review) => review.status !== 'needsDecision').length;
+  const memberCoverage = memberProjection?.panelCoverage;
 
   async function handleCommit() {
     if (commitDisabled) return;
@@ -471,11 +526,38 @@ export default function PlannerScreen() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         title="Planner"
-        description="Review every member and project-level requirement against the shared inventory."
+        description={
+          scope === 'project'
+            ? 'Review every member and project-level requirement against the shared inventory.'
+            : 'Review one member against the shared inventory without changing the allocation.'
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">Project scope</Badge>
+        <div
+          role="group"
+          aria-label="Planner scope"
+          className="inline-flex rounded-md border p-0.5"
+        >
+          <Button
+            type="button"
+            size="sm"
+            variant={scope === 'project' ? 'secondary' : 'ghost'}
+            aria-pressed={scope === 'project'}
+            onClick={() => changeScope('project')}
+          >
+            Project scope
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={scope === 'member' ? 'secondary' : 'ghost'}
+            aria-pressed={scope === 'member'}
+            onClick={() => changeScope('member')}
+          >
+            Member scope
+          </Button>
+        </div>
         <Badge variant="outline">{statusLabel}</Badge>
         {plan.status === 'needs_review' && (
           <Badge className="border-amber-600/30 bg-amber-50 text-amber-700">
@@ -484,7 +566,31 @@ export default function PlannerScreen() {
         )}
       </div>
 
-      {state.boards.length > 0 && (
+      {scope === 'member' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="planner-member" className="text-sm font-medium">
+            Structural member
+          </label>
+          <select
+            id="planner-member"
+            aria-label="Structural member"
+            className="h-9 rounded-md border bg-background px-3 text-sm"
+            value={selectedMemberId}
+            onChange={(event) => changeMember(event.target.value)}
+          >
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.label}
+              </option>
+            ))}
+          </select>
+          {selectedMember && (
+            <span className="text-sm text-muted-foreground">{selectedMember.label}</span>
+          )}
+        </div>
+      )}
+
+      {scope === 'project' && state.boards.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -531,11 +637,19 @@ export default function PlannerScreen() {
         <div className="flex items-center justify-center py-10 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading planner…
         </div>
-      ) : state.reviews.length === 0 ? (
+      ) : visibleReviews.length === 0 ? (
         <EmptyState
           icon={PackageSearch}
-          title="No formwork requirements yet"
-          description="Add structural members or lumber requirements to start planning."
+          title={
+            scope === 'member'
+              ? 'No requirements for this member'
+              : 'No formwork requirements yet'
+          }
+          description={
+            scope === 'member'
+              ? 'Select another member or add requirements to this member.'
+              : 'Add structural members or lumber requirements to start planning.'
+          }
           action={
             <Button asChild>
               <Link to="../members">Add structural members</Link>
@@ -549,15 +663,31 @@ export default function PlannerScreen() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1 text-sm">
                   <p data-testid="planner-progress-summary">
-                    <span className="font-medium">{state.counts.decided}</span> of{' '}
-                    {state.counts.requirements} requirements decided
+                    <span className="font-medium">{reviewedDecided}</span> of{' '}
+                    {reviewedTotal} requirements decided
                   </p>
-                  <p className="text-muted-foreground">
-                    {state.counts.reused} reused · {state.counts.newStock} new stock
-                  </p>
+                  {scope === 'project' ? (
+                    <p className="text-muted-foreground">
+                      {state.counts.reused} reused · {state.counts.newStock} new stock
+                    </p>
+                  ) : (
+                    memberCoverage && (
+                      <div className="space-y-0.5 text-muted-foreground">
+                        <p data-testid="planner-member-coverage">
+                          Panel coverage: {memberCoverage.reused} reused ·{' '}
+                          {memberCoverage.newStock} new stock · {memberCoverage.unplaced}{' '}
+                          unplaced
+                        </p>
+                        <p data-testid="planner-member-boards">
+                          Served by {memberProjection.distinctBoardCount} board
+                          {memberProjection.distinctBoardCount === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    )
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {hasResettableDecisions && (
+                  {scope === 'project' && hasResettableDecisions && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -567,39 +697,39 @@ export default function PlannerScreen() {
                       Reset declines
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    type="button"
-                    onClick={() => void handleCommit()}
-                    disabled={commitDisabled}
-                    title={
-                      state.counts.needsDecision > 0
-                        ? 'Decide every requirement before committing'
-                        : undefined
-                    }
-                  >
-                    {committing
-                      ? 'Committing…'
-                      : plan.status === 'committed'
-                        ? 'Re-commit plan'
-                        : 'Commit plan'}
-                  </Button>
+                  {scope === 'project' && (
+                    <Button
+                      size="sm"
+                      type="button"
+                      onClick={() => void handleCommit()}
+                      disabled={commitDisabled}
+                      title={
+                        state.counts.needsDecision > 0
+                          ? 'Decide every requirement before committing'
+                          : undefined
+                      }
+                    >
+                      {committing
+                        ? 'Committing…'
+                        : plan.status === 'committed'
+                          ? 'Re-commit plan'
+                          : 'Commit plan'}
+                    </Button>
+                  )}
                 </div>
               </div>
               <div
                 role="progressbar"
                 aria-label="Planner review progress"
                 aria-valuemin={0}
-                aria-valuemax={state.counts.requirements}
-                aria-valuenow={state.counts.decided}
+                aria-valuemax={reviewedTotal}
+                aria-valuenow={reviewedDecided}
                 className="h-2 w-full overflow-hidden rounded-full bg-muted"
               >
                 <div
                   className="h-full rounded-full bg-primary transition-[width]"
                   style={{
-                    width: `${Math.round(
-                      (state.counts.decided / state.counts.requirements) * 100,
-                    )}%`,
+                    width: `${reviewedTotal > 0 ? Math.round((reviewedDecided / reviewedTotal) * 100) : 0}%`,
                   }}
                 />
               </div>
@@ -607,7 +737,7 @@ export default function PlannerScreen() {
           </Card>
 
           <MatchGroups
-            reviews={state.reviews}
+            reviews={visibleReviews}
             memberColors={memberColors}
             lockedRequirementIds={lockedRequirementIds}
             onAccept={handleAccept}
@@ -632,8 +762,15 @@ export default function PlannerScreen() {
                     key={board.key}
                     board={board}
                     memberColors={memberColors}
-                    onExportSvg={(item) => exportBoard(item, 'svg')}
-                    onExportPng={(item) => exportBoard(item, 'png')}
+                    highlightPanelIds={
+                      scope === 'member' ? memberProjection?.panelIds : undefined
+                    }
+                    onExportSvg={
+                      scope === 'project' ? (item) => exportBoard(item, 'svg') : undefined
+                    }
+                    onExportPng={
+                      scope === 'project' ? (item) => exportBoard(item, 'png') : undefined
+                    }
                   />
                 ))}
               </CardContent>
@@ -651,15 +788,22 @@ export default function PlannerScreen() {
                     key={board.key}
                     board={board}
                     memberColors={memberColors}
-                    onExportSvg={(item) => exportBoard(item, 'svg')}
-                    onExportPng={(item) => exportBoard(item, 'png')}
+                    highlightPanelIds={
+                      scope === 'member' ? memberProjection?.panelIds : undefined
+                    }
+                    onExportSvg={
+                      scope === 'project' ? (item) => exportBoard(item, 'svg') : undefined
+                    }
+                    onExportPng={
+                      scope === 'project' ? (item) => exportBoard(item, 'png') : undefined
+                    }
                   />
                 ))}
               </CardContent>
             </Card>
           )}
 
-          {reusableOffcuts.length > 0 && (
+          {scope === 'project' && reusableOffcuts.length > 0 && (
             <div data-testid="planner-offcuts">
               <OffcutIntake
                 reusableOffcuts={reusableOffcuts}

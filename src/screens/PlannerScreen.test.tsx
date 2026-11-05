@@ -60,10 +60,10 @@ beforeEach(() => {
   exportPngMock.mockResolvedValue(undefined);
 });
 
-async function renderPlanner(projectId: string) {
+async function renderPlanner(projectId: string, path = '') {
   unlockProject(projectId);
   const view = render(
-    <MemoryRouter initialEntries={[`/projects/${projectId}/planner`]}>
+    <MemoryRouter initialEntries={[`/projects/${projectId}/planner${path}`]}>
       <TestAuthProvider user={testUser}>
         <App />
       </TestAuthProvider>
@@ -422,5 +422,113 @@ describe('PlannerScreen project scope', () => {
       expect(returned!.width).toBeGreaterThan(0);
     });
     expect(await screen.findByText('Added')).toBeInTheDocument();
+  });
+});
+
+describe('PlannerScreen member scope', () => {
+  it('shows a shared board under each member with only that member highlighted', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Member Projection Site' });
+    const c1 = await addMember(project.id, 'C1');
+    const c2 = await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await screen.findByText(/shares piece · remaining space fits/i);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    const committedDraft = (await getProjectPlan(project.id))!.acceptedByRequirement;
+
+    await user.click(screen.getByRole('button', { name: /member scope/i }));
+
+    const board = await screen.findByTestId('planner-reused-boards');
+    const card = within(board).getAllByTestId(/planner-board-/)[0]!;
+    expect(
+      card.querySelector(`[data-testid="panel-${c1.id}-panel-1"]`),
+    ).toHaveAttribute('data-highlighted', 'true');
+    expect(
+      card.querySelector(`[data-testid="panel-${c2.id}-panel-1"]`),
+    ).toHaveAttribute('data-highlighted', 'false');
+
+    await user.selectOptions(
+      screen.getByLabelText(/structural member/i),
+      c2.id,
+    );
+
+    await waitFor(() => {
+      expect(
+        card.querySelector(`[data-testid="panel-${c2.id}-panel-1"]`),
+      ).toHaveAttribute('data-highlighted', 'true');
+    });
+    expect(
+      card.querySelector(`[data-testid="panel-${c1.id}-panel-1"]`),
+    ).toHaveAttribute('data-highlighted', 'false');
+    expect((await getProjectPlan(project.id))!.acceptedByRequirement).toEqual(
+      committedDraft,
+    );
+  });
+
+  it('filters project lumber and keeps global candidate availability in member scope', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Member Filter Site' });
+    const c1 = await addMember(project.id, 'C1');
+    const c2 = await addMember(project.id, 'C2');
+    await createLumberRequirement({
+      projectId: project.id,
+      memberId: c1.id,
+      label: 'C1 brace',
+      length: 2,
+      crossSection: '2x3',
+    });
+    await createLumberRequirement({
+      projectId: project.id,
+      label: 'Project brace',
+      length: 2,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+
+    await user.click(screen.getByRole('button', { name: /member scope/i }));
+    expect(screen.getByText('C1 brace')).toBeInTheDocument();
+    expect(screen.queryByText('Project brace')).not.toBeInTheDocument();
+    expect(screen.getByTestId('planner-member-coverage')).toHaveTextContent(
+      /1 reused · 0 new stock · 0 unplaced/i,
+    );
+    expect(screen.getByTestId('planner-member-boards')).toHaveTextContent('1 board');
+    expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planner-offcuts')).not.toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByLabelText(/structural member/i),
+      c2.id,
+    );
+    expect(
+      await screen.findByText(/shares piece · remaining space fits/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('C1 brace')).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan?.acceptedByRequirement[`${c2.id}-panel-1`]).toBeDefined();
+    });
+    await expect(getPiece(project.id, Object.values(
+      (await getProjectPlan(project.id))!.acceptedByRequirement,
+    )[0]!)).resolves.toMatchObject({ usageCount: 0 });
   });
 });

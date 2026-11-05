@@ -15,6 +15,7 @@ export interface SheetDiagramProps {
   className?: string;
   decorative?: boolean;
   ariaLabel?: string;
+  highlightPanelIds?: ReadonlySet<string>;
 }
 
 export interface CutPlanSheetProps {
@@ -77,6 +78,7 @@ export function SheetDiagram({
   className = '',
   decorative = false,
   ariaLabel,
+  highlightPanelIds,
 }: SheetDiagramProps) {
   const { stock } = sheet;
   const patternKey =
@@ -173,12 +175,16 @@ export function SheetDiagram({
 
       {sheet.panels.map((panel) => {
         const fill = memberColors.get(panel.label) ?? MEMBER_COLORS[0];
+        const highlighted =
+          !highlightPanelIds || highlightPanelIds.has(panel.panelId);
 
         return (
           <g
             key={panel.panelId}
             data-testid={decorative ? undefined : `panel-${panel.panelId}`}
             data-rotated={String(panel.rotated)}
+            data-highlighted={highlightPanelIds ? String(highlighted) : undefined}
+            opacity={highlighted ? 1 : 0.2}
           >
             <rect
               x={transposed ? panel.y : panel.x}
@@ -202,6 +208,8 @@ export function SheetDiagram({
             ? panel.x + panel.length / 2
             : panel.y + panel.width / 2;
           const offsetY = centerY - (panel.y + panel.width / 2);
+          const highlighted =
+            !highlightPanelIds || highlightPanelIds.has(panel.panelId);
 
           return panelLabelLines(panel).map((line, index) => (
             <text
@@ -214,6 +222,7 @@ export function SheetDiagram({
               fontSize={line.fontSize}
               fontWeight={line.fontWeight}
               fill={line.fill}
+              opacity={highlighted ? 1 : 0.2}
             >
               {line.text}
             </text>
