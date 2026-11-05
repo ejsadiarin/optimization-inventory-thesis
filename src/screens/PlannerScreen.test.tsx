@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { addPiece, getPiece, retirePiece } from '@/db/inventory';
+import { addPiece, getPiece, listPieces, retirePiece } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { getProjectPlan } from '@/db/plan';
 import { seedProject } from '@/test/fixtures';
@@ -36,13 +36,28 @@ vi.mock('@/db/workflow', async (importOriginal) => {
   const mock = await import('@/test/workflowMock');
   return { ...actual, ...mock };
 });
+vi.mock('@/lib/download', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/download')>();
+  return {
+    ...actual,
+    downloadSvgAsFile: vi.fn(),
+    downloadSvgAsPng: vi.fn().mockResolvedValue(undefined),
+  };
+});
 import { unlockProject } from '@/lib/projectSession';
+import { downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
+
+const exportSvgMock = vi.mocked(downloadSvgAsFile);
+const exportPngMock = vi.mocked(downloadSvgAsPng);
 
 beforeEach(() => {
   resetMembersMock();
   resetInventoryMock();
   resetPlanMock();
   resetWorkflowMock();
+  exportSvgMock.mockReset();
+  exportPngMock.mockReset();
+  exportPngMock.mockResolvedValue(undefined);
 });
 
 async function renderPlanner(projectId: string) {
@@ -97,8 +112,9 @@ describe('PlannerScreen project scope', () => {
     expect(screen.getByText(/project scope/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /commit plan/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /release/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /offcut/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export all svg/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /export all png/i })).toBeInTheDocument();
+    expect(screen.getByText(/^reusable offcuts$/i)).toBeInTheDocument();
   });
 
   it('shows a shared-space hint when a board fits another member panel', async () => {
@@ -333,5 +349,78 @@ describe('PlannerScreen project scope', () => {
     });
     expect(screen.getByRole('button', { name: /commit plan/i })).toBeDisabled();
     expect([first.id, second.id]).toContain(committedPieceId);
+  });
+
+  it('exports a single board and all boards as SVG and PNG', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Export Site' });
+    await addMember(project.id, 'C1');
+    await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await screen.findByText(/shares piece · remaining space fits/i);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+
+    const board = await screen.findByTestId('planner-reused-boards');
+    expect(within(board).getAllByTestId(/planner-board-/)).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /export .* as svg/i }));
+    expect(exportSvgMock).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: /export all svg/i }));
+    expect(exportSvgMock).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole('button', { name: /export .* as png/i }));
+    await waitFor(() => expect(exportPngMock).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: /export all png/i }));
+    await waitFor(() => expect(exportPngMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('returns a reusable offcut to inventory with the stock thickness', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Offcut Site' });
+    await addMember(project.id, 'C1');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    const offcuts = await screen.findByTestId('planner-offcuts');
+
+    await user.click(
+      within(offcuts).getByRole('checkbox', {
+        name: /keep offcut 1 from reused piece/i,
+      }),
+    );
+    await user.click(
+      within(offcuts).getByRole('button', { name: /add selected to inventory/i }),
+    );
+
+    await waitFor(async () => {
+      const pieces = await listPieces(project.id);
+      const returned = pieces.find((piece) => piece.source === 'Cut plan offcut');
+      expect(returned).toMatchObject({
+        materialType: 'phenolic',
+        thickness: project.stock.phenolic.thickness,
+        condition: 'Good',
+        usageCount: 0,
+        retired: false,
+      });
+      expect(returned!.length).toBeGreaterThan(0);
+      expect(returned!.width).toBeGreaterThan(0);
+    });
+    expect(await screen.findByText('Added')).toBeInTheDocument();
   });
 });

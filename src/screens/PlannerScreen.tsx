@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { Loader2, PackageSearch } from 'lucide-react';
+import OffcutIntake from '@/components/optimize/OffcutIntake';
+import { offcutKey, type ReusableOffcutEntry } from '@/components/optimize/offcuts';
 import { SheetDiagram } from '@/components/optimize/CutPlanSheet';
 import MatchGroups from '@/components/optimize/MatchGroups';
 import { buildMemberColorMap } from '@/components/optimize/memberColors';
@@ -10,13 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { useToast } from '@/components/ui/toast';
 import {
   emptyProjectPlan,
   getProjectPlan,
   saveProjectPlan,
   type ProjectPlan,
 } from '@/db/plan';
-import { listPieces } from '@/db/inventory';
+import { addPiece, listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import type {
   LumberRequirement,
@@ -25,6 +28,7 @@ import type {
 } from '@/db/types';
 import type { InventoryMatch, MatchGroup, MatchPiece } from '@/engine/types';
 import { declinedKey } from '@/lib/candidateKeys';
+import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
 import { shortId } from '@/lib/format';
 import {
   buildPlannerState,
@@ -75,21 +79,26 @@ function boardMembers(board: PlannerBoard): string[] {
 function BoardPreview({
   board,
   memberColors,
+  onExportSvg,
+  onExportPng,
 }: {
   board: PlannerBoard;
   memberColors: ReadonlyMap<string, string>;
+  onExportSvg: (board: PlannerBoard) => void;
+  onExportPng: (board: PlannerBoard) => void;
 }) {
   if (!board.plan) return null;
   const members = boardMembers(board);
+  const title = board.pieceId
+    ? shortId(board.pieceId)
+    : `Stock sheet ${board.plan.sheetIndex + 1}`;
   return (
     <div
       className="space-y-2 rounded-md border p-3"
       data-testid={`planner-board-${board.key}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-mono text-sm font-semibold">
-          {board.pieceId ? shortId(board.pieceId) : `Stock sheet ${board.plan.sheetIndex + 1}`}
-        </p>
+        <p className="font-mono text-sm font-semibold">{title}</p>
         <p className="text-sm text-muted-foreground">
           {members.length > 0 ? members.join(' · ') : 'New stock'}
         </p>
@@ -99,17 +108,40 @@ function BoardPreview({
         memberColors={memberColors}
         svgId={`planner-${board.key}`}
       />
-      <p className="text-xs text-muted-foreground">
-        {board.source === 'reuse' ? 'Reused board' : 'New stock'} ·{' '}
-        {board.panels.length} panel{board.panels.length === 1 ? '' : 's'} ·{' '}
-        {board.plan.utilization.toFixed(0)}% used
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {board.source === 'reuse' ? 'Reused board' : 'New stock'} ·{' '}
+          {board.panels.length} panel{board.panels.length === 1 ? '' : 's'} ·{' '}
+          {board.plan.utilization.toFixed(0)}% used
+        </p>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label={`Export ${title} as SVG`}
+            onClick={() => onExportSvg(board)}
+          >
+            SVG
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label={`Export ${title} as PNG`}
+            onClick={() => onExportPng(board)}
+          >
+            PNG
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function PlannerScreen() {
   const project = useOutletContext<Project>();
+  const { toast } = useToast();
   const refreshSignal = useRefreshSignal();
   const [members, setMembers] = useState<StructuralMember[]>([]);
   const [lumber, setLumber] = useState<LumberRequirement[]>([]);
@@ -119,6 +151,10 @@ export default function PlannerScreen() {
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [committing, setCommitting] = useState(false);
+  const [selectedOffcutKeys, setSelectedOffcutKeys] = useState<Set<string>>(() => new Set());
+  const [addedOffcutKeys, setAddedOffcutKeys] = useState<Set<string>>(() => new Set());
+  const [addingOffcuts, setAddingOffcuts] = useState(false);
+  const [intakeError, setIntakeError] = useState('');
   const dirtyPlanRef = useRef(false);
   const loadedOnceRef = useRef(false);
 
@@ -220,6 +256,26 @@ export default function PlannerScreen() {
 
   const newStockBoards = useMemo(
     () => state.boards.filter((board) => board.source === 'new_stock'),
+    [state.boards],
+  );
+
+  const reusableOffcuts = useMemo<ReusableOffcutEntry[]>(
+    () =>
+      state.boards.flatMap((board) =>
+        board.offcuts
+          .filter((offcut) => offcut.reusable)
+          .map((offcut) => ({
+            key:
+              board.source === 'reuse' && board.pieceId
+                ? offcutKey(0, offcut, board.pieceId)
+                : offcutKey(board.plan?.sheetIndex ?? 0, offcut),
+            sheetIndex: board.plan?.sheetIndex ?? 0,
+            offcut,
+            ...(board.source === 'reuse' && board.pieceId
+              ? { pieceId: board.pieceId }
+              : {}),
+          })),
+      ),
     [state.boards],
   );
 
@@ -326,6 +382,91 @@ export default function PlannerScreen() {
     updatePlan((current) => releaseAllocation(current, group.requirement.id));
   }
 
+  function boardExportLabel(board: PlannerBoard): string {
+    if (board.source === 'reuse' && board.pieceId) {
+      return `reused-board-${shortId(board.pieceId)}`;
+    }
+    return `stock-sheet-${(board.plan?.sheetIndex ?? 0) + 1}`;
+  }
+
+  function exportBoard(board: PlannerBoard, extension: 'svg' | 'png') {
+    const element = document.getElementById(`planner-${board.key}`);
+    if (!element || element.tagName.toLowerCase() !== 'svg') {
+      setError('Could not find the cutting plan board to export.');
+      return;
+    }
+    const filename = buildDatedFilename(
+      project.name,
+      boardExportLabel(board),
+      extension,
+    );
+    const svg = element as unknown as SVGSVGElement;
+    if (extension === 'svg') {
+      downloadSvgAsFile(filename, svg);
+      return;
+    }
+    void downloadSvgAsPng(filename, svg).catch(() => {
+      setError('Could not export the cutting plan image.');
+    });
+  }
+
+  function exportAllBoards(extension: 'svg' | 'png') {
+    state.boards.forEach((board) => exportBoard(board, extension));
+  }
+
+  function toggleOffcut(key: string, checked: boolean) {
+    setSelectedOffcutKeys((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  }
+
+  async function handleAddOffcuts() {
+    const pending = reusableOffcuts.filter(
+      (entry) => selectedOffcutKeys.has(entry.key) && !addedOffcutKeys.has(entry.key),
+    );
+    if (pending.length === 0) return;
+
+    setAddingOffcuts(true);
+    setIntakeError('');
+    try {
+      const dateAdded = new Date().toISOString();
+      for (const entry of pending) {
+        await addPiece({
+          projectId: project.id,
+          materialType: 'phenolic',
+          length: entry.offcut.length,
+          width: entry.offcut.width,
+          thickness: project.stock.phenolic.thickness,
+          condition: 'Good',
+          dateAdded,
+          source: 'Cut plan offcut',
+        });
+      }
+      setAddedOffcutKeys(
+        (current) => new Set([...current, ...pending.map((entry) => entry.key)]),
+      );
+      setSelectedOffcutKeys(new Set());
+      toast({
+        title: `Returned ${pending.length} offcut${pending.length === 1 ? '' : 's'} to inventory`,
+        description: 'Added as Good with 0 uses. Available in the next planning session.',
+        variant: 'success',
+      });
+      await load();
+    } catch (caught) {
+      setIntakeError(
+        caught instanceof Error ? caught.message : 'Could not add offcuts to inventory.',
+      );
+    } finally {
+      setAddingOffcuts(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
@@ -342,6 +483,27 @@ export default function PlannerScreen() {
           </Badge>
         )}
       </div>
+
+      {state.boards.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => exportAllBoards('svg')}
+          >
+            Export all SVG
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => exportAllBoards('png')}
+          >
+            Export all PNG
+          </Button>
+        </div>
+      )}
 
       {plan.invalidations.length > 0 && (
         <div
@@ -470,6 +632,8 @@ export default function PlannerScreen() {
                     key={board.key}
                     board={board}
                     memberColors={memberColors}
+                    onExportSvg={(item) => exportBoard(item, 'svg')}
+                    onExportPng={(item) => exportBoard(item, 'png')}
                   />
                 ))}
               </CardContent>
@@ -487,10 +651,26 @@ export default function PlannerScreen() {
                     key={board.key}
                     board={board}
                     memberColors={memberColors}
+                    onExportSvg={(item) => exportBoard(item, 'svg')}
+                    onExportPng={(item) => exportBoard(item, 'png')}
                   />
                 ))}
               </CardContent>
             </Card>
+          )}
+
+          {reusableOffcuts.length > 0 && (
+            <div data-testid="planner-offcuts">
+              <OffcutIntake
+                reusableOffcuts={reusableOffcuts}
+                selectedOffcutKeys={selectedOffcutKeys}
+                addedOffcutKeys={addedOffcutKeys}
+                addingOffcuts={addingOffcuts}
+                intakeError={intakeError}
+                onToggleOffcut={toggleOffcut}
+                onAddOffcuts={() => void handleAddOffcuts()}
+              />
+            </div>
           )}
         </>
       )}
