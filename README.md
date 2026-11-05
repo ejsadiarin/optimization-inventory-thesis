@@ -29,10 +29,12 @@ npm run dev
 1. Sign in, then create a project and save the one-time access code shown after creation (it cannot be recovered). Or click **Load demo data** to populate a realistic project; its access code is `DEMO01`.
 2. Add structural members (columns, beams, slabs) and any manual lumber requirements.
 3. Add reusable phenolic boards and lumber pieces to inventory.
-4. Open **Optimize** to accept reuse matches, review SVG cut plans, and keep reusable offcuts.
-5. Open **Inventory** to export the inventory CSV, and use the cut step to export sheet images.
+4. Open **Planner**. Project scope shows the global allocation across every member, shared boards, new-stock cutting plans, offcut return, and board exports. Review reuse candidates, then **Commit plan** to record usage.
+5. Switch to **Member scope** to filter the same plan to one member; use **Exclusive Member Plan** when that member's panels must not share boards. Open **Inventory** for piece history and CSV export.
 
-The app is installable and works offline after the first successful load. Data is local to the browser profile; clearing site data removes projects.
+Planner is the project landing screen. The navigation has four items: Members, Inventory, Planner, and Settings. Legacy `/optimize`, `/focus`, and `/summary` links redirect to the matching Planner scope.
+
+The app is installable and works offline after the first successful load. Cloud Firestore is the source of truth with a persistent local cache; queued writes flush when the device reconnects.
 
 ## Verification
 

@@ -1,5 +1,7 @@
 # Persist optimization decisions in a project workflow document
 
+> **Superseded by [ADR-0008](./0008-two-scope-planner.md).** The `workflow/optimization` document and the Optimize screen are no longer read at runtime. The live state is now the project plan at `workflow/planner`. This record is kept for historical context.
+
 The optimization screen used to keep its state in two places that were never designed for it: satisfied requirement IDs lived inside the latest cutting-plan snapshot, declines were local component state lost on every remount, and the engineer's position in the workflow had no representation at all. A guided two-step flow (reuse, then plan cuts) needs decisions to survive reloads and needs the summary to read them without depending on which plan record happened to be written last. We introduce a project-scoped workflow document as the live state of the optimization session, and demote cutting-plan records to generated audit artifacts.
 
 ## Decision

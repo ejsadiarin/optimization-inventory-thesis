@@ -19,7 +19,7 @@ A Progressive Web App that:
 5. **Tracks materials** across their lifecycle — from new stock through multiple uses to inspection and retirement
 6. **Calculates savings** by comparing optimized sheet usage against naive usage, using project-specific material costs
 
-The app works offline on any device, stores all data locally in IndexedDB, and is deployed as a PWA via Vercel.
+The app is a PWA deployed on Vercel. Firebase Authentication provides sign-in, and Cloud Firestore is the source of truth with a persistent local cache that keeps projects usable offline. Writes made offline are queued and flushed when the device reconnects.
 
 ## User Stories
 
@@ -61,55 +61,62 @@ The app works offline on any device, stores all data locally in IndexedDB, and i
 25. As a site engineer, I want to manually change a piece's condition back to "Good" after inspecting it, so that inspected pieces return to active inventory.
 26. As a site engineer, I want to see how long each piece has been in inventory (days since date added), so that I can identify stale materials.
 
-### Optimization and Matching (Combined Screen)
+### Planner — Project Scope
 
-27. As a site engineer, I want to run optimization for my project's structural members and lumber requirements in one action, so that I get a complete plan for all my formwork needs.
-28. As a site engineer, I want the system to first check my inventory for reusable pieces that match each panel requirement (correct type, sufficient dimensions, not retired), before planning cuts on new stock, so that I maximize reuse.
-29. As a site engineer, I want inventory matches ranked by smallest-fit-first (closest size to the requirement), so that the best match is at the top and material waste is minimized.
+27. As a site engineer, I want one Planner with Project and Member scopes, so that I can review the whole project or one member without switching screens.
+28. As a site engineer, I want the Planner to compute one global allocation across every member and active phenolic piece, so that boards can serve panels from different members when the remaining space fits.
+29. As a site engineer, I want inventory matches ranked by smallest-fit-first, so that the best match is at the top and material waste is minimized.
 30. As a site engineer, I want oversized inventory matches flagged as "requires cutting", so that I know which pieces need trimming before use.
-31. As a site engineer, I want to accept or decline each inventory match, so that I control which pieces actually get used.
-32. As a site engineer, I want accepted matches to increment the piece's usage count and record the structural member and date in the usage log, so that tracking stays current.
-33. As a site engineer, I want the system to generate cutting plans for all unmatched panel requirements on new plywood stock sheets (1.22m × 2.44m default), using a guillotine-constrained shelf-based algorithm with rotation allowed, so that I minimize the number of sheets I need to buy.
-34. As a site engineer, I want the system to generate cutting plans for all unmatched lumber requirements, grouped by cross-section, using First-Fit Decreasing on stock lengths, so that I minimize lumber purchases.
-35. As a site engineer, I want the cutting plan to automatically use multiple stock sheets when panels don't fit on one, so that I get a complete plan regardless of project size.
-36. As a site engineer, I want to see each stock sheet's cutting plan as an SVG diagram with labeled, color-coded rectangles (one color per structural member, hatched red for waste, hatched gray for reusable offcuts), so that I can follow the plan on site.
-37. As a site engineer, I want to see dimensions labeled on each piece in the SVG diagram, so that I know exactly where to measure and cut.
-38. As a site engineer, I want to see utilization percentage and waste percentage per stock sheet, so that I can evaluate the plan quality.
-39. As a site engineer, I want to see total estimated savings (sheets saved × cost per sheet), so that I can report procurement savings to the project owner.
-40. As a site engineer, I want to be prompted about which offcuts from the cutting plan to keep in inventory (with their dimensions shown), so that reusable offcuts are tracked rather than discarded.
-41. As a site engineer, I want offcuts I choose to keep automatically added to inventory as new pieces with condition "Good" and usage count 0, so that they're available for future matching.
+31. As a site engineer, I want to accept or decline each candidate, so that I control which pieces actually get used.
+32. As a site engineer, I want reuse decisions to persist as a project draft across reloads without recording usage, so that I can review the plan before committing it.
+33. As a site engineer, I want to commit the project plan in one action, so that every piece used by the plan records usage once and shared pieces name every member they serve.
+34. As a site engineer, I want committed allocations locked, so that later packing cannot silently move a board I have already cut.
+35. As a site engineer, I want to release a locked allocation explicitly, so that I can replan it without erasing its usage history.
+36. As a site engineer, I want the system to show when a plan needs review after a member or inventory change, so that I know which allocations were released and why.
+37. As a site engineer, I want to see each physical board as a cutting plan with labeled, color-coded panels, dimensions, utilization, waste, and reusable offcuts, so that I can follow the plan on site.
+38. As a site engineer, I want to return reusable offcuts to inventory from Project scope, so that they are available for future matching.
+39. As a site engineer, I want to export one board or every board as SVG or PNG, so that I can print the plan or include it in reports.
+40. As a site engineer, I want Project scope to include project-level lumber and procurement totals, so that I can see the full material requirement in one place.
+
+### Planner — Member Scope
+
+41. As a site engineer, I want Member scope to filter the same global allocation to one member, so that I can review that member without hiding boards shared with other members.
+42. As a site engineer, I want the selected member's panels highlighted and other members muted on each shared board, so that I can see exactly which cuts belong to the member.
+43. As a site engineer, I want a member summary showing panel coverage and the number of distinct boards serving the member, so that I can judge that member's reuse performance.
+44. As a site engineer, I want an Exclusive Member Plan toggle, so that a member's panels use only unshared inventory pieces and fall back to new stock when necessary.
+45. As a site engineer, I want offcut return and exports to stay in Project scope, so that member views remain focused on that member's plan.
 
 ### Data Export
 
-42. As a site engineer, I want to export the cutting plan visualization as an image, so that I can print it or include it in project reports.
-43. As a site engineer, I want to export my inventory data as a CSV file, so that I can analyze it in a spreadsheet for the thesis evaluation.
-44. As a site engineer, I want to see a summary statistics screen showing overall utilization %, total waste %, materials reused count, and total estimated savings, so that I can evaluate system performance.
+46. As a site engineer, I want to export the cutting plan visualization as an image, so that I can print it or include it in project reports.
+47. As a site engineer, I want to export my inventory data as a CSV file, so that I can analyze it in a spreadsheet for the thesis evaluation.
+48. As a site engineer, I want the Project scope to show procurement totals — boards used, sheets saved, utilization, and waste — so that I can evaluate system performance.
 
 ### Offline & PWA
 
-45. As a site engineer, I want the app to work fully offline after the first visit, so that I can use it on a construction site with no internet.
-46. As a site engineer, I want to install the app to my device's home screen, so that it feels like a native app.
-47. As a site engineer, I want all my data stored locally on my device, so that I don't depend on a server.
+49. As a site engineer, I want the app to keep working offline after the first successful load, so that I can use it on a construction site with no internet.
+50. As a site engineer, I want to install the app to my device's home screen, so that it feels like a native app.
+51. As a site engineer, I want my projects synced through Cloud Firestore while remaining cached locally, so that I can switch devices without losing work.
 
 ## Implementation Decisions
 
 ### Architecture
 
 - **Greenfield PWA**: React + Vite + TypeScript, deployed on Vercel
-- **Offline-first data**: Dexie.js wrapping IndexedDB. All data is local. No backend, no sync, no auth server.
+- **Data and auth**: Firebase Authentication signs users in. Cloud Firestore is the source of truth and uses a persistent local cache, so reads work offline and queued writes flush on reconnect (ADR-0006).
 - **UI**: shadcn/ui component library + Tailwind CSS. Mobile-first responsive design.
 - **Visualization**: SVG for cutting plan diagrams. Color-coded per structural member, hatched patterns for waste vs. reusable offcuts.
 
 ### Module Structure
 
-- **Optimization Engine**: a pure-function module with no React or Dexie dependencies. Single entry point takes requirements + stock sizes + inventory, returns match results + cutting plans + offcuts + stats. Internally composed of:
+- **Optimization Engine**: a pure-function module with no React or Firestore dependencies. Single entry point takes requirements + stock sizes + inventory, returns match results + cutting plans + offcuts + stats. Internally composed of:
   - Structural member decomposer (type + dims → panel list)
   - Inventory matcher (requirements + inventory → ranked matches with flags)
   - 2D shelf-based FFD plywood optimizer (panels + stock size → placed panels + offcuts, guillotine-constrained, rotation-allowed)
   - 1D FFD lumber optimizer (lengths + stock lengths → assignments, grouped by cross-section)
   - Stats calculator (utilization %, waste %, savings based on cost settings)
-- **Data Store**: Dexie.js database with tables for projects, structural members, pieces, usage log entries, cutting plans. Thin CRUD — no business logic in the store.
-- **UI Layer**: React components organized by screen. Components call the optimization engine and read/write the data store. No business logic in components beyond form validation.
+- **Data Store**: Firestore repositories for projects, structural members, lumber requirements, pieces, usage log entries, the project plan, and cutting-plan snapshots. Thin CRUD — no business logic in the store.
+- **UI Layer**: React components organized by screen. The Planner builds one `PlannerState` from members, lumber, pieces, and the persistent project plan; Project and Member scopes render projections of that state. Components call the engine and read/write the repositories. No business logic in components beyond form validation.
 
 ### Cutting Optimization — Plywood (2D)
 
@@ -159,8 +166,8 @@ The app works offline on any device, stores all data locally in IndexedDB, and i
 ### Project Access
 
 - One-time access code generated at project creation, displayed once
-- Local-only gate — no backend auth
-- All data stored in device-local IndexedDB
+- Access is checked client-side against a salted hash stored in Firestore; it is a guard against accidental access, not a security boundary.
+- Project data is stored in Cloud Firestore under `projects/{projectId}` and cached locally for offline use.
 
 ### Cost and Savings
 
@@ -193,18 +200,17 @@ Test each screen through user interaction:
 - **Projects List**: create project → see access code → project appears in list. Enter wrong code → rejected. Enter correct code → project opens.
 - **Structural Members**: add column with dimensions → appears in list with correct decomposed panels shown. Edit → values update. Delete → removed.
 - **Inventory**: add piece via form → appears in list. Edit condition → updates. Retire → disappears from active list. Search → filters correctly. Piece at 5 uses → condition auto-changes to "For Inspection."
-- **Optimization + Matching**: run optimization → see match results with correct ranking → accept a match → usage count increments and log entry created → see cutting plans for remaining requirements → offcut prompt appears → accept offcuts → they appear in inventory.
+- **Planner**: open Project scope → see the global allocation and shared boards → accept and decline candidates → reload and confirm the draft persists without usage → commit and confirm each piece records usage once → release an allocation and confirm history remains → retire a committed board and confirm Needs Review → open Member scope and confirm the selected member's panels are highlighted → enable Exclusive Member Plan and confirm shared boards are excluded → return an offcut and export boards in Project scope only.
 - **Export**: CSV export produces valid CSV with all inventory fields. Stats screen shows correct numbers.
 
 ### Test tooling
 
 - **Vitest** for unit tests (fast, Vite-native)
 - **React Testing Library** + **jsdom** for component tests
-- **Dexie.js fake/in-memory IndexedDB** (via `fake-indexeddb`) for component tests that touch the store
+- **Vitest mocks and the Firebase emulator** for repository and plan tests; `fake-indexeddb/auto` remains for the legacy Dexie importer tests.
 
 ## Out of Scope
 
-- Cloud sync, multi-user, or backend server
 - iOS App Store / Google Play Store publishing
 - CSV import
 - Auto-tiling for panels larger than a stock sheet
@@ -213,7 +219,6 @@ Test each screen through user interaction:
 - Genetic algorithm or other advanced optimization beyond shelf-based FFD
 - Irregular (non-rectangular) shapes
 - Post-deployment maintenance beyond a 2-week bug-fixing window
-- User accounts or authentication beyond the local project access code
 - Material photos or camera integration
 - Notification system for expiring or degraded materials
 
@@ -222,6 +227,6 @@ Test each screen through user interaction:
 - **Thesis context**: this is a prototype for a DLSU-D Civil Engineering thesis. It will be tested on 3 real two-storey residential construction sites. The evaluation criteria are: accuracy of material matching, waste reduction compared to unoptimized cutting, and potential procurement savings. All three metrics must be extractable from the app (via summary stats and CSV export).
 - **Material types are fixed at two**: Phenolic Board (plywood) and Lumber (coco lumber). The thesis scope limits this explicitly.
 - **Structural member types are fixed at three**: Column, Beam, Slab. Footings and stairs are excluded from the prototype.
-- **Algorithm upgrade path**: if shelf-based FFD proves insufficient during site testing, MAXRECTS with guillotine constraint is the next step. The optimization engine's public API won't change — only the internal algorithm. Tests written against the public API will still pass.
+- **Algorithm upgrade path**: v1 keeps largest-board-first shelf FFD with 90° rotation. A follow-up may search several board/panel orderings and keep the best guillotine-compatible result; MAXRECTS with a guillotine constraint is a separate later decision. The optimization engine's public API won't change — only the internal algorithm.
 - **The system is advisory, not authoritative**: the schematic diagram shows that material reuse is "subjected to review and approval of an onsite in charge civil engineer." The system suggests; the engineer decides.
 - **Reference documents**: [GLOSSARY.md](../GLOSSARY.md) for canonical terminology, [docs/adr/](../docs/adr/) for architectural decisions, thesis PDF for full academic context.

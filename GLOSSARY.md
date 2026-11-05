@@ -16,9 +16,9 @@ _Avoid_: Sheet, board, piece (when referring to a panel specifically)
 The arrangement of required formwork panels on a stock sheet or length, optimized to minimize waste.
 _Avoid_: Cutting pattern (ambiguous with the algorithm's internal "pattern"), layout
 
-**Optimization Session**:
-The record of a project's optimization work: which formwork requirements have been satisfied by reuse and which candidate pieces the engineer declined. It persists across reloads and is distinct from the cutting plans it produces.
-_Avoid_: Run, pass, job
+**Project Plan**:
+The persistent record of a project's reuse decisions and lifecycle. It holds the plan draft, committed allocations, declines, placements, and invalidation warnings, and is distinct from the cutting plans it produces.
+_Avoid_: Optimization session, run, pass, job, workflow
 
 **Stock Sheet**:
 An uncut, full-size piece of material purchased from a supplier. For phenolic board: 1.22m × 2.44m. For lumber: a standard-length piece with a fixed cross-section.
@@ -85,11 +85,11 @@ A single 1D cut needed for bracing, walers, joists, or cleats, defined by length
 _Avoid_: Lumber piece (that is a tracked inventory item), lumber input
 
 **Member-linked Lumber**:
-A Lumber Requirement whose `memberId` points to a Structural Member. It appears in that member's Member Planner alongside the member's formwork panels.
+A Lumber Requirement whose `memberId` points to a Structural Member. It appears in that member's Member Scope alongside the member's formwork panels.
 _Avoid_: Member lumber, attached cut
 
 **Project-level Lumber**:
-A Lumber Requirement with no `memberId`. It is not tied to a single member and remains in the main Optimize flow.
+A Lumber Requirement with no `memberId`. It is not tied to a single member and appears in Project Scope.
 _Avoid_: Unassigned lumber, global lumber
 
 **Guillotine Cut**:
@@ -101,19 +101,67 @@ The system's approach to reusing inventory pieces: find pieces with sufficient d
 _Avoid_: Cut-to-fit, auto-recut
 
 **Reuse Decision**:
-The engineer's explicit choice about a formwork requirement: accept a candidate inventory piece or decline a candidate. A declined candidate is not offered again for that requirement until decisions are reset; an accepted piece records a usage. A requirement with no available candidate is classified as new stock automatically rather than by an explicit action.
+The engineer's explicit choice about a formwork requirement: accept a candidate inventory piece or decline a candidate. An accepted candidate assigns the requirement in the plan draft; usage is recorded only when the plan is committed. A declined candidate is not offered again for that requirement until decisions are reset. A requirement with no available candidate is classified as new stock automatically rather than by an explicit action.
 _Avoid_: Match, selection (when referring to the engineer's decision)
 
+**Requirement Status**:
+The review state of a formwork or lumber requirement in the planner: Needs Decision, Satisfied, New Stock, Exceeds Stock, or No Match. Satisfied means the requirement is covered by a reuse allocation; whether that allocation is draft or committed is tracked by the plan, not by this status.
+_Avoid_: Status (unqualified), state
+
+**Plan Draft**:
+The editable assignment of requirements to inventory pieces before the engineer commits it. Draft assignments do not record usage or change inventory.
+_Avoid_: Unsaved plan, preview (a preview is read-only; a draft is editable)
+
+**Committed Plan**:
+The plan state after the engineer commits the draft. Each piece used by the plan records one usage event, and every member served by a shared piece is recorded on that event.
+_Avoid_: Saved plan, final plan
+
+**Plan Status**:
+The lifecycle state of a plan: Draft, Committed, or Needs Review. A plan becomes Needs Review when a committed allocation is invalidated by a change to a member or inventory piece.
+_Avoid_: State, phase
+
+**Locked Allocation**:
+A committed reuse allocation that later global packing may not move. It can only be changed by explicitly releasing it.
+_Avoid_: Frozen allocation, fixed match
+
+**Release**:
+The engineer's explicit action that frees a locked allocation for replanning. Usage already recorded is not reversed.
+_Avoid_: Uncommit, undo
+
+**Panel Coverage**:
+The share of a structural member's formwork panels covered by reused inventory rather than new stock. It is a member summary metric, not a procurement count.
+_Avoid_: Reuse rate, utilization (utilization is an area metric)
+
+**Member Scope**:
+The Planner view filtered to one structural member: its formwork panels, its member-linked lumber, and the boards that serve them. A shared board is shown in full, with the selected member's panels highlighted.
+_Avoid_: Member tab, focus mode
+
+**Project Scope**:
+The Planner view of the whole project's global allocation: every member's requirements, project-level lumber, new stock, and offcuts, grouped by physical board.
+_Avoid_: Global mode, optimize tab
+
+**Exclusive Member Plan**:
+A member plan whose panels are packed only into inventory pieces that are not shared with other members. Used when a member's panels must be cut and used independently.
+_Avoid_: Opt-out, locked member
+
 **Reuse Allocation**:
-The placement of one or more formwork panels inside a reusable inventory piece, treating the piece as a small stock sheet. The allocator uses shelf packing with 90° rotation, records each panel's position and dimensions, and reports the leftover rectangles. A single piece may satisfy several requirements, but no panel is assigned twice and placements never overlap. Usage is counted once per piece per optimization session; leftovers at least 0.30 m in both dimensions are reusable offcuts. Dimensions are exact and include no saw kerf or blade allowance.
+The placement of one or more formwork panels inside a reusable inventory piece, treating the piece as a small stock sheet. The allocator uses shelf packing with 90° rotation, records each panel's position and dimensions, and reports the leftover rectangles. A single piece may satisfy several requirements, but no panel is assigned twice and placements never overlap. Usage is counted once per piece when the plan is committed; leftovers at least 0.30 m in both dimensions are reusable offcuts. Dimensions are exact and include no saw kerf or blade allowance.
 _Avoid_: One-piece-per-panel assignment, reuse match (a match is only a candidate; an allocation is the accepted placement)
+
+**Shared Piece**:
+An inventory piece whose reuse allocation covers formwork panels from more than one structural member. Usage is counted once for the piece, while the usage log records every member it served.
+_Avoid_: Shared sheet, shared material
+
+**Piece Availability**:
+The state of an inventory piece within a plan: Available, In Use, or Shared. It is distinct from the piece's Condition and Usage Count.
+_Avoid_: Status (unqualified), condition, Reserved (no reservation concept yet)
 
 **Shelf**:
 A horizontal row of panels placed left-to-right on a stock sheet during cutting optimization. When a panel doesn't fit the current shelf, a new shelf starts below it. The shelf height is set by the tallest panel in that row.
 _Avoid_: Row, layer, strip
 
 **Usage Log**:
-A per-piece record of each time a material is used as formwork. Each entry records which structural member it was used for, the date, and increments the usage count.
+A per-piece record of each time a material is used as formwork. Each entry records the date and increments the usage count; for a shared piece, it records every structural member and requirement the piece served.
 _Avoid_: Reuse history, usage record
 
 **Piece**:
