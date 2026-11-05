@@ -16,7 +16,7 @@ import {
   saveProjectPlan,
   type ProjectPlan,
 } from '@/db/plan';
-import { getActivePieces } from '@/db/inventory';
+import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
 import type {
   LumberRequirement,
@@ -26,7 +26,12 @@ import type {
 import type { InventoryMatch, MatchGroup, MatchPiece } from '@/engine/types';
 import { declinedKey } from '@/lib/candidateKeys';
 import { shortId } from '@/lib/format';
-import { buildPlannerState, releaseAllocation, type PlannerBoard } from '@/lib/planner';
+import {
+  buildPlannerState,
+  reconcileProjectPlan,
+  releaseAllocation,
+  type PlannerBoard,
+} from '@/lib/planner';
 import { commitProjectPlan } from '@/lib/planCommit';
 import { canFitRequirementAlongside } from '@/lib/panelAssignments';
 import { toMatchPiece } from '@/lib/pieces';
@@ -143,13 +148,34 @@ export default function PlannerScreen() {
         await Promise.all([
           listStructuralMembers(project.id),
           listLumberRequirements(project.id),
-          getActivePieces(project.id),
+          listPieces(project.id),
           getProjectPlan(project.id),
         ]);
+      const allPieces = inventoryPieces.map(toMatchPiece);
+      const loadedPieces = allPieces.filter(
+        (piece) => !piece.retired && piece.condition !== 'Retired',
+      );
+      const basePlan = storedPlan ?? emptyProjectPlan();
+      const initialState = buildPlannerState({
+        members: loadedMembers,
+        lumber: loadedLumber,
+        pieces: loadedPieces,
+        stock: project.stock,
+        costs: project.costs,
+        plan: basePlan,
+      });
+      const { plan: reconciledPlan } = reconcileProjectPlan(
+        basePlan,
+        initialState.requirements,
+        allPieces,
+      );
+      if (reconciledPlan !== basePlan) {
+        await saveProjectPlan(project.id, reconciledPlan);
+      }
       setMembers(loadedMembers);
       setLumber(loadedLumber);
-      setPieces(inventoryPieces.map(toMatchPiece));
-      setPlan(storedPlan ?? emptyProjectPlan());
+      setPieces(loadedPieces);
+      setPlan(reconciledPlan);
       loadedOnceRef.current = true;
     } catch {
       if (!loadedOnceRef.current) {
@@ -158,7 +184,7 @@ export default function PlannerScreen() {
     } finally {
       setLoading(false);
     }
-  }, [project.id]);
+  }, [project.id, project.stock, project.costs]);
 
   useEffect(() => {
     void load();
@@ -316,6 +342,20 @@ export default function PlannerScreen() {
           </Badge>
         )}
       </div>
+
+      {plan.invalidations.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          <p className="font-medium">Plan needs review</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {plan.invalidations.map((invalidation) => (
+              <li key={invalidation.id}>{invalidation.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="text-sm font-medium text-destructive">

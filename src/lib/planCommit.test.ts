@@ -215,6 +215,28 @@ describe('commitProjectPlan', () => {
     expect(recordUsageMock).toHaveBeenCalledTimes(1);
   });
 
+  it('clears Needs Review warnings on a successful re-commit', async () => {
+    const current = plan({
+      status: 'needs_review',
+      invalidations: [
+        {
+          id: 'invalidation:test',
+          message: 'C1 dimensions changed; allocation released.',
+          requirementIds: ['member-a-panel-1'],
+          pieceIds: [],
+          createdAt: '2026-11-01T00:00:00.000Z',
+        },
+      ],
+      acceptedByRequirement: { 'member-a-panel-1': 'piece-1' },
+    });
+    const state = stateFor(current, [member('member-a', 'C1')], [piece('piece-1')]);
+
+    const saved = await commitProjectPlan('project-1', current, state);
+
+    expect(saved.status).toBe('committed');
+    expect(saved.invalidations).toEqual([]);
+  });
+
   it('leaves the saved plan uncommitted when usage recording fails', async () => {
     recordUsageMock.mockRejectedValueOnce(new Error('Usage write failed.'));
     const current = plan({

@@ -473,23 +473,30 @@ export function releaseAllocation(
 interface ReleaseReason {
   requirementId: string;
   pieceId?: string;
-  kind: 'missing-requirement' | 'missing-piece' | 'retired-piece' | 'dimensions' | 'fit';
+  kind:
+    | 'missing-requirement'
+    | 'missing-piece'
+    | 'retired-piece'
+    | 'requirement-dimensions'
+    | 'piece-dimensions'
+    | 'fit';
   label: string;
 }
 
 function releaseMessage(reason: ReleaseReason): PlanInvalidation {
   const label = reason.label;
-  const suffix = reason.pieceId ? ` on board ${shortId(reason.pieceId)}` : '';
   const message =
     reason.kind === 'missing-requirement'
       ? `${label} no longer exists; allocation released.`
       : reason.kind === 'retired-piece'
         ? `Board ${shortId(reason.pieceId ?? '')} was retired; ${label} released.`
-        : reason.kind === 'dimensions'
-          ? `${label}${suffix} dimensions changed; allocation released.`
-          : reason.kind === 'missing-piece'
-            ? `Board ${shortId(reason.pieceId ?? '')} is missing; ${label} released.`
-            : `Board ${shortId(reason.pieceId ?? '')} no longer fits ${label}; allocation released.`;
+        : reason.kind === 'requirement-dimensions'
+          ? `${label} dimensions changed; allocation released.`
+          : reason.kind === 'piece-dimensions'
+            ? `Board ${shortId(reason.pieceId ?? '')} dimensions changed; ${label} released.`
+            : reason.kind === 'missing-piece'
+              ? `Board ${shortId(reason.pieceId ?? '')} is missing; ${label} released.`
+              : `Board ${shortId(reason.pieceId ?? '')} no longer fits ${label}; allocation released.`;
 
   return {
     id: `invalidation:${reason.kind}:${reason.requirementId}:${reason.pieceId ?? ''}`,
@@ -547,7 +554,7 @@ export function reconcileProjectPlan(
         reasons.push({
           requirementId,
           pieceId,
-          kind: 'dimensions',
+          kind: 'requirement-dimensions',
           label: requirement.label,
         });
         return false;
@@ -556,7 +563,7 @@ export function reconcileProjectPlan(
         reasons.push({
           requirementId,
           pieceId,
-          kind: 'dimensions',
+          kind: 'piece-dimensions',
           label: requirement.label,
         });
         return false;

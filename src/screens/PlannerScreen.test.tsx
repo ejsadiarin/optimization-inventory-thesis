@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
-import { addPiece, getPiece } from '@/db/inventory';
+import { addPiece, getPiece, retirePiece } from '@/db/inventory';
 import { createLumberRequirement, createStructuralMember } from '@/db/members';
 import { getProjectPlan } from '@/db/plan';
 import { seedProject } from '@/test/fixtures';
@@ -285,5 +285,53 @@ describe('PlannerScreen project scope', () => {
     await waitFor(async () => {
       await expect(getPiece(project.id, first.id)).resolves.toMatchObject({ usageCount: 2 });
     });
+  });
+
+  it('releases a committed allocation and asks for a decision when its board is retired', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Retired Board Site' });
+    const c1 = await addMember(project.id, 'C1');
+    const first = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    const second = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    const view = await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /commit plan/i })).toBeEnabled();
+    });
+    await user.click(screen.getByRole('button', { name: /commit plan/i }));
+    await screen.findByText('Committed');
+
+    const committed = await getProjectPlan(project.id);
+    const committedPieceId =
+      committed!.committedByRequirement[`${c1.id}-panel-1`]!;
+    await retirePiece(project.id, committedPieceId);
+    view.unmount();
+    await renderPlanner(project.id);
+
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan).toMatchObject({ status: 'needs_review' });
+      expect(plan?.committedByRequirement).toEqual({});
+    });
+    await screen.findByText(/plan needs review/i);
+    expect(screen.getByText(/was retired/i)).toBeInTheDocument();
+    await expect(getPiece(project.id, committedPieceId)).resolves.toMatchObject({
+      usageCount: 1,
+    });
+    expect(screen.getByRole('button', { name: /commit plan/i })).toBeDisabled();
+    expect([first.id, second.id]).toContain(committedPieceId);
   });
 });
