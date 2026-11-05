@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import LoginScreen from '@/screens/LoginScreen';
 import MemberFocusScreen from '@/screens/MemberFocusScreen';
 import OptimizationScreen from '@/screens/OptimizationScreen';
+import PlannerScreen from '@/screens/PlannerScreen';
 import ProjectInventoryScreen from '@/screens/ProjectInventoryScreen';
 import ProjectOverviewScreen from '@/screens/ProjectOverviewScreen';
 import ProjectSettingsScreen from '@/screens/ProjectSettingsScreen';
@@ -28,6 +29,7 @@ export default function App() {
               <Route index element={<ProjectOverviewScreen />} />
               <Route path="members" element={<StructuralMembersScreen />} />
               <Route path="inventory" element={<ProjectInventoryScreen />} />
+              <Route path="planner" element={<PlannerScreen />} />
               <Route path="optimize" element={<OptimizationScreen />} />
               <Route path="summary" element={<Navigate to=".." replace />} />
               <Route path="settings" element={<ProjectSettingsScreen />} />
