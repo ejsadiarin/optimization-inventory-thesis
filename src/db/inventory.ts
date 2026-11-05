@@ -211,22 +211,19 @@ export async function retirePiece(
   return dataWithId<Piece>(updated);
 }
 
-// Firestore transactions do not work offline, so recording usage uses a queued
-// writeBatch. Write promises only settle after the backend acknowledges them, so
-// committing in the background keeps offline usage responsive; the local cache
-// applies both writes immediately and the SDK flushes them on reconnect.
-// A concurrent offline edit can leave a stale threshold condition; the count
-// still increments, and we accept that rare race per ADR-0006.
-export async function recordUsage(
-  pieceId: string,
-  projectId: string,
-  structuralMemberLabel: string,
-  date = new Date().toISOString(),
-  requirementIds: readonly string[] = [],
-  requirementLabels: readonly string[] = [],
-): Promise<Piece> {
-  const scopedProjectId = requireProjectId(projectId);
-  const piece = await getPiece(scopedProjectId, pieceId);
+interface UsageEntryInput {
+  pieceId: string;
+  projectId: string;
+  structuralMemberLabel: string;
+  structuralMemberLabels?: readonly string[];
+  date: string;
+  requirementIds: readonly string[];
+  requirementLabels: readonly string[];
+}
+
+async function recordUsageEntry(input: UsageEntryInput): Promise<Piece> {
+  const scopedProjectId = requireProjectId(input.projectId);
+  const piece = await getPiece(scopedProjectId, input.pieceId);
   if (!piece) throw new Error('Piece not found.');
   if (piece.projectId !== scopedProjectId) {
     throw new Error('Piece does not belong to this project.');
@@ -248,27 +245,81 @@ export async function recordUsage(
   if (!firestore) throw new Error('Firestore is not configured.');
 
   const batch = writeBatch(firestore);
-  batch.update(projectDoc(scopedProjectId, 'pieces', pieceId), {
+  batch.update(projectDoc(scopedProjectId, 'pieces', input.pieceId), {
     usageCount: increment(1),
     condition,
   });
   batch.set(projectDoc(scopedProjectId, 'usageLog', entryId), {
     id: entryId,
-    pieceId,
+    pieceId: input.pieceId,
     projectId: scopedProjectId,
-    structuralMemberLabel,
-    date,
+    structuralMemberLabel: input.structuralMemberLabel,
+    ...(input.structuralMemberLabels && input.structuralMemberLabels.length > 0
+      ? { structuralMemberLabels: [...input.structuralMemberLabels] }
+      : {}),
+    date: input.date,
     createdAt: now,
-    ...(requirementIds.length > 0 ? { requirementIds: [...requirementIds] } : {}),
-    ...(requirementLabels.length > 0
-      ? { requirementLabels: [...requirementLabels] }
+    ...(input.requirementIds.length > 0
+      ? { requirementIds: [...input.requirementIds] }
+      : {}),
+    ...(input.requirementLabels.length > 0
+      ? { requirementLabels: [...input.requirementLabels] }
       : {}),
   });
   queueWrite(batch.commit());
 
-  const updated = await getPiece(scopedProjectId, pieceId);
+  const updated = await getPiece(scopedProjectId, input.pieceId);
   if (!updated) throw new Error('Piece not found after recording usage.');
   return updated;
+}
+
+export async function recordUsage(
+  pieceId: string,
+  projectId: string,
+  structuralMemberLabel: string,
+  date = new Date().toISOString(),
+  requirementIds: readonly string[] = [],
+  requirementLabels: readonly string[] = [],
+): Promise<Piece> {
+  return recordUsageEntry({
+    pieceId,
+    projectId,
+    structuralMemberLabel,
+    date,
+    requirementIds,
+    requirementLabels,
+  });
+}
+
+export interface PlanUsageInput {
+  pieceId: string;
+  projectId: string;
+  structuralMemberLabels: readonly string[];
+  requirementIds: readonly string[];
+  requirementLabels: readonly string[];
+  date?: string;
+}
+
+/**
+ * Records one project-plan usage event for a piece. A shared piece names every
+ * member it serves in `structuralMemberLabels` while keeping the legacy
+ * single-member label populated.
+ */
+export async function recordPlanUsage(input: PlanUsageInput): Promise<Piece> {
+  const labels =
+    input.structuralMemberLabels.length > 0
+      ? input.structuralMemberLabels
+      : ['Project'];
+
+  return recordUsageEntry({
+    pieceId: input.pieceId,
+    projectId: input.projectId,
+    structuralMemberLabel: labels[0] ?? 'Project',
+    structuralMemberLabels: labels,
+    date: input.date ?? new Date().toISOString(),
+    requirementIds: input.requirementIds,
+    requirementLabels: input.requirementLabels,
+  });
 }
 
 /**

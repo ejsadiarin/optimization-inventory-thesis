@@ -76,6 +76,7 @@ export interface PlannerCounts {
 
 export interface PlannerState {
   requirements: MatchRequirement[];
+  pieces: MatchPiece[];
   groups: MatchGroup[];
   reviews: RequirementReview[];
   acceptedByRequirement: Record<string, string>;
@@ -372,6 +373,7 @@ export function buildPlannerState(input: PlannerInput): PlannerState {
 
   return {
     requirements,
+    pieces: [...input.pieces],
     groups,
     reviews,
     acceptedByRequirement,

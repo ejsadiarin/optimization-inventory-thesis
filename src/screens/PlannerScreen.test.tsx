@@ -95,7 +95,7 @@ describe('PlannerScreen project scope', () => {
     expect(screen.getAllByText('C2').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Project brace').length).toBeGreaterThan(0);
     expect(screen.getByText(/project scope/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /commit/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /commit plan/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /release/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /offcut/i })).not.toBeInTheDocument();
@@ -190,5 +190,100 @@ describe('PlannerScreen project scope', () => {
     expect(within(reused).getAllByTestId(/planner-board-/)).toHaveLength(1);
     expect(reused).toHaveTextContent('C1');
     expect(reused).toHaveTextContent('C2');
+  });
+
+  it('keeps commit disabled until every requirement is decided', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Commit Gate Site' });
+    await addMember(project.id, 'C1');
+    await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    const commit = screen.getByRole('button', { name: /commit plan/i });
+    expect(commit).toBeDisabled();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    expect(screen.getByRole('button', { name: /commit plan/i })).toBeDisabled();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /commit plan/i })).toBeEnabled();
+    });
+  });
+
+  it('commits usage once, locks allocations, and releases without reverting history', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Commit Site' });
+    await addMember(project.id, 'C1');
+    await addMember(project.id, 'C2');
+    const first = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 1.2,
+      width: 1.2,
+      thickness: 0.018,
+    });
+    const second = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /commit plan/i })).toBeEnabled();
+    });
+
+    await user.click(screen.getByRole('button', { name: /commit plan/i }));
+    await screen.findByText('Committed');
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan).toMatchObject({ status: 'committed' });
+      expect(Object.keys(plan?.committedByRequirement ?? {})).toHaveLength(2);
+    });
+    await expect(getPiece(project.id, first.id)).resolves.toMatchObject({ usageCount: 1 });
+    await expect(getPiece(project.id, second.id)).resolves.toMatchObject({ usageCount: 1 });
+    expect(screen.getAllByText(/^locked$/i)).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: /re-commit plan/i }));
+    await waitFor(async () => {
+      await expect(getPiece(project.id, first.id)).resolves.toMatchObject({ usageCount: 1 });
+      await expect(getPiece(project.id, second.id)).resolves.toMatchObject({ usageCount: 1 });
+    });
+
+    await user.click(screen.getByRole('button', { name: /release c1/i }));
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(Object.keys(plan?.committedByRequirement ?? {})).toHaveLength(1);
+    });
+    await expect(getPiece(project.id, first.id)).resolves.toMatchObject({ usageCount: 1 });
+    expect(screen.getByRole('button', { name: /commit plan/i })).toBeDisabled();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /commit plan/i })).toBeEnabled();
+    });
+    await user.click(screen.getByRole('button', { name: /commit plan/i }));
+    await waitFor(async () => {
+      await expect(getPiece(project.id, first.id)).resolves.toMatchObject({ usageCount: 2 });
+    });
   });
 });

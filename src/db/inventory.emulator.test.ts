@@ -15,6 +15,7 @@ import {
   getPiece,
   getUsageLog,
   listPieces,
+  recordPlanUsage,
   recordUsage,
   retirePiece,
   updatePiece,
@@ -252,6 +253,34 @@ describe('inventory usage log on Firestore', () => {
       date: '2026-02-01T00:00:00.000Z',
     });
     expect(Number.isNaN(Date.parse(log[0]!.createdAt))).toBe(false);
+    await expect(getPiece(projectId, piece.id)).resolves.toMatchObject({ usageCount: 1 });
+  });
+
+  it('records one plan usage event naming every member and requirement on a shared piece', async () => {
+    const projectId = await createTestProject();
+    const piece = await addPhenolicPiece(projectId);
+
+    const updated = await recordPlanUsage({
+      pieceId: piece.id,
+      projectId,
+      structuralMemberLabels: ['C1', 'C2'],
+      requirementIds: ['c1-panel-1', 'c2-panel-1'],
+      requirementLabels: ['C1', 'C2'],
+      date: '2026-02-02T00:00:00.000Z',
+    });
+
+    expect(updated).toMatchObject({ usageCount: 1, condition: 'Good' });
+    const log = await getUsageLog(projectId, piece.id);
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      pieceId: piece.id,
+      projectId,
+      structuralMemberLabel: 'C1',
+      structuralMemberLabels: ['C1', 'C2'],
+      requirementIds: ['c1-panel-1', 'c2-panel-1'],
+      requirementLabels: ['C1', 'C2'],
+      date: '2026-02-02T00:00:00.000Z',
+    });
     await expect(getPiece(projectId, piece.id)).resolves.toMatchObject({ usageCount: 1 });
   });
 

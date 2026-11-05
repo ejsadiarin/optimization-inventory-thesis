@@ -87,6 +87,7 @@ export interface UsageLogEntry {
   pieceId: string;
   projectId: string;
   structuralMemberLabel: string;
+  structuralMemberLabels?: string[];
   date: string;
   createdAt: string;
   requirementIds?: string[];

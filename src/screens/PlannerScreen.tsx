@@ -26,7 +26,8 @@ import type {
 import type { InventoryMatch, MatchGroup, MatchPiece } from '@/engine/types';
 import { declinedKey } from '@/lib/candidateKeys';
 import { shortId } from '@/lib/format';
-import { buildPlannerState, type PlannerBoard } from '@/lib/planner';
+import { buildPlannerState, releaseAllocation, type PlannerBoard } from '@/lib/planner';
+import { commitProjectPlan } from '@/lib/planCommit';
 import { canFitRequirementAlongside } from '@/lib/panelAssignments';
 import { toMatchPiece } from '@/lib/pieces';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
@@ -112,6 +113,7 @@ export default function PlannerScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
+  const [committing, setCommitting] = useState(false);
   const dirtyPlanRef = useRef(false);
   const loadedOnceRef = useRef(false);
 
@@ -262,6 +264,41 @@ export default function PlannerScreen() {
   }
 
   const hasResettableDecisions = plan.declinedCandidates.length > 0;
+  const lockedRequirementIds = useMemo(
+    () => new Set(Object.keys(plan.committedByRequirement)),
+    [plan.committedByRequirement],
+  );
+  const statusLabel =
+    plan.status === 'committed'
+      ? 'Committed'
+      : plan.status === 'needs_review'
+        ? 'Needs review'
+        : 'Plan draft';
+  const commitDisabled =
+    committing ||
+    state.reviews.length === 0 ||
+    state.counts.needsDecision > 0;
+
+  async function handleCommit() {
+    if (commitDisabled) return;
+    setCommitting(true);
+    setError('');
+    try {
+      const next = await commitProjectPlan(project.id, plan, state);
+      dirtyPlanRef.current = false;
+      setPlan(next);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : 'Could not commit the plan.',
+      );
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  function handleRelease(group: MatchGroup) {
+    updatePlan((current) => releaseAllocation(current, group.requirement.id));
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -272,7 +309,12 @@ export default function PlannerScreen() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">Project scope</Badge>
-        <Badge variant="outline">Plan draft</Badge>
+        <Badge variant="outline">{statusLabel}</Badge>
+        {plan.status === 'needs_review' && (
+          <Badge className="border-amber-600/30 bg-amber-50 text-amber-700">
+            Needs review
+          </Badge>
+        )}
       </div>
 
       {error && (
@@ -312,16 +354,35 @@ export default function PlannerScreen() {
                     {state.counts.reused} reused · {state.counts.newStock} new stock
                   </p>
                 </div>
-                {hasResettableDecisions && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasResettableDecisions && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={handleResetDecisions}
+                    >
+                      Reset declines
+                    </Button>
+                  )}
                   <Button
                     size="sm"
-                    variant="outline"
                     type="button"
-                    onClick={handleResetDecisions}
+                    onClick={() => void handleCommit()}
+                    disabled={commitDisabled}
+                    title={
+                      state.counts.needsDecision > 0
+                        ? 'Decide every requirement before committing'
+                        : undefined
+                    }
                   >
-                    Reset declines
+                    {committing
+                      ? 'Committing…'
+                      : plan.status === 'committed'
+                        ? 'Re-commit plan'
+                        : 'Commit plan'}
                   </Button>
-                )}
+                </div>
               </div>
               <div
                 role="progressbar"
@@ -346,10 +407,12 @@ export default function PlannerScreen() {
           <MatchGroups
             reviews={state.reviews}
             memberColors={memberColors}
+            lockedRequirementIds={lockedRequirementIds}
             onAccept={handleAccept}
             onDecline={handleDecline}
             onRestoreDeclined={handleRestoreDeclined}
             onResetRequirement={handleResetRequirement}
+            onRelease={handleRelease}
           />
 
           {reusedBoards.length > 0 && (

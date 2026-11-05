@@ -1,7 +1,7 @@
 import { generateId } from '@/lib/ids';
 import { normalizePieceDimensions } from '@/lib/pieces';
 import type { CrossSection, MaterialType, Piece, PieceCondition, UsageLogEntry } from '@/db/types';
-import type { AddPieceInput, UpdatePieceInput } from '@/db/inventory';
+import type { AddPieceInput, PlanUsageInput, UpdatePieceInput } from '@/db/inventory';
 
 let pieces: Piece[] = [];
 let usageLog: UsageLogEntry[] = [];
@@ -184,6 +184,51 @@ export async function recordUsage(
     pieceId,
     projectId,
     structuralMemberLabel,
+    date,
+    createdAt: nextTimestamp(),
+    ...(requirementIds.length > 0 ? { requirementIds: [...requirementIds] } : {}),
+    ...(requirementLabels.length > 0
+      ? { requirementLabels: [...requirementLabels] }
+      : {}),
+  });
+
+  return updated;
+}
+
+export async function recordPlanUsage(input: PlanUsageInput): Promise<Piece> {
+  const {
+    pieceId,
+    projectId,
+    structuralMemberLabels,
+    requirementIds = [],
+    requirementLabels = [],
+    date = new Date().toISOString(),
+  } = input;
+  const index = pieces.findIndex((piece) => piece.id === pieceId);
+  const piece = index === -1 ? undefined : pieces[index]!;
+  if (!piece) throw new Error('Piece not found.');
+  if (piece.projectId !== projectId) {
+    throw new Error('Piece does not belong to this project.');
+  }
+  if (piece.retired || piece.condition === 'Retired') {
+    throw new Error('Retired pieces cannot be used.');
+  }
+
+  const labels = structuralMemberLabels.length > 0 ? structuralMemberLabels : ['Project'];
+  const usageCount = piece.usageCount + 1;
+  const crossedInspectionThreshold = piece.usageCount < 5 && usageCount >= 5;
+  const condition: PieceCondition = crossedInspectionThreshold
+    ? 'For Inspection'
+    : piece.condition;
+
+  const updated: Piece = { ...piece, usageCount, condition };
+  pieces[index] = updated;
+  usageLog.push({
+    id: generateId(),
+    pieceId,
+    projectId,
+    structuralMemberLabel: labels[0]!,
+    structuralMemberLabels: [...labels],
     date,
     createdAt: nextTimestamp(),
     ...(requirementIds.length > 0 ? { requirementIds: [...requirementIds] } : {}),

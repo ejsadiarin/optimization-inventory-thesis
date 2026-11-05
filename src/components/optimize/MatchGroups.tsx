@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,19 +18,23 @@ const TOP_CANDIDATES = 3;
 export interface MatchGroupsProps {
   reviews: readonly RequirementReview[];
   memberColors: ReadonlyMap<string, string>;
+  lockedRequirementIds?: ReadonlySet<string>;
   onAccept: (group: MatchGroup, candidate: InventoryMatch) => void;
   onDecline: (group: MatchGroup, candidate: InventoryMatch) => void;
   onRestoreDeclined: (group: MatchGroup, candidate: InventoryMatch) => void;
   onResetRequirement: (group: MatchGroup) => void;
+  onRelease?: (group: MatchGroup) => void;
 }
 
 export default function MatchGroups({
   reviews,
   memberColors,
+  lockedRequirementIds,
   onAccept,
   onDecline,
   onRestoreDeclined,
   onResetRequirement,
+  onRelease,
 }: MatchGroupsProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [declinedOpen, setDeclinedOpen] = useState<ReadonlySet<string>>(() => new Set());
@@ -62,12 +66,14 @@ export default function MatchGroups({
           section={section}
           expanded={expanded}
           declinedOpen={declinedOpen}
+          lockedRequirementIds={lockedRequirementIds}
           onToggleExpanded={(id) => toggle(setExpanded, id)}
           onToggleDeclined={(id) => toggle(setDeclinedOpen, id)}
           onAccept={onAccept}
           onDecline={onDecline}
           onRestoreDeclined={onRestoreDeclined}
           onResetRequirement={onResetRequirement}
+          onRelease={onRelease}
         />
       ))}
     </div>
@@ -78,24 +84,28 @@ interface ReviewSectionViewProps {
   section: ReviewSection;
   expanded: ReadonlySet<string>;
   declinedOpen: ReadonlySet<string>;
+  lockedRequirementIds?: ReadonlySet<string>;
   onToggleExpanded: (requirementId: string) => void;
   onToggleDeclined: (requirementId: string) => void;
   onAccept: MatchGroupsProps['onAccept'];
   onDecline: MatchGroupsProps['onDecline'];
   onRestoreDeclined: MatchGroupsProps['onRestoreDeclined'];
   onResetRequirement: MatchGroupsProps['onResetRequirement'];
+  onRelease?: MatchGroupsProps['onRelease'];
 }
 
 function ReviewSectionView({
   section,
   expanded,
   declinedOpen,
+  lockedRequirementIds,
   onToggleExpanded,
   onToggleDeclined,
   onAccept,
   onDecline,
   onRestoreDeclined,
   onResetRequirement,
+  onRelease,
 }: ReviewSectionViewProps) {
   return (
     <section aria-label={section.title} className="space-y-3">
@@ -119,12 +129,14 @@ function ReviewSectionView({
           review={review}
           expanded={expanded.has(review.group.requirement.id)}
           declinedOpen={declinedOpen.has(review.group.requirement.id)}
+          locked={lockedRequirementIds?.has(review.group.requirement.id) ?? false}
           onToggleExpanded={() => onToggleExpanded(review.group.requirement.id)}
           onToggleDeclined={() => onToggleDeclined(review.group.requirement.id)}
           onAccept={onAccept}
           onDecline={onDecline}
           onRestoreDeclined={onRestoreDeclined}
           onResetRequirement={onResetRequirement}
+          onRelease={onRelease}
         />
       ))}
     </section>
@@ -135,24 +147,28 @@ interface ReviewCardProps {
   review: RequirementReview;
   expanded: boolean;
   declinedOpen: boolean;
+  locked: boolean;
   onToggleExpanded: () => void;
   onToggleDeclined: () => void;
   onAccept: MatchGroupsProps['onAccept'];
   onDecline: MatchGroupsProps['onDecline'];
   onRestoreDeclined: MatchGroupsProps['onRestoreDeclined'];
   onResetRequirement: MatchGroupsProps['onResetRequirement'];
+  onRelease?: MatchGroupsProps['onRelease'];
 }
 
 function ReviewCard({
   review,
   expanded,
   declinedOpen,
+  locked,
   onToggleExpanded,
   onToggleDeclined,
   onAccept,
   onDecline,
   onRestoreDeclined,
   onResetRequirement,
+  onRelease,
 }: ReviewCardProps) {
   const { group, status } = review;
   const requirement = group.requirement;
@@ -184,10 +200,26 @@ function ReviewCard({
                 <Check className="mr-1 h-3 w-3" /> Satisfied
               </Badge>
             )}
+            {satisfied && locked && (
+              <Badge variant="outline">
+                <Lock className="mr-1 h-3 w-3" /> Locked
+              </Badge>
+            )}
             {newStock && <Badge variant="secondary">New stock</Badge>}
             {status === 'noMatch' && <Badge variant="outline">No match</Badge>}
             {review.acceptedPieceId && (
               <Badge variant="outline">Piece {shortId(review.acceptedPieceId)}</Badge>
+            )}
+            {satisfied && locked && onRelease && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={`Release ${requirement.label}`}
+                onClick={() => onRelease(group)}
+              >
+                Release
+              </Button>
             )}
             {canReset && (
               <Button
