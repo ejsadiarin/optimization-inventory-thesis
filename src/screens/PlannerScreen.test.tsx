@@ -531,4 +531,91 @@ describe('PlannerScreen member scope', () => {
       (await getProjectPlan(project.id))!.acceptedByRequirement,
     )[0]!)).resolves.toMatchObject({ usageCount: 0 });
   });
+
+  it('confirms and releases draft shared assignments when making a member exclusive', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Exclusive Draft Site' });
+    const c1 = await addMember(project.id, 'C1');
+    const c2 = await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await screen.findByText(/shares piece · remaining space fits/i);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await user.click(screen.getByRole('button', { name: /member scope/i }));
+
+    const toggle = screen.getByRole('switch', {
+      name: /exclusive member plan/i,
+    });
+    await user.click(toggle);
+    const confirm = await screen.findByTestId('planner-exclusive-confirm');
+    expect(confirm).toHaveTextContent(/shares 1 draft board/i);
+    await user.click(
+      within(confirm).getByRole('button', { name: /make exclusive/i }),
+    );
+
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan?.exclusiveMemberIds).toEqual([c1.id]);
+      expect(plan?.acceptedByRequirement[`${c1.id}-panel-1`]).toBeUndefined();
+      expect(plan?.acceptedByRequirement[`${c2.id}-panel-1`]).toBeDefined();
+    });
+    expect(await screen.findByTestId('planner-exclusive-reason')).toHaveTextContent(
+      /1 shared board candidate is excluded/i,
+    );
+    expect(screen.getByTestId('planner-member-coverage')).toHaveTextContent(
+      /0 reused · 1 new stock/i,
+    );
+
+    await user.click(toggle);
+    expect(
+      await screen.findByText(/shares piece · remaining space fits/i),
+    ).toBeInTheDocument();
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan?.exclusiveMemberIds).toEqual([]);
+    });
+  });
+
+  it('requires releasing committed shared allocations before exclusivity', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Exclusive Locked Site' });
+    await addMember(project.id, 'C1');
+    await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await screen.findByText(/shares piece · remaining space fits/i);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await user.click(screen.getByRole('button', { name: /commit plan/i }));
+    await screen.findByText('Committed');
+    await user.click(screen.getByRole('button', { name: /member scope/i }));
+
+    const toggle = screen.getByRole('switch', {
+      name: /exclusive member plan/i,
+    });
+    await user.click(toggle);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /committed shared allocation/i,
+    );
+    expect(toggle).not.toBeChecked();
+    const plan = await getProjectPlan(project.id);
+    expect(plan?.exclusiveMemberIds).toEqual([]);
+    expect(Object.keys(plan?.committedByRequirement ?? {})).toHaveLength(2);
+  });
 });

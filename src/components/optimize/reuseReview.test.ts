@@ -118,8 +118,78 @@ describe('reviewRequirements', () => {
     expect(review!.status).toBe('needsDecision');
   });
 
-  it('keeps a partly used piece available while the remaining area still fits', () => {
-    const pieceId = 'piece-1';
+  it('excludes shared candidates from exclusive members and reports the reason', () => {
+    const shared = candidate('piece-1', {
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+    });
+    const groups = [
+      group('other', [shared], {
+        materialType: 'phenolic',
+        memberId: 'm2',
+        length: 1,
+        width: 1,
+      }),
+      group('exclusive', [shared], {
+        materialType: 'phenolic',
+        memberId: 'm1',
+        length: 1,
+        width: 1,
+      }),
+    ];
+
+    const reviews = reviewRequirements(
+      groups,
+      new Set(),
+      new Map([['other', 'piece-1']]),
+      new Set(),
+      new Set(['exclusive']),
+    );
+    const review = reviews.find(
+      (item) => item.group.requirement.id === 'exclusive',
+    )!;
+
+    expect(review.availableCandidates).toEqual([]);
+    expect(review.exclusiveBlockedCount).toBe(1);
+    expect(review.status).toBe('newStock');
+  });
+
+  it('hides an exclusive member’s board from other members', () => {
+    const shared = candidate('piece-1', {
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+    });
+    const groups = [
+      group('locked', [shared], {
+        materialType: 'phenolic',
+        memberId: 'm1',
+        length: 1,
+        width: 1,
+      }),
+      group('open', [shared], {
+        materialType: 'phenolic',
+        memberId: 'm2',
+        length: 1,
+        width: 1,
+      }),
+    ];
+
+    const reviews = reviewRequirements(
+      groups,
+      new Set(['locked']),
+      new Map([['locked', 'piece-1']]),
+      new Set(),
+      new Set(['locked']),
+    );
+    const open = reviews.find((item) => item.group.requirement.id === 'open')!;
+
+    expect(open.availableCandidates).toEqual([]);
+    expect(open.assignedElsewhereCount).toBe(1);
+  });
+
+  it('keeps a partly used piece available while the remaining area still fits', () => {    const pieceId = 'piece-1';
     const groups = [
       group(
         'bottom',

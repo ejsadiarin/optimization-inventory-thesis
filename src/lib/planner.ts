@@ -301,6 +301,16 @@ export function buildPlannerState(input: PlannerInput): PlannerState {
     memberId: requirement.memberId,
   }));
   const requirements = toMatchRequirements(panels, lumberInputs);
+  const exclusiveMemberIds = new Set(input.plan.exclusiveMemberIds);
+  const exclusiveRequirementIds = new Set(
+    requirements
+      .filter(
+        (requirement) =>
+          requirement.memberId !== undefined &&
+          exclusiveMemberIds.has(requirement.memberId),
+      )
+      .map((requirement) => requirement.id),
+  );
   const acceptedByRequirement = effectiveAcceptedByRequirement(
     input.plan,
     requirements,
@@ -313,6 +323,7 @@ export function buildPlannerState(input: PlannerInput): PlannerState {
     satisfied,
     new Map(Object.entries(acceptedByRequirement)),
     new Set(input.plan.declinedCandidates),
+    exclusiveRequirementIds,
   );
   const optimization = optimizeProject({
     panels,

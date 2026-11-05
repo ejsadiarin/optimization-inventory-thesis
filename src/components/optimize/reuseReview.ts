@@ -30,6 +30,7 @@ export interface RequirementReview {
   declinedCandidates: InventoryMatch[];
   assignedElsewhereCount: number;
   sharedPieceCandidateIds: string[];
+  exclusiveBlockedCount: number;
 }
 
 export interface ReviewSection {
@@ -44,6 +45,7 @@ export function reviewRequirements(
   satisfiedRequirementIds: ReadonlySet<string>,
   acceptedByRequirement: ReadonlyMap<string, string>,
   declinedCandidates: ReadonlySet<string>,
+  exclusiveRequirementIds: ReadonlySet<string> = new Set(),
 ): RequirementReview[] {
   const requirementById = new Map(
     groups.map((group) => [group.requirement.id, group.requirement]),
@@ -66,6 +68,8 @@ export function reviewRequirements(
       declinedCandidates.has(declinedKey(requirementId, candidate.pieceId)),
     );
     let assignedElsewhereCount = 0;
+    let exclusiveBlockedCount = 0;
+    const exclusive = exclusiveRequirementIds.has(requirementId);
     const sharedPieceCandidateIds: string[] = [];
     const available = group.candidates.filter((candidate) => {
       if (declinedCandidates.has(declinedKey(requirementId, candidate.pieceId))) {
@@ -81,9 +85,27 @@ export function reviewRequirements(
         // list still occupies the piece; conservatively treat it as unavailable.
         if (assignedPieceIds.has(candidate.pieceId)) {
           assignedElsewhereCount += 1;
+          if (exclusive) exclusiveBlockedCount += 1;
           return false;
         }
         return true;
+      }
+
+      if (
+        existing.some((requirement) => exclusiveRequirementIds.has(requirement.id))
+      ) {
+        assignedElsewhereCount += 1;
+        return false;
+      }
+
+      if (
+        exclusive &&
+        existing.some(
+          (requirement) => requirement.memberId !== group.requirement.memberId,
+        )
+      ) {
+        exclusiveBlockedCount += 1;
+        return false;
       }
 
       if (
@@ -122,6 +144,7 @@ export function reviewRequirements(
       declinedCandidates: declined,
       assignedElsewhereCount,
       sharedPieceCandidateIds,
+      exclusiveBlockedCount,
     };
   });
 }

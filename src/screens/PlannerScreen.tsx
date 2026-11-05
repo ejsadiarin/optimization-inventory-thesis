@@ -161,6 +161,8 @@ export default function PlannerScreen() {
   const [addedOffcutKeys, setAddedOffcutKeys] = useState<Set<string>>(() => new Set());
   const [addingOffcuts, setAddingOffcuts] = useState(false);
   const [intakeError, setIntakeError] = useState('');
+  const [confirmExclusive, setConfirmExclusive] = useState(false);
+  const [exclusiveError, setExclusiveError] = useState('');
   const dirtyPlanRef = useRef(false);
   const loadedOnceRef = useRef(false);
 
@@ -255,12 +257,52 @@ export default function PlannerScreen() {
     scope === 'member' && selectedMemberId
       ? state.memberProjections.get(selectedMemberId)
       : undefined;
+  const isExclusive =
+    selectedMemberId !== '' && plan.exclusiveMemberIds.includes(selectedMemberId);
+  const memberSharedAssignments = useMemo(() => {
+    if (!selectedMemberId) {
+      return { draftRequirementIds: [] as string[], committedRequirementIds: [] as string[] };
+    }
+    const requirementById = new Map(
+      state.requirements.map((requirement) => [requirement.id, requirement]),
+    );
+    const membersByPiece = new Map<string, Set<string>>();
+    for (const [requirementId, pieceId] of Object.entries(state.acceptedByRequirement)) {
+      const memberId = requirementById.get(requirementId)?.memberId;
+      if (!memberId) continue;
+      const members = membersByPiece.get(pieceId) ?? new Set<string>();
+      members.add(memberId);
+      membersByPiece.set(pieceId, members);
+    }
+    const shared = Object.entries(state.acceptedByRequirement).filter(
+      ([requirementId, pieceId]) =>
+        requirementById.get(requirementId)?.memberId === selectedMemberId &&
+        (membersByPiece.get(pieceId)?.size ?? 0) > 1,
+    );
+    return {
+      draftRequirementIds: shared
+        .map(([requirementId]) => requirementId)
+        .filter((requirementId) => !(requirementId in plan.committedByRequirement)),
+      committedRequirementIds: shared
+        .map(([requirementId]) => requirementId)
+        .filter((requirementId) => requirementId in plan.committedByRequirement),
+    };
+  }, [
+    selectedMemberId,
+    state.requirements,
+    state.acceptedByRequirement,
+    plan.committedByRequirement,
+  ]);
   const visibleReviews =
     scope === 'project'
       ? state.reviews
       : state.reviews.filter(
           (review) => review.group.requirement.memberId === selectedMemberId,
         );
+  const exclusiveBlockedTotal = visibleReviews.reduce(
+    (total, review) => total + review.exclusiveBlockedCount,
+    0,
+  );
   const visibleBoards = useMemo(
     () => (scope === 'project' ? state.boards : (memberProjection?.boards ?? [])),
     [scope, state.boards, memberProjection],
@@ -285,6 +327,59 @@ export default function PlannerScreen() {
     next.set('scope', 'member');
     next.set('member', memberId);
     setSearchParams(next, { replace: true });
+  }
+
+  function enableExclusive(releaseRequirementIds: readonly string[]) {
+    updatePlan((current) => {
+      let next = current;
+      for (const requirementId of releaseRequirementIds) {
+        next = releaseAllocation(next, requirementId);
+      }
+      if (next.exclusiveMemberIds.includes(selectedMemberId)) return next;
+      return draftPlan({
+        ...next,
+        exclusiveMemberIds: [...next.exclusiveMemberIds, selectedMemberId],
+      });
+    });
+    setConfirmExclusive(false);
+    setExclusiveError('');
+  }
+
+  function disableExclusive() {
+    updatePlan((current) =>
+      draftPlan({
+        ...current,
+        exclusiveMemberIds: current.exclusiveMemberIds.filter(
+          (memberId) => memberId !== selectedMemberId,
+        ),
+      }),
+    );
+    setConfirmExclusive(false);
+    setExclusiveError('');
+  }
+
+  function handleExclusiveChange(checked: boolean) {
+    if (!selectedMemberId) return;
+    setExclusiveError('');
+    if (!checked) {
+      disableExclusive();
+      return;
+    }
+    if (memberSharedAssignments.committedRequirementIds.length > 0) {
+      setExclusiveError(
+        `${selectedMember?.label ?? 'This member'} has ${
+          memberSharedAssignments.committedRequirementIds.length
+        } committed shared allocation${
+          memberSharedAssignments.committedRequirementIds.length === 1 ? '' : 's'
+        }. Release those locks before making this member exclusive.`,
+      );
+      return;
+    }
+    if (memberSharedAssignments.draftRequirementIds.length > 0) {
+      setConfirmExclusive(true);
+      return;
+    }
+    enableExclusive([]);
   }
 
   const memberColors = useMemo(
@@ -329,6 +424,7 @@ export default function PlannerScreen() {
 
   function handleAccept(group: MatchGroup, candidate: InventoryMatch) {
     setError('');
+    const requirementMemberId = group.requirement.memberId;
     const requirementsOnPiece = Object.entries(state.acceptedByRequirement)
       .filter(
         ([requirementId, pieceId]) =>
@@ -338,6 +434,27 @@ export default function PlannerScreen() {
         state.requirements.find((requirement) => requirement.id === requirementId),
       )
       .filter((requirement) => requirement !== undefined);
+
+    if (
+      requirementsOnPiece.some(
+        (requirement) =>
+          requirement.memberId &&
+          plan.exclusiveMemberIds.includes(requirement.memberId),
+      )
+    ) {
+      setError('That board is reserved for an exclusive member.');
+      return;
+    }
+    if (
+      requirementMemberId &&
+      plan.exclusiveMemberIds.includes(requirementMemberId) &&
+      requirementsOnPiece.some(
+        (requirement) => requirement.memberId !== requirementMemberId,
+      )
+    ) {
+      setError('This member is exclusive; shared boards are not available to it.');
+      return;
+    }
 
     if (
       !canFitRequirementAlongside(
@@ -588,6 +705,76 @@ export default function PlannerScreen() {
             <span className="text-sm text-muted-foreground">{selectedMember.label}</span>
           )}
         </div>
+      )}
+
+      {scope === 'member' && (
+        <Card data-testid="planner-exclusive">
+          <CardContent className="space-y-2 py-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Exclusive member plan"
+                checked={isExclusive}
+                onChange={(event) => handleExclusiveChange(event.target.checked)}
+              />
+              <span className="font-medium">Exclusive member plan</span>
+            </label>
+            <p className="text-muted-foreground">
+              Only reuse unshared inventory pieces. New-stock sheets may still mix
+              members. Exclusivity can reduce utilization by giving up shared boards.
+            </p>
+            {isExclusive && exclusiveBlockedTotal > 0 && (
+              <p
+                role="status"
+                data-testid="planner-exclusive-reason"
+                className="text-amber-700"
+              >
+                {exclusiveBlockedTotal} shared board candidate
+                {exclusiveBlockedTotal === 1 ? ' is' : 's are'} excluded by
+                exclusivity. Panels without an unshared piece fall back to new stock.
+              </p>
+            )}
+            {exclusiveError && (
+              <p role="alert" className="font-medium text-destructive">
+                {exclusiveError}
+              </p>
+            )}
+            {confirmExclusive && (
+              <div
+                data-testid="planner-exclusive-confirm"
+                className="space-y-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-amber-900"
+              >
+                <p>
+                  {selectedMember?.label ?? 'This member'} shares{' '}
+                  {memberSharedAssignments.draftRequirementIds.length} draft board
+                  {memberSharedAssignments.draftRequirementIds.length === 1 ? '' : 's'}{' '}
+                  with other members. Making it exclusive releases those draft
+                  assignments.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() =>
+                      enableExclusive(memberSharedAssignments.draftRequirementIds)
+                    }
+                  >
+                    Make exclusive
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setConfirmExclusive(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {scope === 'project' && state.boards.length > 0 && (

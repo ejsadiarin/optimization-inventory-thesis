@@ -104,6 +104,56 @@ describe('buildPlannerState', () => {
     }
   });
 
+  it('keeps an exclusive member off a shared inventory piece', () => {
+    const state = buildPlannerState({
+      members: [member('member-a', 'C1'), member('member-b', 'C2')],
+      lumber: [],
+      pieces: [piece('piece-1')],
+      stock,
+      costs,
+      plan: plan({
+        acceptedByRequirement: {
+          'member-a-panel-1': 'piece-1',
+          'member-b-panel-1': 'piece-1',
+        },
+        exclusiveMemberIds: ['member-a'],
+      }),
+    });
+
+    expect(state.acceptedByRequirement).toEqual({
+      'member-b-panel-1': 'piece-1',
+    });
+    expect(state.memberProjections.get('member-a')!.panelCoverage).toEqual({
+      total: 1,
+      reused: 0,
+      newStock: 1,
+      unplaced: 0,
+    });
+    expect(
+      state.reviews.find(
+        (review) => review.group.requirement.id === 'member-a-panel-1',
+      )?.exclusiveBlockedCount,
+    ).toBe(1);
+  });
+
+  it('lets new-stock sheets mix panels from exclusive members', () => {
+    const state = buildPlannerState({
+      members: [member('member-a', 'C1'), member('member-b', 'C2')],
+      lumber: [],
+      pieces: [],
+      stock,
+      costs,
+      plan: plan({ exclusiveMemberIds: ['member-a', 'member-b'] }),
+    });
+
+    const newStock = state.boards.filter((board) => board.source === 'new_stock');
+    expect(newStock).toHaveLength(1);
+    expect(newStock[0]!.panels.map((panel) => panel.memberId).sort()).toEqual([
+      'member-a',
+      'member-b',
+    ]);
+  });
+
   it('drops an accepted assignment whose piece is missing and asks for a decision', () => {
     const state = buildPlannerState({
       members: [member('member-a', 'C1')],
