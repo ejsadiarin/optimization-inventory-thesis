@@ -1,4 +1,4 @@
-import { declinedKey } from '@/db/workflow';
+import { declinedKey } from '@/lib/candidateKeys';
 import { canFitRequirementAlongside } from '@/lib/panelAssignments';
 import type {
   InventoryMatch,

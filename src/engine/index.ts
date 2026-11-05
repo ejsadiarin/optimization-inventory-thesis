@@ -32,6 +32,7 @@ export function toMatchRequirements(
       id: requirement.id,
       materialType: 'lumber' as const,
       label: requirement.label,
+      memberId: requirement.memberId,
       length: requirement.length,
       crossSection: requirement.crossSection,
     })),

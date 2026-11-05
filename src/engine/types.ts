@@ -28,6 +28,7 @@ export interface LumberRequirementInput {
   label: string;
   length: number;
   crossSection: CrossSection;
+  memberId?: string;
 }
 
 export interface MatchPiece {
