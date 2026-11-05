@@ -1,28 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { decidedCount, reviewRequirements } from '@/components/optimize/reuseReview';
-import { getActivePieces } from '@/db/inventory';
+import { getProjectPlan, emptyProjectPlan } from '@/db/plan';
+import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
-import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
 import type { Project } from '@/db/types';
+import { buildPlannerState, reconcileProjectPlan } from '@/lib/planner';
 import {
-  emptyWorkflow,
-  getOptimizationWorkflow,
-  invalidateWorkflow,
-  workflowFromSnapshot,
-} from '@/db/workflow';
-import { toMatchRequirements, toPlywoodPanel } from '@/engine';
-import { decomposeMember } from '@/engine/decompose';
-import { optimizeLumber } from '@/engine/lumber';
-import { matchInventory } from '@/engine/match';
-import { optimizePlywood } from '@/engine/plywood';
-import {
+  buildPlanInvalidationNotification,
   buildProjectNotifications,
   type ProjectNotification,
 } from '@/lib/projectNotifications';
 import {
   buildNavAnnotations,
-  buildProjectChecklist,
   type ProjectProgressCounts,
 } from '@/lib/projectProgress';
 import { ProjectProgressContext } from '@/lib/projectProgressContext';
@@ -35,8 +24,6 @@ const EMPTY_COUNTS: ProjectProgressCounts = {
   pieces: 0,
   requirements: 0,
   decidedRequirements: 0,
-  reuseReviewed: false,
-  cutPlansReviewedAt: null,
 };
 
 export function ProjectProgressProvider({
@@ -63,55 +50,42 @@ export function ProjectProgressProvider({
 
     async function load() {
       try {
-        const [members, lumber, pieces, storedWorkflow] = await Promise.all([
+        const [members, lumber, inventoryPieces, storedPlan] = await Promise.all([
           listStructuralMembers(project.id),
           listLumberRequirements(project.id),
-          getActivePieces(project.id),
-          getOptimizationWorkflow(project.id),
+          listPieces(project.id),
+          getProjectPlan(project.id),
         ]);
 
-        const panels = members.flatMap(decomposeMember);
-        const requirements = toMatchRequirements(panels, lumber);
-        const matchPieces = pieces.map(toMatchPiece);
-        const groups = matchInventory(requirements, matchPieces);
+        const allPieces = inventoryPieces.map(toMatchPiece);
+        const activePieces = allPieces.filter(
+          (piece) => !piece.retired && piece.condition !== 'Retired',
+        );
+        const basePlan = storedPlan ?? emptyProjectPlan();
+        const planner = buildPlannerState({
+          members,
+          lumber,
+          pieces: activePieces,
+          stock: project.stock,
+          costs: project.costs,
+          plan: basePlan,
+        });
+        const { plan: reconciledPlan } = reconcileProjectPlan(
+          basePlan,
+          planner.requirements,
+          allPieces,
+        );
 
-        let workflow = storedWorkflow;
-        if (!workflow) {
-          const latest = await getLatestCuttingPlan(project.id);
-          if (latest) {
-            workflow = workflowFromSnapshot(
-              filterCuttingPlanSnapshot(
-                latest.snapshot,
-                new Set(requirements.map((requirement) => requirement.id)),
-              ),
-            );
-          }
-        }
-
-        const resolved = invalidateWorkflow(
-          workflow ?? emptyWorkflow(),
-          requirements,
-          matchPieces,
-        );
-        const satisfied = new Set(resolved.satisfiedRequirementIds);
-        const plywood = optimizePlywood(
-          panels.filter((panel) => !satisfied.has(panel.id)).map(toPlywoodPanel),
-          project.stock.phenolic,
-        );
-        const lumberPlan = optimizeLumber(
-          lumber.filter((requirement) => !satisfied.has(requirement.id)),
-          project.stock.lumberLengths,
-        );
         const notifications = buildProjectNotifications(
-          plywood.oversizedPanels,
-          lumberPlan.unplacedRequirements,
+          planner.optimization.plywood.oversizedPanels,
+          planner.optimization.lumber.unplacedRequirements,
         );
-        const reviews = reviewRequirements(
-          groups,
-          satisfied,
-          new Map(Object.entries(resolved.acceptedByRequirement)),
-          new Set(resolved.declinedCandidates),
+        const invalidationNotification = buildPlanInvalidationNotification(
+          reconciledPlan.invalidations,
         );
+        if (invalidationNotification) {
+          notifications.unshift(invalidationNotification);
+        }
 
         if (cancelled) return;
         setState({
@@ -120,11 +94,9 @@ export function ProjectProgressProvider({
           counts: {
             structuralMembers: members.length,
             lumberRequirements: lumber.length,
-            pieces: pieces.length,
-            requirements: requirements.length,
-            decidedRequirements: decidedCount(reviews),
-            reuseReviewed: workflow !== null,
-            cutPlansReviewedAt: resolved.cutPlansReviewedAt,
+            pieces: activePieces.length,
+            requirements: planner.requirements.length,
+            decidedRequirements: planner.counts.decided,
           },
           notifications,
         });
@@ -138,15 +110,12 @@ export function ProjectProgressProvider({
     return () => {
       cancelled = true;
     };
-  }, [project.id, project.stock, refreshSignal, reloadToken, location.pathname]);
+  }, [project.id, project.stock, project.costs, refreshSignal, reloadToken, location.pathname]);
 
-  const checklist = buildProjectChecklist(state.counts);
   const nav = buildNavAnnotations(state.counts);
 
   return (
-    <ProjectProgressContext.Provider
-      value={{ ...state, checklist, nav, reload }}
-    >
+    <ProjectProgressContext.Provider value={{ ...state, nav, reload }}>
       {children}
     </ProjectProgressContext.Provider>
   );

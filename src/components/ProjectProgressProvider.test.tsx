@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
-import { getActivePieces } from '@/db/inventory';
+import { listPieces } from '@/db/inventory';
 import { listLumberRequirements, listStructuralMembers } from '@/db/members';
-import { filterCuttingPlanSnapshot, getLatestCuttingPlan } from '@/db/plans';
-import { getOptimizationWorkflow } from '@/db/workflow';
+import { getProjectPlan } from '@/db/plan';
 import type { StructuralMember } from '@/db/types';
 import { makeProject } from '@/test/fixtures';
 import { ProjectProgressProvider } from './ProjectProgressProvider';
@@ -17,17 +16,12 @@ vi.mock('@/db/members', () => ({
 }));
 
 vi.mock('@/db/inventory', () => ({
-  getActivePieces: vi.fn(),
+  listPieces: vi.fn(),
 }));
 
-vi.mock('@/db/plans', () => ({
-  filterCuttingPlanSnapshot: vi.fn(),
-  getLatestCuttingPlan: vi.fn(),
-}));
-
-vi.mock('@/db/workflow', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/db/workflow')>();
-  return { ...actual, getOptimizationWorkflow: vi.fn() };
+vi.mock('@/db/plan', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/db/plan')>();
+  return { ...actual, getProjectPlan: vi.fn() };
 });
 
 const project = makeProject();
@@ -44,14 +38,16 @@ const member: StructuralMember = {
 };
 
 function Probe() {
-  const { counts, checklist } = useProjectProgress();
+  const { counts, nav, notifications } = useProjectProgress();
   const navigate = useNavigate();
-  const members = checklist.find((item) => item.id === 'members');
 
   return (
     <div>
       <p data-testid="members-count">{counts.structuralMembers}</p>
-      <p data-testid="members-complete">{String(members?.complete)}</p>
+      <p data-testid="planner-outstanding">
+        {nav.planner?.count ?? (nav.planner?.complete ? 'complete' : 'none')}
+      </p>
+      <p data-testid="notification-count">{notifications.length}</p>
       <button type="button" onClick={() => navigate('/other')}>
         Go to other tab
       </button>
@@ -89,22 +85,45 @@ describe('ProjectProgressProvider', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValue([member]);
     vi.mocked(listLumberRequirements).mockResolvedValue([]);
-    vi.mocked(getActivePieces).mockResolvedValue([]);
-    vi.mocked(getOptimizationWorkflow).mockResolvedValue(null);
-    vi.mocked(getLatestCuttingPlan).mockResolvedValue(null);
-    vi.mocked(filterCuttingPlanSnapshot).mockImplementation((snapshot) => snapshot);
+    vi.mocked(listPieces).mockResolvedValue([]);
+    vi.mocked(getProjectPlan).mockResolvedValue(null);
 
     renderProvider();
 
-    expect(await screen.findByText('0', { selector: '[data-testid="members-count"]' })).toBeInTheDocument();
-    expect(screen.getByTestId('members-complete')).toHaveTextContent('false');
+    expect(
+      await screen.findByText('0', { selector: '[data-testid="members-count"]' }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Go to other tab' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('members-count')).toHaveTextContent('1');
     });
-    expect(screen.getByTestId('members-complete')).toHaveTextContent('true');
     expect(listStructuralMembers).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows invalidation warnings from the reconciled plan', async () => {
+    vi.mocked(listStructuralMembers).mockResolvedValue([]);
+    vi.mocked(listLumberRequirements).mockResolvedValue([]);
+    vi.mocked(listPieces).mockResolvedValue([]);
+    vi.mocked(getProjectPlan).mockResolvedValue({
+      ...(await import('@/db/plan')).emptyProjectPlan(),
+      status: 'needs_review',
+      invalidations: [
+        {
+          id: 'invalidation:retired-piece:board-1',
+          message: 'Board 1234 was retired; S1 panel released.',
+          requirementIds: ['member-1-panel-1'],
+          pieceIds: ['board-1'],
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('notification-count')).toHaveTextContent('1');
+    });
   });
 });

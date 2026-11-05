@@ -5,8 +5,7 @@ import { seedDemoProject, DEMO_PROJECT_NAME, DEMO_ACCESS_CODE, DEMO_PROJECT_ID }
 import { listStructuralMembers } from './members';
 import { listLumberRequirements } from './members';
 import { listPieces, getActivePieces } from './inventory';
-import { getLatestCuttingPlan } from './plans';
-import { getOptimizationWorkflow } from './workflow';
+import { getProjectPlan } from './plan';
 import { verifyProjectAccess } from './projects';
 import { decomposeMember } from '@/engine/decompose';
 import { optimizeProject, toMatchRequirements } from '@/engine';
@@ -63,9 +62,9 @@ describe('seedDemoProject on Firestore', () => {
     expect(pieces.filter((piece) => piece.condition === 'For Inspection')).toHaveLength(2);
     expect(pieces.some((piece) => piece.usageCount >= 5)).toBe(true);
 
-    const plan = await getLatestCuttingPlan(result.project.id);
+    const plan = await getProjectPlan(result.project.id);
     expect(plan).not.toBeNull();
-    expect(plan!.snapshot.satisfiedRequirementIds).toHaveLength(2);
+    expect(Object.keys(plan!.acceptedByRequirement)).toHaveLength(2);
 
     expect(await verifyProjectAccess(result.project.id, DEMO_ACCESS_CODE)).toBe(true);
 
@@ -79,22 +78,23 @@ describe('seedDemoProject on Firestore', () => {
 
   it('seeds reuse candidates and reusable offcuts', async () => {
     const result = await seedDemoProject(owner);
-    const [members, lumber, pieces, workflow] = await Promise.all([
+    const [members, lumber, pieces, plan] = await Promise.all([
       listStructuralMembers(result.project.id),
       listLumberRequirements(result.project.id),
       getActivePieces(result.project.id),
-      getOptimizationWorkflow(result.project.id),
+      getProjectPlan(result.project.id),
     ]);
-    expect(workflow).not.toBeNull();
+    expect(plan).not.toBeNull();
+    const satisfiedRequirementIds = new Set(Object.keys(plan!.acceptedByRequirement));
 
     const panels = members.flatMap(decomposeMember);
     const requirements = toMatchRequirements(panels, lumber);
     const matchPieces = pieces.map(toMatchPiece);
     const reviews = reviewRequirements(
       matchInventory(requirements, matchPieces),
-      new Set(workflow!.satisfiedRequirementIds),
-      new Map(Object.entries(workflow!.acceptedByRequirement)),
-      new Set(workflow!.declinedCandidates),
+      satisfiedRequirementIds,
+      new Map(Object.entries(plan!.acceptedByRequirement)),
+      new Set(plan!.declinedCandidates),
     );
 
     expect(reviews.filter((review) => review.status === 'needsDecision').length).toBeGreaterThan(
@@ -107,7 +107,7 @@ describe('seedDemoProject on Firestore', () => {
       stock: result.project.stock,
       costs: result.project.costs,
       pieces: matchPieces,
-      satisfiedRequirementIds: new Set(workflow!.satisfiedRequirementIds),
+      satisfiedRequirementIds,
     });
     const reusableOffcuts = optimization.plywood.sheets
       .flatMap((sheet) => sheet.offcuts)

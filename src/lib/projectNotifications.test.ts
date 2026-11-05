@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildProjectNotifications } from './projectNotifications';
+import {
+  buildPlanInvalidationNotification,
+  buildProjectNotifications,
+} from './projectNotifications';
 
 describe('buildProjectNotifications', () => {
   it('returns nothing when every requirement fits', () => {
@@ -23,7 +26,7 @@ describe('buildProjectNotifications', () => {
     expect(notification!).toMatchObject({
       id: 'oversized-panels',
       title: '1 panel exceeds the stock sheet',
-      href: 'optimize?step=cuts',
+      href: 'planner',
     });
     expect(notification!.items).toEqual(['S1 (5.00 m × 3.00 m)']);
   });
@@ -58,8 +61,33 @@ describe('buildProjectNotifications', () => {
     expect(notification!).toMatchObject({
       id: 'oversized-lumber',
       title: '1 lumber requirement exceeds the stock lengths',
-      href: 'optimize?step=cuts',
+      href: 'planner',
     });
     expect(notification!.items).toEqual(['Brace A (4.00 m · 2×3)']);
+  });
+
+  it('describes plan invalidations and links to the planner', () => {
+    const notification = buildPlanInvalidationNotification([
+      {
+        id: 'invalidation:retired-piece:board-1',
+        message: 'Board 1234 was retired; S1 panel released.',
+        requirementIds: ['member-1-panel-1'],
+        pieceIds: ['board-1'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    expect(notification).toMatchObject({
+      id: 'plan-invalidations',
+      title: 'Plan needs review',
+      href: 'planner',
+    });
+    expect(notification!.items).toEqual([
+      'Board 1234 was retired; S1 panel released.',
+    ]);
+  });
+
+  it('returns no invalidation notification when the plan is unchanged', () => {
+    expect(buildPlanInvalidationNotification([])).toBeNull();
   });
 });

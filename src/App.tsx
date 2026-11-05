@@ -5,11 +5,8 @@ import ProjectGate from '@/components/ProjectGate';
 import ProjectLayout from '@/components/ProjectLayout';
 import { ToastProvider } from '@/components/ui/toast';
 import LoginScreen from '@/screens/LoginScreen';
-import MemberFocusScreen from '@/screens/MemberFocusScreen';
-import OptimizationScreen from '@/screens/OptimizationScreen';
 import PlannerScreen from '@/screens/PlannerScreen';
 import ProjectInventoryScreen from '@/screens/ProjectInventoryScreen';
-import ProjectOverviewScreen from '@/screens/ProjectOverviewScreen';
 import ProjectSettingsScreen from '@/screens/ProjectSettingsScreen';
 import ProjectsScreen from '@/screens/ProjectsScreen';
 import StructuralMembersScreen from '@/screens/StructuralMembersScreen';
@@ -26,14 +23,20 @@ export default function App() {
           </Route>
           <Route path="/projects/:projectId" element={<ProjectGate />}>
             <Route element={<ProjectLayout />}>
-              <Route index element={<ProjectOverviewScreen />} />
+              <Route index element={<Navigate to="planner" replace />} />
               <Route path="members" element={<StructuralMembersScreen />} />
               <Route path="inventory" element={<ProjectInventoryScreen />} />
               <Route path="planner" element={<PlannerScreen />} />
-              <Route path="optimize" element={<OptimizationScreen />} />
-              <Route path="summary" element={<Navigate to=".." replace />} />
+              <Route path="optimize" element={<Navigate to="../planner" replace />} />
+              <Route
+                path="summary"
+                element={<Navigate to="../planner" replace />}
+              />
               <Route path="settings" element={<ProjectSettingsScreen />} />
-              <Route path="focus" element={<MemberFocusScreen />} />
+              <Route
+                path="focus"
+                element={<Navigate to="../planner?scope=member" replace />}
+              />
             </Route>
           </Route>
         </Route>

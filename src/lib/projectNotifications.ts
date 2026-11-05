@@ -1,4 +1,5 @@
 import type { LumberUnplaced, UnplacedPanel } from '@/engine/types';
+import type { PlanInvalidation } from '@/db/plan';
 import { crossSectionLabel, formatMeters } from '@/lib/format';
 
 export interface ProjectNotification {
@@ -23,7 +24,7 @@ export function buildProjectNotifications(
       } exceed${oversizedPanels.length === 1 ? 's' : ''} the stock sheet`,
       description:
         'Increase the phenolic sheet size or split these panels before cutting.',
-      href: 'optimize?step=cuts',
+      href: 'planner',
       items: oversizedPanels.map(
         (panel) => `${panel.label} (${formatMeters(panel.length)} × ${formatMeters(panel.width)})`,
       ),
@@ -37,7 +38,7 @@ export function buildProjectNotifications(
         oversizedLumber.length === 1 ? '' : 's'
       } exceed${oversizedLumber.length === 1 ? 's' : ''} the stock lengths`,
       description: 'Add a longer stock length in Settings or split these requirements.',
-      href: 'optimize?step=cuts',
+      href: 'planner',
       items: oversizedLumber.map(
         (requirement) =>
           `${requirement.label} (${formatMeters(requirement.length)} · ${crossSectionLabel(
@@ -48,4 +49,19 @@ export function buildProjectNotifications(
   }
 
   return notifications;
+}
+
+export function buildPlanInvalidationNotification(
+  invalidations: readonly PlanInvalidation[],
+): ProjectNotification | null {
+  if (invalidations.length === 0) return null;
+
+  return {
+    id: 'plan-invalidations',
+    title: 'Plan needs review',
+    description:
+      'Committed allocations changed after the plan was saved. Release and re-commit the affected panels.',
+    href: 'planner',
+    items: invalidations.map((invalidation) => invalidation.message),
+  };
 }

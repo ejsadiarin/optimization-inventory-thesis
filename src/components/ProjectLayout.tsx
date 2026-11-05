@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import {
   Link,
   NavLink,
@@ -16,8 +16,6 @@ import {
   Calculator,
   Check,
   CircleUserRound,
-  Crosshair,
-  LayoutDashboard,
   Lock,
   LogOut,
   Package,
@@ -43,12 +41,10 @@ import SyncStatusChip from '@/components/SyncStatusChip';
 import { ProjectProgressProvider } from './ProjectProgressProvider';
 
 const NAV_ICONS: Record<string, LucideIcon> = {
-  '': LayoutDashboard,
   members: Boxes,
   inventory: Package,
-  optimize: Calculator,
+  planner: Calculator,
   settings: Settings,
-  focus: Crosshair,
 };
 
 export default function ProjectLayout() {
@@ -142,7 +138,7 @@ function ProjectLayoutContent({ project }: { project: Project }) {
             <div className="flex min-w-0 items-center gap-1">
               {isDesktop ? (
                 <span className="text-sm font-medium text-muted-foreground">
-                  {activeItem?.label ?? 'Overview'}
+                  {activeItem?.label ?? 'Planner'}
                 </span>
               ) : (
                 <>
@@ -309,21 +305,13 @@ function ProjectNavLinks({
   return (
     <>
       {PROJECT_NAV_ITEMS.map((item) => (
-        <Fragment key={item.path}>
-          {item.separatorBefore && (
-            <div className="my-2 border-t pt-2 lg:my-3 lg:pt-3">
-              <p className="hidden px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:block">
-                Alternative flow
-              </p>
-            </div>
-          )}
-          <ProjectNavLink
-            item={item}
-            projectId={projectId}
-            annotation={nav[item.path]}
-            onNavigate={onNavigate}
-          />
-        </Fragment>
+        <ProjectNavLink
+          key={item.path}
+          item={item}
+          projectId={projectId}
+          annotation={nav[item.path]}
+          onNavigate={onNavigate}
+        />
       ))}
     </>
   );
@@ -340,7 +328,7 @@ function ProjectNavLink({
   annotation: ProjectNavAnnotation | undefined;
   onNavigate?: () => void;
 }) {
-  const Icon = NAV_ICONS[item.path] ?? LayoutDashboard;
+  const Icon = NAV_ICONS[item.path] ?? Calculator;
   const accessibleName =
     annotation?.count !== undefined
       ? `${item.label} (${annotation.count} outstanding)`
@@ -403,9 +391,9 @@ function ProjectBottomNav({
       aria-label="Project sections"
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden"
     >
-      <div className="grid grid-cols-6 pb-[env(safe-area-inset-bottom)]">
+      <div className="grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
         {PROJECT_NAV_ITEMS.map((item) => {
-          const Icon = NAV_ICONS[item.path] ?? LayoutDashboard;
+          const Icon = NAV_ICONS[item.path] ?? Calculator;
           const annotation = nav[item.path];
           const accessibleName =
             annotation?.count !== undefined
@@ -448,7 +436,7 @@ function ProjectBottomNav({
                     )}
                   </span>
                   <span className="w-full truncate text-center">
-                    {item.shortLabel ?? item.label}
+                    {item.label}
                   </span>
                 </>
               )}

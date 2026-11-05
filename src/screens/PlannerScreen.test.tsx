@@ -619,3 +619,58 @@ describe('PlannerScreen member scope', () => {
     expect(Object.keys(plan?.committedByRequirement ?? {})).toHaveLength(2);
   });
 });
+
+describe('Planner routes and navigation', () => {
+  it('redirects the legacy optimize and focus routes to the correct planner scope', async () => {
+    const project = await seedProject({ name: 'Legacy Route Site' });
+    await addMember(project.id, 'C1');
+    unlockProject(project.id);
+
+    const optimize = render(
+      <MemoryRouter initialEntries={[`/projects/${project.id}/optimize`]}>
+        <TestAuthProvider user={testUser}>
+          <App />
+        </TestAuthProvider>
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByRole('button', { name: /project scope/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    optimize.unmount();
+
+    render(
+      <MemoryRouter initialEntries={[`/projects/${project.id}/focus`]}>
+        <TestAuthProvider user={testUser}>
+          <App />
+        </TestAuthProvider>
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByRole('button', { name: /member scope/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('uses Planner as the landing route and active navigation item', async () => {
+    const project = await seedProject({ name: 'Landing Site' });
+    await addMember(project.id, 'C1');
+    unlockProject(project.id);
+
+    render(
+      <MemoryRouter initialEntries={[`/projects/${project.id}`]}>
+        <TestAuthProvider user={testUser}>
+          <App />
+        </TestAuthProvider>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: /^planner$/i }),
+    ).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: /^project$/i });
+    expect(within(nav).getAllByRole('link')).toHaveLength(4);
+    expect(within(nav).getByRole('link', { name: /^planner/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+});
