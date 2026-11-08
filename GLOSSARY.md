@@ -133,11 +133,11 @@ The share of a structural member's formwork panels covered by reused inventory r
 _Avoid_: Reuse rate, utilization (utilization is an area metric)
 
 **Member Scope**:
-The Planner view filtered to one structural member: its formwork panels, its member-linked lumber, and the boards that serve them. A shared board is shown in full, with the selected member's panels highlighted.
+The Planner view filtered to one structural member: its formwork panels, its member-linked lumber, and the boards that serve them. A shared board is shown in full, with the selected member's panels highlighted. It is where the engineer makes reuse decisions, one member at a time, before moving on to Project Scope.
 _Avoid_: Member tab, focus mode
 
 **Project Scope**:
-The Planner view of the whole project's global allocation: every member's requirements, project-level lumber, new stock, and offcuts, grouped by physical board.
+The Planner view of the whole project's global allocation: every member's requirements, project-level lumber, new stock, and offcuts, grouped by physical board. It is the final review step, where the plan draft is committed; the UI labels it "Review & commit".
 _Avoid_: Global mode, optimize tab
 
 **Exclusive Member Plan**:

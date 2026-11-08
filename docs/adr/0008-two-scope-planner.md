@@ -1,5 +1,7 @@
 # Replace Overview and Optimize with a two-scope Planner
 
+> Superseded in part by [ADR 0009](./0009-member-first-planner-workflow.md): Member scope is now the landing view and Project scope is a separate Review & commit step.
+
 > Implementation plan: [`docs/plans/two-scope-planner.md`](../plans/two-scope-planner.md).
 
 The project had three overlapping screens: Overview, Optimize, and Member planner. Optimize packed the whole project; Member planner packed one member in isolation; Overview presented a checklist over both. The split forced engineers to pick a screen instead of a scope, hid cross-member sharing from the member view, and duplicated allocation logic with different semantics. Because the product's primary objective is material utilization, the whole project must be packed as one allocation.
