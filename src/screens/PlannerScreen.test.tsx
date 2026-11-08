@@ -732,6 +732,124 @@ async function seedColumnBoards(projectId: string, columnId: string) {
   return accepted;
 }
 
+describe('PlannerScreen narrow-screen tabs', () => {
+  it('shows three panes as tabs below desktop and keeps all panes on desktop', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Planner Tabs Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    const tablist = screen.getByRole('tablist', { name: /planner views/i });
+    expect(tablist).toHaveClass('lg:hidden');
+    expect(within(tablist).getAllByRole('tab')).toHaveLength(3);
+    expect(screen.getByTestId('planner-tab-decide')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    const rail = screen.getByTestId('planner-member-rail');
+    const decisionPane = screen.getByTestId('planner-decision-pane');
+    const boardPane = screen.getByTestId('planner-board-pane');
+    expect(rail).toHaveClass('hidden');
+    expect(decisionPane).not.toHaveClass('hidden');
+    expect(boardPane).toHaveClass('hidden');
+    expect(rail).toHaveClass('lg:block');
+    expect(decisionPane).toHaveClass('lg:block');
+    expect(boardPane).toHaveClass('lg:block');
+
+    await user.click(screen.getByTestId('planner-tab-members'));
+    expect(rail).not.toHaveClass('hidden');
+    expect(decisionPane).toHaveClass('hidden');
+
+    await user.click(screen.getByTestId('planner-tab-cutting'));
+    expect(boardPane).not.toHaveClass('hidden');
+    expect(rail).toHaveClass('hidden');
+  });
+
+  it('shows a sticky View plan button with the board count', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'View Plan Button Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    const bar = screen.getByTestId('planner-view-plan-bar');
+    expect(bar).toHaveClass('sticky');
+    const viewPlan = within(bar).getByRole('button', {
+      name: /view plan \(2 boards\)/i,
+    });
+    await user.click(viewPlan);
+
+    expect(screen.getByTestId('planner-tab-cutting')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('planner-board-pane')).not.toHaveClass('hidden');
+    expect(
+      screen.queryByTestId('planner-view-plan-bar'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('switches tabs when linking a row to its board and a panel back to its row', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Planner Link Tabs Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    await user.click(screen.getByTestId('planner-tab-cutting'));
+    const panelId = visiblePanelIds()[0]!;
+    await user.click(screen.getByTestId(`panel-${panelId}`));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planner-tab-decide')).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
+    const row = screen.getByTestId(`requirement-row-${panelId}`);
+    expect(row).toHaveAttribute('aria-current', 'true');
+
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('planner-tab-cutting')).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
+    expect(screen.getByTestId(`panel-${panelId}`)).toHaveAttribute(
+      'data-focused',
+      'true',
+    );
+  });
+});
+
 describe('PlannerScreen board viewer', () => {
   it('shows one board at a time with thumbnails, arrows and exports', async () => {
     const user = userEvent.setup();

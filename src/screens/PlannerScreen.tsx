@@ -26,6 +26,7 @@ import {
 
 type MemberTypeFilter = 'all' | StructuralMemberType;
 type MemberStatusFilter = 'all' | 'needs-decision' | 'done';
+type PlannerTab = 'members' | 'decide' | 'cutting';
 
 const TYPE_FILTERS: Array<{ value: MemberTypeFilter; label: string }> = [
   { value: 'all', label: 'All types' },
@@ -53,6 +54,7 @@ export default function PlannerScreen() {
   const [dismissedInvalidationIds, setDismissedInvalidationIds] = useState<
     Set<string>
   >(() => new Set());
+  const [activeTab, setActiveTab] = useState<PlannerTab>('decide');
   const {
     members,
     plan,
@@ -236,6 +238,15 @@ export default function PlannerScreen() {
     setSearchParams(next, { replace: true });
     setSelectedRequirementId('');
     setCandidatePreview(null);
+    setActiveTab('decide');
+  }
+
+  function selectRequirement(requirementId: string) {
+    setSelectedRequirementId(requirementId);
+    const board = visibleBoards.find((item) =>
+      item.panels.some((panel) => panel.panelId === requirementId),
+    );
+    if (board) setActiveTab('cutting');
   }
 
   function handlePanelClick(panelId: string) {
@@ -247,6 +258,7 @@ export default function PlannerScreen() {
     }
     setSelectedRequirementId(panelId);
     setCandidatePreview(null);
+    setActiveTab('decide');
   }
 
   function handleExclusiveChange(checked: boolean) {
@@ -335,6 +347,57 @@ export default function PlannerScreen() {
       )}
 
       <div
+        role="tablist"
+        aria-label="Planner views"
+        className="flex gap-1 rounded-lg border bg-background p-1 lg:hidden"
+      >
+        {[
+          { id: 'members' as const, label: 'Members' },
+          { id: 'decide' as const, label: 'Decide' },
+          ...(!isProjectLumber
+            ? [{ id: 'cutting' as const, label: 'Cutting plans' }]
+            : []),
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            data-testid={`planner-tab-${tab.id}`}
+            onClick={() => setActiveTab(tab.id)}
+            className={[
+              'min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+              activeTab === tab.id
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-accent',
+            ].join(' ')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {!isProjectLumber &&
+        visibleBoards.length > 0 &&
+        activeTab !== 'cutting' && (
+          <div
+            data-testid="planner-view-plan-bar"
+            className="sticky top-14 z-30 flex justify-end bg-background/95 py-1 backdrop-blur lg:hidden"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="planner-view-plan"
+              onClick={() => setActiveTab('cutting')}
+            >
+              View plan ({visibleBoards.length} board
+              {visibleBoards.length === 1 ? '' : 's'})
+            </Button>
+          </div>
+        )}
+
+      <div
         data-testid="planner-workspace"
         className={`grid gap-5 lg:items-start ${
           isProjectLumber
@@ -345,7 +408,10 @@ export default function PlannerScreen() {
         <aside
           data-testid="planner-member-rail"
           aria-label="Structural members"
-          className="space-y-3 rounded-lg border bg-background p-3 lg:sticky lg:top-20"
+          className={[
+            'space-y-3 rounded-lg border bg-background p-3 lg:sticky lg:top-20 lg:block',
+            activeTab === 'members' ? '' : 'hidden',
+          ].join(' ')}
         >
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">Members</h2>
@@ -452,7 +518,13 @@ export default function PlannerScreen() {
           </div>
         </aside>
 
-        <section className="min-w-0 space-y-5">
+        <section
+          data-testid="planner-decision-pane"
+          className={[
+            'min-w-0 space-y-5 lg:block',
+            activeTab === 'decide' ? '' : 'hidden',
+          ].join(' ')}
+        >
           {error && (
             <p role="alert" className="text-sm font-medium text-destructive">
               {error}
@@ -728,7 +800,7 @@ export default function PlannerScreen() {
                 reviews={reviews}
                 lockedRequirementIds={workspace.lockedRequirementIds}
                 selectedRequirementId={selectedRequirementId}
-                onSelectRequirement={setSelectedRequirementId}
+                onSelectRequirement={selectRequirement}
                 onAccept={(group, candidate) =>
                   decide(() => workspace.accept(group, candidate))
                 }
@@ -759,7 +831,10 @@ export default function PlannerScreen() {
         {!isProjectLumber && (
           <aside
             data-testid="planner-board-pane"
-            className="min-w-0 space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto"
+            className={[
+              'min-w-0 space-y-5 lg:sticky lg:top-20 lg:block lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto',
+              activeTab === 'cutting' ? '' : 'hidden',
+            ].join(' ')}
           >
             {!loading && !loadError && reviews.length > 0 && (
               <MemberBoardViewer
