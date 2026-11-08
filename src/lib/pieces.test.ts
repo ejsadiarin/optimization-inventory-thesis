@@ -24,6 +24,7 @@ describe('toMatchPiece', () => {
   it('projects the fields the matching engine needs', () => {
     expect(toMatchPiece(piece())).toEqual({
       id: 'piece-1',
+      label: undefined,
       materialType: 'phenolic',
       length: 1.2,
       width: 0.6,
@@ -31,6 +32,7 @@ describe('toMatchPiece', () => {
       condition: 'Good',
       retired: false,
       usageCount: 2,
+      storageLocation: 'Rack A',
     });
   });
 });
