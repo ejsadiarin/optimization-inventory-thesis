@@ -8,6 +8,7 @@ export const PROJECT_NAV_ITEMS: ProjectNavItem[] = [
   { path: 'members', label: 'Members' },
   { path: 'inventory', label: 'Inventory' },
   { path: 'planner', label: 'Planner' },
+  { path: 'review', label: 'Review & commit' },
   { path: 'settings', label: 'Settings' },
 ];
 

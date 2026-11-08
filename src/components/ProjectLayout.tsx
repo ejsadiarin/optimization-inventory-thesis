@@ -16,6 +16,7 @@ import {
   Calculator,
   Check,
   CircleUserRound,
+  ClipboardCheck,
   Lock,
   LogOut,
   Package,
@@ -44,6 +45,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   members: Boxes,
   inventory: Package,
   planner: Calculator,
+  review: ClipboardCheck,
   settings: Settings,
 };
 
@@ -391,7 +393,7 @@ function ProjectBottomNav({
       aria-label="Project sections"
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden"
     >
-      <div className="grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
+      <div className="grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
         {PROJECT_NAV_ITEMS.map((item) => {
           const Icon = NAV_ICONS[item.path] ?? Calculator;
           const annotation = nav[item.path];

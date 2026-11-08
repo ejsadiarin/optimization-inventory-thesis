@@ -8,6 +8,7 @@ import { ToastProvider } from '@/components/ui/toast';
 
 const LoginScreen = lazy(() => import('@/screens/LoginScreen'));
 const PlannerScreen = lazy(() => import('@/screens/PlannerScreen'));
+const ReviewCommitScreen = lazy(() => import('@/screens/ReviewCommitScreen'));
 const ProjectInventoryScreen = lazy(() => import('@/screens/ProjectInventoryScreen'));
 const ProjectSettingsScreen = lazy(() => import('@/screens/ProjectSettingsScreen'));
 const ProjectsScreen = lazy(() => import('@/screens/ProjectsScreen'));
@@ -38,15 +39,16 @@ export default function App() {
                 <Route path="members" element={<StructuralMembersScreen />} />
                 <Route path="inventory" element={<ProjectInventoryScreen />} />
                 <Route path="planner" element={<PlannerScreen />} />
-                <Route path="optimize" element={<Navigate to="../planner" replace />} />
+                <Route path="review" element={<ReviewCommitScreen />} />
+                <Route path="optimize" element={<Navigate to="../review" replace />} />
                 <Route
                   path="summary"
-                  element={<Navigate to="../planner" replace />}
+                  element={<Navigate to="../review" replace />}
                 />
                 <Route path="settings" element={<ProjectSettingsScreen />} />
                 <Route
                   path="focus"
-                  element={<Navigate to="../planner?scope=member" replace />}
+                  element={<Navigate to="../planner" replace />}
                 />
               </Route>
             </Route>
