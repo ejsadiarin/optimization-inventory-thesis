@@ -277,6 +277,78 @@ describe('PlannerScreen member scope', () => {
   });
 });
 
+describe('PlannerScreen project-level lumber', () => {
+  it('shows project-level lumber in the rail and decides it with the same rows', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Project Lumber Site' });
+    await addMember(project.id, 'S1');
+    const requirement = await createLumberRequirement({
+      projectId: project.id,
+      label: 'Project brace',
+      length: 2,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    const lumberPiece = await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 2.44,
+      crossSection: '2x3',
+    });
+
+    await renderPlanner(project.id);
+
+    const entry = screen.getByTestId('planner-member-project-lumber');
+    expect(entry).toHaveAttribute(
+      'aria-label',
+      'Project-level lumber · 0/1',
+    );
+
+    await user.click(entry);
+
+    const row = await screen.findByTestId(`requirement-row-${requirement.id}`);
+    expect(row).toHaveTextContent('Project brace');
+    expect(screen.queryByTestId('planner-member-coverage')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planner-board-pane')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planner-exclusive')).not.toBeInTheDocument();
+    expect(screen.getByTestId('planner-progress-summary')).toHaveTextContent(
+      '0 of 1 requirements decided',
+    );
+
+    await user.click(
+      within(row).getByRole('button', {
+        name: /^accept .* for Project brace$/i,
+      }),
+    );
+
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan?.acceptedByRequirement[requirement.id]).toBe(lumberPiece.id);
+    });
+    expect(entry).toHaveAttribute(
+      'aria-label',
+      'Project-level lumber · 1/1',
+    );
+  });
+
+  it('hides the project-level lumber entry when none exists', async () => {
+    const project = await seedProject({ name: 'No Project Lumber Site' });
+    await addMember(project.id, 'S1');
+
+    await renderPlanner(project.id);
+
+    expect(
+      screen.queryByTestId('planner-member-project-lumber'),
+    ).not.toBeInTheDocument();
+  });
+});
+
 function LocationProbe() {
   const location = useLocation();
   return (

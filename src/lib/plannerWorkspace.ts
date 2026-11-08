@@ -33,6 +33,8 @@ import {
 import { commitProjectPlan } from '@/lib/planCommit';
 import { useRefreshSignal } from '@/lib/useRefreshSignal';
 
+export const PROJECT_LUMBER_ID = 'project-lumber';
+
 export interface SharedPieceRequirementIds {
   draftRequirementIds: string[];
   committedRequirementIds: string[];
@@ -70,6 +72,7 @@ export interface PlannerWorkspace {
   reportError: (message: string) => void;
 
   memberView: (memberId: string) => PlannerMemberView;
+  projectLumberView: PlannerMemberView | null;
   memberColors: ReadonlyMap<string, string>;
   lockedRequirementIds: ReadonlySet<string>;
   hasResettableDecisions: boolean;
@@ -327,6 +330,29 @@ export function usePlannerWorkspace(project: Project): PlannerWorkspace {
     },
     [state, plan, members, sharedPieceIdsByMember],
   );
+
+  const projectLumberView = useMemo<PlannerMemberView | null>(() => {
+    const reviews = state.reviews.filter(
+      (review) => review.group.requirement.memberId === undefined,
+    );
+    if (reviews.length === 0) return null;
+    return {
+      memberId: PROJECT_LUMBER_ID,
+      memberLabel: 'Project-level lumber',
+      projection: undefined,
+      reviews,
+      isExclusive: false,
+      exclusiveBlockedCount: 0,
+      sharedPieceRequirementIds: {
+        draftRequirementIds: [],
+        committedRequirementIds: [],
+      },
+      totalRequirements: reviews.length,
+      decidedRequirements: reviews.filter(
+        (review) => review.status !== 'needsDecision',
+      ).length,
+    };
+  }, [state.reviews]);
 
   const enableExclusive = useCallback(
     (memberId: string, releaseRequirementIds: readonly string[]) => {
@@ -732,6 +758,7 @@ export function usePlannerWorkspace(project: Project): PlannerWorkspace {
     reload: load,
     reportError: setError,
     memberView,
+    projectLumberView,
     memberColors,
     lockedRequirementIds,
     hasResettableDecisions: plan.declinedCandidates.length > 0,
