@@ -1,7 +1,7 @@
 import { SheetDiagram } from '@/components/optimize/CutPlanSheet';
 import { Button } from '@/components/ui/button';
-import { shortId } from '@/lib/format';
 import type { PlannerBoard } from '@/lib/planner';
+import { boardTitle } from '@/lib/plannerExport';
 
 function boardMembers(board: PlannerBoard): string[] {
   return Array.from(
@@ -26,9 +26,7 @@ export function BoardPreview({
 }) {
   if (!board.plan) return null;
   const members = boardMembers(board);
-  const title = board.pieceId
-    ? shortId(board.pieceId)
-    : `Stock sheet ${board.plan.sheetIndex + 1}`;
+  const title = boardTitle(board);
   return (
     <div
       className="space-y-2 rounded-md border bg-background p-3"

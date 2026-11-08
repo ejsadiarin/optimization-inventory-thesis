@@ -104,8 +104,8 @@ describe('PlannerScreen member scope', () => {
 
     await renderPlanner(project.id);
 
-    const board = await screen.findByTestId('planner-reused-boards');
-    const card = within(board).getAllByTestId(/planner-board-/)[0]!;
+    const viewer = await screen.findByTestId('planner-board-viewer');
+    const card = await within(viewer).findByTestId(/^planner-board-(reuse|stock):/);
     expect(
       card.querySelector(`[data-testid="panel-${c1.id}-panel-1"]`),
     ).toHaveAttribute('data-highlighted', 'true');
@@ -163,7 +163,6 @@ describe('PlannerScreen member scope', () => {
       /1 reused · 0 new stock · 0 unplaced/i,
     );
     expect(screen.getByTestId('planner-member-boards')).toHaveTextContent('1 board');
-    expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('planner-offcuts')).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId(`planner-member-${c2.id}`));
@@ -468,6 +467,116 @@ describe('PlannerScreen member workspace', () => {
     const workspace = screen.getByTestId('planner-workspace');
     expect(workspace.className).toContain('lg:grid-cols-');
     expect(screen.getByTestId('planner-member-rail')).toBeInTheDocument();
+  });
+});
+
+describe('PlannerScreen board viewer', () => {
+  async function seedColumnBoards(projectId: string, columnId: string) {
+    const first = await addPiece({
+      projectId,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    const second = await addPiece({
+      projectId,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    const accepted = {
+      [`${columnId}-panel-1`]: first.id,
+      [`${columnId}-panel-2`]: first.id,
+      [`${columnId}-panel-3`]: second.id,
+      [`${columnId}-panel-4`]: second.id,
+    };
+    await saveProjectPlan(projectId, {
+      ...emptyProjectPlan(),
+      acceptedByRequirement: accepted,
+    });
+    return accepted;
+  }
+
+  it('shows one board at a time with thumbnails, arrows and exports', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Board Viewer Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    const viewer = await screen.findByTestId('planner-board-viewer');
+    expect(within(viewer).getAllByTestId(/^planner-board-(reuse|stock):/)).toHaveLength(1);
+    expect(viewer).toHaveTextContent('1 of 2');
+
+    const thumbnails = within(viewer).getAllByRole('button', { name: /^show /i });
+    expect(thumbnails).toHaveLength(2);
+
+    await user.click(within(viewer).getByRole('button', { name: /next board/i }));
+    expect(viewer).toHaveTextContent('2 of 2');
+
+    await user.click(
+      within(viewer).getByRole('button', { name: /previous board/i }),
+    );
+    expect(viewer).toHaveTextContent('1 of 2');
+
+    await user.click(thumbnails[1]!);
+    expect(viewer).toHaveTextContent('2 of 2');
+
+    await user.click(
+      within(viewer).getByRole('button', { name: /export .* as svg/i }),
+    );
+    expect(exportSvgMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays visible while the decision list scrolls', async () => {
+    const project = await seedProject({ name: 'Sticky Viewer Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    expect(screen.getByTestId('planner-board-pane')).toHaveClass('lg:sticky');
+  });
+
+  it('updates the board as soon as a decision changes the draft', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Live Viewer Site' });
+    await addMember(project.id, 'S1');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    const viewer = await screen.findByTestId('planner-board-viewer');
+    expect(within(viewer).getByText(/^New stock · \d+ panel/)).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+
+    await waitFor(() => {
+      expect(within(viewer).getByText(/^Reused board · \d+ panel/)).toBeInTheDocument();
+    });
   });
 });
 

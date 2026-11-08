@@ -10,9 +10,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
 import { PageHeader } from '@/components/ui/page-header';
 import type { Project } from '@/db/types';
-import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/download';
-import { shortId } from '@/lib/format';
 import type { PlannerBoard } from '@/lib/planner';
+import { exportPlannerBoard } from '@/lib/plannerExport';
 import { usePlannerWorkspace } from '@/lib/plannerWorkspace';
 
 export default function ReviewCommitScreen() {
@@ -29,32 +28,8 @@ export default function ReviewCommitScreen() {
     [state.boards],
   );
 
-  function boardExportLabel(board: PlannerBoard): string {
-    if (board.source === 'reuse' && board.pieceId) {
-      return `reused-board-${shortId(board.pieceId)}`;
-    }
-    return `stock-sheet-${(board.plan?.sheetIndex ?? 0) + 1}`;
-  }
-
   function exportBoard(board: PlannerBoard, extension: 'svg' | 'png') {
-    const element = document.getElementById(`planner-${board.key}`);
-    if (!element || element.tagName.toLowerCase() !== 'svg') {
-      workspace.reportError('Could not find the cutting plan board to export.');
-      return;
-    }
-    const filename = buildDatedFilename(
-      project.name,
-      boardExportLabel(board),
-      extension,
-    );
-    const svg = element as unknown as SVGSVGElement;
-    if (extension === 'svg') {
-      downloadSvgAsFile(filename, svg);
-      return;
-    }
-    void downloadSvgAsPng(filename, svg).catch(() => {
-      workspace.reportError('Could not export the cutting plan image.');
-    });
+    exportPlannerBoard(board, project.name, extension, workspace.reportError);
   }
 
   function exportAllBoards(extension: 'svg' | 'png') {

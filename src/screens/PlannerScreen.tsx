@@ -6,8 +6,8 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { Loader2, PackageSearch } from 'lucide-react';
-import { BoardPreview } from '@/components/optimize/BoardPreview';
 import MatchGroups from '@/components/optimize/MatchGroups';
+import MemberBoardViewer from '@/components/optimize/MemberBoardViewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -104,16 +104,6 @@ export default function PlannerScreen() {
     [selectedMemberView?.projection?.boards],
   );
   const memberCoverage = selectedMemberView?.projection?.panelCoverage;
-
-  const reusedBoards = useMemo(
-    () => visibleBoards.filter((board) => board.source === 'reuse'),
-    [visibleBoards],
-  );
-
-  const newStockBoards = useMemo(
-    () => visibleBoards.filter((board) => board.source === 'new_stock'),
-    [visibleBoards],
-  );
 
   const filteredMembers = memberViews.filter((view) => {
     const member = memberById.get(view.memberId);
@@ -355,7 +345,20 @@ export default function PlannerScreen() {
           )}
         </section>
 
-        <aside className="min-w-0 space-y-5">
+        <aside
+          data-testid="planner-board-pane"
+          className="min-w-0 space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto"
+        >
+          {!loading && !loadError && reviews.length > 0 && (
+            <MemberBoardViewer
+              boards={visibleBoards}
+              projectName={project.name}
+              memberColors={workspace.memberColors}
+              highlightPanelIds={selectedMemberView?.projection?.panelIds}
+              onError={workspace.reportError}
+            />
+          )}
+
           <Card data-testid="planner-exclusive">
             <CardContent className="space-y-2 py-4 text-sm">
               <label className="flex items-center gap-2">
@@ -426,45 +429,6 @@ export default function PlannerScreen() {
               )}
             </CardContent>
           </Card>
-
-          {!loading && !loadError && reviews.length > 0 && (
-            <>
-              {reusedBoards.length > 0 && (
-                <section data-testid="planner-reused-boards" className="space-y-3">
-                  <div>
-                    <h2 className="text-base font-semibold">Reused boards</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {reusedBoards.length} board
-                      {reusedBoards.length === 1 ? '' : 's'} in the cutting plan.
-                      Shared boards show every member at once.
-                    </p>
-                  </div>
-                  {reusedBoards.map((board) => (
-                    <BoardPreview
-                      key={board.key}
-                      board={board}
-                      memberColors={workspace.memberColors}
-                      highlightPanelIds={selectedMemberView?.projection?.panelIds}
-                    />
-                  ))}
-                </section>
-              )}
-
-              {newStockBoards.length > 0 && (
-                <section data-testid="planner-new-stock" className="space-y-3">
-                  <h2 className="text-base font-semibold">New stock cutting plan</h2>
-                  {newStockBoards.map((board) => (
-                    <BoardPreview
-                      key={board.key}
-                      board={board}
-                      memberColors={workspace.memberColors}
-                      highlightPanelIds={selectedMemberView?.projection?.panelIds}
-                    />
-                  ))}
-                </section>
-              )}
-            </>
-          )}
         </aside>
       </div>
     </div>
