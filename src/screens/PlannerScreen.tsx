@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
+import { InfoHint } from '@/components/ui/info-hint';
 import { PageHeader } from '@/components/ui/page-header';
 import type { Project, StructuralMemberType } from '@/db/types';
 import { MEMBER_TYPE_LABELS } from '@/lib/memberLabels';
@@ -49,6 +50,9 @@ export default function PlannerScreen() {
   const [candidatePreview, setCandidatePreview] =
     useState<CandidatePreviewState | null>(null);
   const [confirmingBulkAccept, setConfirmingBulkAccept] = useState(false);
+  const [dismissedInvalidationIds, setDismissedInvalidationIds] = useState<
+    Set<string>
+  >(() => new Set());
   const {
     members,
     plan,
@@ -174,6 +178,53 @@ export default function PlannerScreen() {
     return true;
   });
 
+  const visibleInvalidations = useMemo(
+    () =>
+      plan.invalidations.filter(
+        (invalidation) => !dismissedInvalidationIds.has(invalidation.id),
+      ),
+    [dismissedInvalidationIds, plan.invalidations],
+  );
+  const entryStateByRequirementId = useMemo(() => {
+    const byRequirement = new Map<
+      string,
+      { entryId: string; needsDecision: boolean }
+    >();
+    for (const view of entryViews) {
+      for (const review of view.reviews) {
+        byRequirement.set(review.group.requirement.id, {
+          entryId: view.memberId,
+          needsDecision: review.status === 'needsDecision',
+        });
+      }
+    }
+    return byRequirement;
+  }, [entryViews]);
+  const affectedEntryIds = useMemo(() => {
+    const affected = new Set<string>();
+    for (const invalidation of plan.invalidations) {
+      for (const requirementId of invalidation.requirementIds) {
+        const entry = entryStateByRequirementId.get(requirementId);
+        if (entry) {
+          if (entry.needsDecision) affected.add(entry.entryId);
+          continue;
+        }
+        const owner = members.find((member) =>
+          requirementId.startsWith(`${member.id}-panel-`),
+        );
+        if (owner) affected.add(owner.id);
+      }
+    }
+    return affected;
+  }, [entryStateByRequirementId, members, plan.invalidations]);
+
+  useEffect(() => {
+    if (plan.invalidations.length > 0 || dismissedInvalidationIds.size === 0) {
+      return;
+    }
+    setDismissedInvalidationIds(new Set());
+  }, [dismissedInvalidationIds.size, plan.invalidations.length]);
+
   if (searchParams.get('scope') === 'project') {
     return <Navigate to="../review" replace />;
   }
@@ -210,6 +261,27 @@ export default function PlannerScreen() {
 
   const reviewedTotal = selectedEntryView?.totalRequirements ?? 0;
   const reviewedDecided = selectedEntryView?.decidedRequirements ?? 0;
+  const selectedEntryComplete =
+    selectedEntryView !== undefined &&
+    selectedEntryView.decidedRequirements >= selectedEntryView.totalRequirements;
+  const allEntriesDecided =
+    entryViews.length > 0 &&
+    entryViews.every(
+      (view) => view.decidedRequirements >= view.totalRequirements,
+    );
+  let nextUndecidedEntry: (typeof entryViews)[number] | null = null;
+  if (selectedEntryComplete && !allEntriesDecided) {
+    const currentIndex = entryViews.findIndex(
+      (view) => view.memberId === selectedEntryId,
+    );
+    for (let offset = 1; offset <= entryViews.length; offset += 1) {
+      const view = entryViews[(currentIndex + offset) % entryViews.length];
+      if (view && view.decidedRequirements < view.totalRequirements) {
+        nextUndecidedEntry = view;
+        break;
+      }
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -226,6 +298,41 @@ export default function PlannerScreen() {
           </Badge>
         )}
       </div>
+
+      {visibleInvalidations.length > 0 && (
+        <div
+          data-testid="planner-invalidations"
+          role="alert"
+          className="rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">Plan needs review</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {visibleInvalidations.map((invalidation) => (
+                  <li key={invalidation.id}>{invalidation.message}</li>
+                ))}
+              </ul>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setDismissedInvalidationIds((current) => {
+                  const next = new Set(current);
+                  for (const invalidation of visibleInvalidations) {
+                    next.add(invalidation.id);
+                  }
+                  return next;
+                })
+              }
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div
         data-testid="planner-workspace"
@@ -315,15 +422,27 @@ export default function PlannerScreen() {
                               : ''}
                         </span>
                       </span>
-                      <span
-                        className={[
-                          'shrink-0 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
-                          isDone
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-muted text-muted-foreground',
-                        ].join(' ')}
-                      >
-                        {view.decidedRequirements}/{view.totalRequirements}
+                      <span className="flex shrink-0 items-center gap-1">
+                        {affectedEntryIds.has(view.memberId) && (
+                          <span
+                            data-testid={`planner-member-warning-${view.memberId}`}
+                            aria-label="Needs review"
+                            title="Needs review"
+                            className="text-amber-600"
+                          >
+                            ⚠
+                          </span>
+                        )}
+                        <span
+                          className={[
+                            'rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
+                            isDone
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-muted text-muted-foreground',
+                          ].join(' ')}
+                        >
+                          {view.decidedRequirements}/{view.totalRequirements}
+                        </span>
                       </span>
                     </button>
                   </div>
@@ -334,20 +453,6 @@ export default function PlannerScreen() {
         </aside>
 
         <section className="min-w-0 space-y-5">
-          {plan.invalidations.length > 0 && (
-            <div
-              role="alert"
-              className="rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900"
-            >
-              <p className="font-medium">Plan needs review</p>
-              <ul className="mt-1 list-disc space-y-1 pl-5">
-                {plan.invalidations.map((invalidation) => (
-                  <li key={invalidation.id}>{invalidation.message}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {error && (
             <p role="alert" className="text-sm font-medium text-destructive">
               {error}
@@ -378,29 +483,125 @@ export default function PlannerScreen() {
             <>
               <Card>
                 <CardContent className="space-y-3 py-4">
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium">
-                      {selectedEntryView?.memberLabel ?? 'Member'}
-                    </p>
-                    <p data-testid="planner-progress-summary">
-                      <span className="font-medium">{reviewedDecided}</span> of{' '}
-                      {reviewedTotal} requirements decided
-                    </p>
-                    {memberCoverage && (
-                      <div className="space-y-0.5 text-muted-foreground">
-                        <p data-testid="planner-member-coverage">
-                          Panel coverage: {memberCoverage.reused} reused ·{' '}
-                          {memberCoverage.newStock} new stock ·{' '}
-                          {memberCoverage.unplaced} unplaced
-                        </p>
-                        <p data-testid="planner-member-boards">
-                          Served by{' '}
-                          {selectedEntryView?.projection?.distinctBoardCount ?? 0}{' '}
-                          board
-                          {selectedEntryView?.projection?.distinctBoardCount === 1
-                            ? ''
-                            : 's'}
-                        </p>
+                  <div
+                    data-testid="planner-member-header"
+                    className="flex flex-wrap items-start justify-between gap-3"
+                  >
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">
+                        {selectedEntryView?.memberLabel ?? 'Member'}
+                      </p>
+                      <p data-testid="planner-progress-summary">
+                        <span className="font-medium">{reviewedDecided}</span> of{' '}
+                        {reviewedTotal} requirements decided
+                      </p>
+                      {memberCoverage && (
+                        <div className="space-y-0.5 text-muted-foreground">
+                          <p data-testid="planner-member-coverage">
+                            Panel coverage: {memberCoverage.reused} reused ·{' '}
+                            {memberCoverage.newStock} new stock ·{' '}
+                            {memberCoverage.unplaced} unplaced
+                          </p>
+                          <p data-testid="planner-member-boards">
+                            Served by{' '}
+                            {selectedEntryView?.projection?.distinctBoardCount ?? 0}{' '}
+                            board
+                            {selectedEntryView?.projection?.distinctBoardCount ===
+                            1
+                              ? ''
+                              : 's'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isProjectLumber && (
+                      <div
+                        data-testid="planner-exclusive"
+                        className="relative flex max-w-full flex-col items-end gap-2 text-right text-sm"
+                      >
+                        <div className="flex items-center gap-1">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              role="switch"
+                              aria-label="Exclusive member plan"
+                              checked={isExclusive}
+                              onChange={(event) =>
+                                handleExclusiveChange(event.target.checked)
+                              }
+                            />
+                            <span className="font-medium">Exclusive</span>
+                          </label>
+                          <InfoHint label="Exclusive member plan">
+                            Only reuse unshared inventory pieces. New-stock
+                            sheets may still mix members. Exclusivity can reduce
+                            utilization by giving up shared boards.
+                          </InfoHint>
+                        </div>
+                        {isExclusive && exclusiveBlockedTotal > 0 && (
+                          <p
+                            role="status"
+                            data-testid="planner-exclusive-reason"
+                            className="text-amber-700"
+                          >
+                            {exclusiveBlockedTotal} shared board candidate
+                            {exclusiveBlockedTotal === 1 ? ' is' : 's are'}{' '}
+                            excluded by exclusivity. Panels without an unshared
+                            piece fall back to new stock.
+                          </p>
+                        )}
+                        {workspace.exclusiveError && (
+                          <p
+                            role="alert"
+                            className="font-medium text-destructive"
+                          >
+                            {workspace.exclusiveError}
+                          </p>
+                        )}
+                        {workspace.exclusiveConfirmation && (
+                          <div
+                            data-testid="planner-exclusive-confirm"
+                            role="dialog"
+                            aria-label="Release shared boards"
+                            className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-left text-amber-900 shadow-md"
+                          >
+                            <p>
+                              {selectedEntryView?.memberLabel ?? 'This member'}{' '}
+                              shares{' '}
+                              {
+                                sharedPieceRequirementIds.draftRequirementIds
+                                  .length
+                              }{' '}
+                              draft board
+                              {sharedPieceRequirementIds.draftRequirementIds
+                                .length === 1
+                                ? ''
+                                : 's'}{' '}
+                              with other members. Making it exclusive releases
+                              those draft assignments.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  workspace.confirmExclusive(selectedEntryId)
+                                }
+                              >
+                                Make exclusive
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => workspace.cancelExclusive()}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -419,6 +620,33 @@ export default function PlannerScreen() {
                       }}
                     />
                   </div>
+
+                  {selectedEntryComplete && (allEntriesDecided || nextUndecidedEntry) && (
+                    <div
+                      data-testid="planner-next-step"
+                      className="space-y-2 border-t pt-3"
+                    >
+                      {allEntriesDecided ? (
+                        <Button asChild>
+                          <Link
+                            data-testid="planner-continue-review"
+                            to="../review"
+                          >
+                            Continue to Review &amp; commit →
+                          </Link>
+                        </Button>
+                      ) : nextUndecidedEntry ? (
+                        <Button
+                          type="button"
+                          data-testid="planner-next-entry"
+                          onClick={() => selectEntry(nextUndecidedEntry.memberId)}
+                        >
+                          {selectedEntryView.memberLabel} done — Next:{' '}
+                          {nextUndecidedEntry.memberLabel} →
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
 
                   {bulkAcceptPreview && bulkAcceptPreview.totalUndecided > 0 && (
                     <div
@@ -545,77 +773,6 @@ export default function PlannerScreen() {
                 onError={workspace.reportError}
               />
             )}
-  
-            <Card data-testid="planner-exclusive">
-              <CardContent className="space-y-2 py-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-label="Exclusive member plan"
-                    checked={isExclusive}
-                    onChange={(event) => handleExclusiveChange(event.target.checked)}
-                  />
-                  <span className="font-medium">Exclusive member plan</span>
-                </label>
-                <p className="text-muted-foreground">
-                  Only reuse unshared inventory pieces. New-stock sheets may still
-                  mix members. Exclusivity can reduce utilization by giving up
-                  shared boards.
-                </p>
-                {isExclusive && exclusiveBlockedTotal > 0 && (
-                  <p
-                    role="status"
-                    data-testid="planner-exclusive-reason"
-                    className="text-amber-700"
-                  >
-                    {exclusiveBlockedTotal} shared board candidate
-                    {exclusiveBlockedTotal === 1 ? ' is' : 's are'} excluded by
-                    exclusivity. Panels without an unshared piece fall back to new
-                    stock.
-                  </p>
-                )}
-                {workspace.exclusiveError && (
-                  <p role="alert" className="font-medium text-destructive">
-                    {workspace.exclusiveError}
-                  </p>
-                )}
-                {workspace.exclusiveConfirmation && (
-                  <div
-                    data-testid="planner-exclusive-confirm"
-                    className="space-y-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-amber-900"
-                  >
-                    <p>
-                      {selectedEntryView?.memberLabel ?? 'This member'} shares{' '}
-                      {sharedPieceRequirementIds.draftRequirementIds.length} draft
-                      board
-                      {sharedPieceRequirementIds.draftRequirementIds.length === 1
-                        ? ''
-                        : 's'}{' '}
-                      with other members. Making it exclusive releases those draft
-                      assignments.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => workspace.confirmExclusive(selectedEntryId)}
-                      >
-                        Make exclusive
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => workspace.cancelExclusive()}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </aside>
         )}
       </div>

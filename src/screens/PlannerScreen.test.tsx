@@ -203,7 +203,19 @@ describe('PlannerScreen member scope', () => {
 
     await renderPlanner(project.id);
 
-    const toggle = screen.getByRole('switch', {
+    const exclusive = within(
+      screen.getByTestId('planner-member-header'),
+    ).getByTestId('planner-exclusive');
+    await user.hover(
+      within(exclusive).getByRole('button', {
+        name: /about exclusive member plan/i,
+      }),
+    );
+    expect(within(exclusive).getByRole('tooltip')).toHaveTextContent(
+      /only reuse unshared inventory pieces/i,
+    );
+
+    const toggle = within(exclusive).getByRole('switch', {
       name: /exclusive member plan/i,
     });
     await user.click(toggle);
@@ -233,6 +245,61 @@ describe('PlannerScreen member scope', () => {
     await waitFor(async () => {
       const plan = await getProjectPlan(project.id);
       expect(plan?.exclusiveMemberIds).toEqual([]);
+    });
+  });
+
+  it('shows a dismissible invalidation banner and rail warnings until re-decided', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Invalidation Warning Site' });
+    const slab = await addMember(project.id, 'S1');
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    const message = 'S1 panel no longer fits its committed piece';
+    await saveProjectPlan(project.id, {
+      ...emptyProjectPlan(),
+      status: 'needs_review',
+      invalidations: [
+        {
+          id: 'invalidation:test',
+          message,
+          requirementIds: [`${slab.id}-panel-1`],
+          pieceIds: [piece.id],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    await renderPlanner(project.id);
+
+    const banner = screen.getByTestId('planner-invalidations');
+    expect(banner).toHaveTextContent(message);
+    expect(screen.getAllByText('Needs review').length).toBeGreaterThan(0);
+    expect(
+      screen.getByTestId(`planner-member-warning-${slab.id}`),
+    ).toBeInTheDocument();
+
+    await user.click(within(banner).getByRole('button', { name: /dismiss/i }));
+
+    expect(screen.queryByTestId('planner-invalidations')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Needs review').length).toBeGreaterThan(0);
+    expect(
+      screen.getByTestId(`planner-member-warning-${slab.id}`),
+    ).toBeInTheDocument();
+
+    const row = screen.getByTestId(`requirement-row-${slab.id}-panel-1`);
+    await user.click(
+      within(row).getAllByRole('button', { name: /^accept .* for S1$/i })[0]!,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId(`planner-member-warning-${slab.id}`),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -335,6 +402,42 @@ describe('PlannerScreen project-level lumber', () => {
       'aria-label',
       'Project-level lumber · 1/1',
     );
+  });
+
+  it('continues to Review & commit once every rail entry is decided', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Continue Review Site' });
+    await addMember(project.id, 'S1');
+    const requirement = await createLumberRequirement({
+      projectId: project.id,
+      label: 'Project brace',
+      length: 2,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'lumber',
+      length: 2.44,
+      crossSection: '2x3',
+    });
+
+    await renderPlanner(project.id);
+
+    expect(screen.queryByTestId('planner-continue-review')).not.toBeInTheDocument();
+    const row = await screen.findByTestId(`requirement-row-${requirement.id}`);
+    await user.click(
+      within(row).getByRole('button', {
+        name: /^accept .* for Project brace$/i,
+      }),
+    );
+
+    const review = await screen.findByTestId('planner-continue-review');
+    expect(review).toHaveTextContent('Continue to Review & commit →');
+    expect(review).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/review`,
+    );
+    expect(screen.queryByTestId('planner-next-entry')).not.toBeInTheDocument();
   });
 
   it('hides the project-level lumber entry when none exists', async () => {
@@ -528,6 +631,58 @@ describe('PlannerScreen member workspace', () => {
     expect(screen.getByTestId('location')).toHaveTextContent(
       `?member=${done.id}`,
     );
+  });
+
+  it('offers the next undecided entry without moving the selection', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Next Member Site' });
+    const c1 = await addMember(project.id, 'C1');
+    const c2 = await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    expect(screen.getByTestId(`planner-member-${c1.id}`)).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(screen.queryByTestId('planner-next-entry')).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+
+    const next = await screen.findByTestId('planner-next-entry');
+    expect(next).toHaveTextContent('C1 done — Next: C2 →');
+    expect(screen.getByTestId(`planner-member-${c1.id}`)).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(screen.getByTestId(`planner-member-${c2.id}`)).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(
+      screen.getByTestId(`requirement-row-${c1.id}-panel-1`),
+    ).toBeInTheDocument();
+
+    await user.click(next);
+
+    await waitFor(() => {
+      expect(screen.getByTestId(`planner-member-${c2.id}`)).toHaveAttribute(
+        'aria-current',
+        'true',
+      );
+    });
+    expect(
+      screen.queryByTestId(`requirement-row-${c1.id}-panel-1`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId(`requirement-row-${c2.id}-panel-1`),
+    ).toBeInTheDocument();
   });
 
   it('renders the member workspace as a full-width three-pane grid', async () => {
