@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { TestAuthProvider, testUser } from '@/test/auth';
 import App from '@/App';
 import { addPiece, getPiece } from '@/db/inventory';
@@ -113,10 +113,7 @@ describe('PlannerScreen member scope', () => {
       card.querySelector(`[data-testid="panel-${c2.id}-panel-1"]`),
     ).toHaveAttribute('data-highlighted', 'false');
 
-    await user.selectOptions(
-      screen.getByLabelText(/structural member/i),
-      c2.id,
-    );
+    await user.click(screen.getByTestId(`planner-member-${c2.id}`));
 
     await waitFor(() => {
       expect(
@@ -169,10 +166,7 @@ describe('PlannerScreen member scope', () => {
     expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('planner-offcuts')).not.toBeInTheDocument();
 
-    await user.selectOptions(
-      screen.getByLabelText(/structural member/i),
-      c2.id,
-    );
+    await user.click(screen.getByTestId(`planner-member-${c2.id}`));
     expect(
       await screen.findByText(/shares piece · remaining space fits/i),
     ).toBeInTheDocument();
@@ -284,13 +278,206 @@ describe('PlannerScreen member scope', () => {
   });
 });
 
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <output data-testid="location">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
+}
+
+describe('PlannerScreen member workspace', () => {
+  it('shows per-member progress in the rail and updates it live', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Member Rail Site' });
+    const c1 = await addMember(project.id, 'C1');
+    const c2 = await addMember(project.id, 'C2');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    const rail = screen.getByTestId('planner-member-rail');
+    expect(within(rail).getByTestId(`planner-member-${c1.id}`)).toHaveAttribute(
+      'aria-label',
+      'C1 · 0/1',
+    );
+    expect(within(rail).getByTestId(`planner-member-${c2.id}`)).toHaveAttribute(
+      'aria-label',
+      'C2 · 0/1',
+    );
+    expect(within(rail).getByTestId(`planner-member-${c1.id}`)).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+
+    await waitFor(() => {
+      expect(within(rail).getByTestId(`planner-member-${c1.id}`)).toHaveAttribute(
+        'aria-label',
+        'C1 · 1/1',
+      );
+    });
+    expect(within(rail).getByTestId(`planner-member-${c2.id}`)).toHaveAttribute(
+      'aria-label',
+      'C2 · 0/1',
+    );
+  });
+
+  it('filters the rail by member type and status', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Member Filters Site' });
+    const slab = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 1,
+      width: 1,
+      height: 0,
+    });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 0,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    await user.selectOptions(
+      screen.getByLabelText(/filter by member type/i),
+      'column',
+    );
+    expect(screen.queryByTestId(`planner-member-${slab.id}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId(`planner-member-${column.id}`)).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByLabelText(/filter by member type/i),
+      'all',
+    );
+    await user.selectOptions(
+      screen.getByLabelText(/filter by member status/i),
+      'done',
+    );
+    // The column has no reusable candidates, so its panels already count as
+    // new stock decisions while the slab still needs a decision.
+    expect(
+      screen.queryByTestId(`planner-member-${slab.id}`),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId(`planner-member-${column.id}`)).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByLabelText(/filter by member status/i),
+      'needs-decision',
+    );
+    expect(screen.getByTestId(`planner-member-${slab.id}`)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`planner-member-${column.id}`),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+    await user.selectOptions(
+      screen.getByLabelText(/filter by member status/i),
+      'all',
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId(`planner-member-${slab.id}`)).toHaveAttribute(
+        'aria-label',
+        'S1 · 1/1',
+      );
+    });
+    await user.selectOptions(
+      screen.getByLabelText(/filter by member status/i),
+      'done',
+    );
+    expect(screen.getByTestId(`planner-member-${slab.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`planner-member-${column.id}`)).toBeInTheDocument();
+  });
+
+  it('lands on the first undecided member and keeps the selection in the URL', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Member Landing Site' });
+    const done = await addMember(project.id, 'S1');
+    const next = await addMember(project.id, 'S2');
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    await saveProjectPlan(project.id, {
+      ...emptyProjectPlan(),
+      acceptedByRequirement: { [`${done.id}-panel-1`]: piece.id },
+    });
+    unlockProject(project.id);
+
+    render(
+      <MemoryRouter initialEntries={[`/projects/${project.id}/planner`]}>
+        <TestAuthProvider user={testUser}>
+          <App />
+          <LocationProbe />
+        </TestAuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        `/projects/${project.id}/planner?member=${next.id}`,
+      );
+    });
+    expect(screen.getByTestId(`planner-member-${next.id}`)).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+
+    await user.click(screen.getByTestId(`planner-member-${done.id}`));
+
+    expect(screen.getByTestId(`planner-member-${done.id}`)).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      `?member=${done.id}`,
+    );
+  });
+
+  it('renders the member workspace as a full-width three-pane grid', async () => {
+    const project = await seedProject({ name: 'Member Layout Site' });
+    await addMember(project.id, 'C1');
+
+    await renderPlanner(project.id);
+
+    const workspace = screen.getByTestId('planner-workspace');
+    expect(workspace.className).toContain('lg:grid-cols-');
+    expect(screen.getByTestId('planner-member-rail')).toBeInTheDocument();
+  });
+});
+
 describe('Planner routes and navigation', () => {
-  it('redirects legacy optimize and project scope links to Review & commit', async () => {
+  it('redirects the legacy optimize route to Review & commit', async () => {
     const project = await seedProject({ name: 'Legacy Route Site' });
     await addMember(project.id, 'C1');
     unlockProject(project.id);
 
-    const optimize = render(
+    render(
       <MemoryRouter initialEntries={[`/projects/${project.id}/optimize`]}>
         <TestAuthProvider user={testUser}>
           <App />
@@ -300,10 +487,17 @@ describe('Planner routes and navigation', () => {
     expect(
       await screen.findByRole('heading', { name: /^review & commit$/i }),
     ).toBeInTheDocument();
-    optimize.unmount();
+  });
+
+  it('redirects project-scope planner links to Review & commit', async () => {
+    const project = await seedProject({ name: 'Project Scope Route Site' });
+    await addMember(project.id, 'C1');
+    unlockProject(project.id);
 
     render(
-      <MemoryRouter initialEntries={[`/projects/${project.id}/planner?scope=project`]}>
+      <MemoryRouter
+        initialEntries={[`/projects/${project.id}/planner?scope=project`]}
+      >
         <TestAuthProvider user={testUser}>
           <App />
         </TestAuthProvider>
