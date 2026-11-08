@@ -181,20 +181,26 @@ async function main() {
     await projectCol('usageLog').doc(u.id).set(u);
   }
 
-  // cutting plan
+  // project plan
   const reusedPanelRequirementId = `${c1.id}-panel-1`;
-  const planId = randomId();
-  await projectCol('cuttingPlans').doc(planId).set({
-    id: planId,
-    projectId: DEMO_PROJECT_ID,
-    createdAt: new Date().toISOString(),
-    payload: {
-      satisfiedRequirementIds: [reusedPanelRequirementId, braceA.id],
-      acceptedByRequirement: {
-        [reusedPanelRequirementId]: reusedPanel.id,
-        [braceA.id]: reusedLumber.id,
-      },
-    },
+  const acceptedByRequirement = {
+    [reusedPanelRequirementId]: reusedPanel.id,
+    [braceA.id]: reusedLumber.id,
+  };
+  await projectCol('workflow').doc('planner').set({
+    schemaVersion: 1,
+    status: 'committed',
+    acceptedByRequirement,
+    committedByRequirement: acceptedByRequirement,
+    declinedCandidates: [],
+    exclusiveMemberIds: [],
+    placements: {},
+    requirementSnapshots: {},
+    pieceSnapshots: {},
+    usageRecordedPieceIds: [reusedPanel.id, reusedLumber.id],
+    invalidations: [],
+    committedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 
   console.log(`Seeded demo project ${DEMO_PROJECT_ID} for ${email}.`);
