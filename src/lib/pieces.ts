@@ -12,6 +12,7 @@ export function toMatchPiece(piece: Piece): MatchPiece {
     condition: piece.condition,
     retired: piece.retired,
     usageCount: piece.usageCount,
+    storageLocation: piece.storageLocation,
   };
 }
 

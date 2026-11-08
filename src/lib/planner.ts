@@ -74,6 +74,15 @@ export interface PlannerCounts {
   unplaced: number;
 }
 
+export interface ProcurementSummary {
+  boardsUsed: number;
+  reusedBoards: number;
+  newStockSheets: number;
+  sheetsSaved: number;
+  utilization: number;
+  waste: number;
+}
+
 export interface PlannerState {
   requirements: MatchRequirement[];
   pieces: MatchPiece[];
@@ -413,6 +422,39 @@ export function projectMemberBoards(
   return boards.filter((board) =>
     board.panels.some((panel) => panel.memberId === memberId),
   );
+}
+
+export function procurementSummary(
+  boards: readonly PlannerBoard[],
+  newStockSheetsSaved = 0,
+): ProcurementSummary {
+  let stockArea = 0;
+  let usedArea = 0;
+  let wasteArea = 0;
+  let reusedBoards = 0;
+  let newStockSheets = 0;
+
+  for (const board of boards) {
+    if (board.source === 'reuse') {
+      reusedBoards += 1;
+    } else {
+      newStockSheets += 1;
+    }
+    if (!board.plan) continue;
+    const area = board.plan.stock.length * board.plan.stock.width;
+    stockArea += area;
+    usedArea += board.plan.usedArea;
+    wasteArea += board.plan.wasteArea;
+  }
+
+  return {
+    boardsUsed: boards.length,
+    reusedBoards,
+    newStockSheets,
+    sheetsSaved: reusedBoards + Math.max(0, newStockSheetsSaved),
+    utilization: stockArea > 0 ? (usedArea / stockArea) * 100 : 0,
+    waste: stockArea > 0 ? (wasteArea / stockArea) * 100 : 0,
+  };
 }
 
 export function panelCoverage(

@@ -32,6 +32,7 @@ import { buildDatedFilename, downloadSvgAsFile, downloadSvgAsPng } from '@/lib/d
 import { shortId } from '@/lib/format';
 import {
   buildPlannerState,
+  procurementSummary,
   reconcileProjectPlan,
   releaseAllocation,
   type PlannerBoard,
@@ -532,6 +533,14 @@ export default function PlannerScreen() {
       ? state.counts.decided
       : visibleReviews.filter((review) => review.status !== 'needsDecision').length;
   const memberCoverage = memberProjection?.panelCoverage;
+  const procurement = useMemo(
+    () =>
+      procurementSummary(
+        state.boards,
+        state.optimization.stats.plywood.sheetsSaved,
+      ),
+    [state.boards, state.optimization.stats.plywood.sheetsSaved],
+  );
 
   async function handleCommit() {
     if (commitDisabled) return;
@@ -922,6 +931,36 @@ export default function PlannerScreen() {
               </div>
             </CardContent>
           </Card>
+
+          {scope === 'project' && state.boards.length > 0 && (
+            <Card data-testid="planner-procurement">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Procurement summary</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {procurement.reusedBoards} reused · {procurement.newStockSheets} new
+                  stock
+                </p>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div>
+                  <p className="text-muted-foreground">Boards used</p>
+                  <p className="font-medium">{procurement.boardsUsed}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Sheets saved</p>
+                  <p className="font-medium">{procurement.sheetsSaved}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Utilization</p>
+                  <p className="font-medium">{procurement.utilization.toFixed(0)}%</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Waste</p>
+                  <p className="font-medium">{procurement.waste.toFixed(0)}%</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <MatchGroups
             reviews={visibleReviews}

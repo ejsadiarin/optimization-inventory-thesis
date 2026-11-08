@@ -379,7 +379,15 @@ function CandidateRow({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-mono text-sm font-semibold">{shortId(candidate.piece.id)}</p>
+          {candidate.piece.label && (
+            <p className="truncate text-sm font-medium">{candidate.piece.label}</p>
+          )}
           <p className="text-sm text-muted-foreground">{candidateDimensions(candidate.piece)}</p>
+          {candidate.piece.storageLocation && (
+            <p className="text-xs text-muted-foreground">
+              Storage: {candidate.piece.storageLocation}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Badge className={conditionBadgeClass(candidate.piece.condition)}>

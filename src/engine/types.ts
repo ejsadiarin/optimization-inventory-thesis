@@ -41,6 +41,7 @@ export interface MatchPiece {
   condition: PieceCondition;
   retired: boolean;
   usageCount?: number;
+  storageLocation?: string;
 }
 
 export interface MatchRequirement {

@@ -10,6 +10,7 @@ import type { MatchPiece } from '@/engine/types';
 import {
   buildPlannerState,
   pieceSnapshotsFor,
+  procurementSummary,
   reconcileProjectPlan,
   requirementSnapshotsFor,
 } from './planner';
@@ -102,6 +103,28 @@ describe('buildPlannerState', () => {
         unplaced: 0,
       });
     }
+  });
+
+  it('summarizes procurement across reuse and new-stock boards', () => {
+    const state = buildPlannerState({
+      members: [member('member-a', 'C1')],
+      lumber: [],
+      pieces: [piece('piece-1')],
+      stock,
+      costs,
+      plan: plan({
+        acceptedByRequirement: { 'member-a-panel-1': 'piece-1' },
+      }),
+    });
+
+    expect(procurementSummary(state.boards, 0)).toEqual({
+      boardsUsed: 1,
+      reusedBoards: 1,
+      newStockSheets: 0,
+      sheetsSaved: 1,
+      utilization: 50,
+      waste: 0,
+    });
   });
 
   it('keeps an exclusive member off a shared inventory piece', () => {

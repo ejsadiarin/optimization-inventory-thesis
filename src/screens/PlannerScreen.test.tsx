@@ -117,6 +117,47 @@ describe('PlannerScreen project scope', () => {
     expect(screen.getByText(/^reusable offcuts$/i)).toBeInTheDocument();
   });
 
+  it('shows piece labels and storage locations on reuse candidates', async () => {
+    const project = await seedProject({ name: 'Candidate Detail Site' });
+    await addMember(project.id, 'C1');
+    await addPiece({
+      projectId: project.id,
+      label: 'Rack panel A',
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+      storageLocation: 'Rack A',
+    });
+
+    await renderPlanner(project.id);
+
+    expect(await screen.findByText('Rack panel A')).toBeInTheDocument();
+    expect(screen.getByText('Storage: Rack A')).toBeInTheDocument();
+  });
+
+  it('shows a procurement summary once boards are in the plan', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Procurement Site' });
+    await addMember(project.id, 'C1');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+    await user.click(screen.getAllByRole('button', { name: /^accept /i })[0]!);
+
+    const summary = await screen.findByTestId('planner-procurement');
+    expect(summary).toHaveTextContent('Boards used');
+    expect(summary).toHaveTextContent('Sheets saved');
+    expect(summary).toHaveTextContent('Utilization');
+    expect(summary).toHaveTextContent('Waste');
+  });
+
   it('shows a shared-space hint when a board fits another member panel', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Shared Hint Site' });
