@@ -12,7 +12,6 @@ import { seedProject } from '@/test/fixtures';
 import { resetInventoryMock } from '@/test/inventoryMock';
 import { resetMembersMock } from '@/test/membersMock';
 import { resetPlanMock } from '@/test/planMock';
-import { resetWorkflowMock } from '@/test/workflowMock';
 
 vi.mock('@/db/projects', () => import('@/test/dexieProjects'));
 vi.mock('@/db/members', () => import('@/test/membersMock'));
@@ -24,16 +23,6 @@ vi.mock('@/db/inventory', async (importOriginal) => {
 vi.mock('@/db/plan', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/db/plan')>();
   const mock = await import('@/test/planMock');
-  return { ...actual, ...mock };
-});
-vi.mock('@/db/plans', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/db/plans')>();
-  const mock = await import('@/test/plansMock');
-  return { ...actual, ...mock };
-});
-vi.mock('@/db/workflow', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/db/workflow')>();
-  const mock = await import('@/test/workflowMock');
   return { ...actual, ...mock };
 });
 vi.mock('@/lib/download', async (importOriginal) => {
@@ -54,7 +43,6 @@ beforeEach(() => {
   resetMembersMock();
   resetInventoryMock();
   resetPlanMock();
-  resetWorkflowMock();
   exportSvgMock.mockReset();
   exportPngMock.mockReset();
   exportPngMock.mockResolvedValue(undefined);
