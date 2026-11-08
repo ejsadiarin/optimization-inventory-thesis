@@ -665,6 +665,78 @@ describe('PlannerScreen requirement rows', () => {
     expect(within(row()).getByText('Needs decision')).toBeInTheDocument();
   });
 
+  it('previews a candidate on hover without changing the draft', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Candidate Preview Site' });
+    const slab = await addMember(project.id, 'S1');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    const row = await screen.findByTestId(`requirement-row-${slab.id}-panel-1`);
+    const option = within(row).getByTestId(/^candidate-option-/);
+    expect(screen.queryByTestId('planner-candidate-preview')).not.toBeInTheDocument();
+
+    await user.hover(option);
+
+    const preview = await screen.findByTestId('planner-candidate-preview');
+    expect(
+      within(preview).getByTestId('candidate-preview-panel'),
+    ).toHaveAttribute('stroke-dasharray');
+    expect(
+      within(preview).getByTestId('candidate-preview-trim'),
+    ).toBeInTheDocument();
+    const plan = await getProjectPlan(project.id);
+    expect(
+      plan?.acceptedByRequirement[`${slab.id}-panel-1`],
+    ).toBeUndefined();
+
+    await user.unhover(option);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('planner-candidate-preview'),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('planner-board-viewer')).toHaveTextContent(
+      'Cutting plans',
+    );
+  });
+
+  it('previews a candidate on keyboard focus and clears it on blur', async () => {
+    const project = await seedProject({ name: 'Candidate Focus Preview Site' });
+    const slab = await addMember(project.id, 'S1');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    const row = await screen.findByTestId(`requirement-row-${slab.id}-panel-1`);
+    const option = within(row).getByTestId(/^candidate-option-/);
+    option.focus();
+
+    expect(await screen.findByTestId('planner-candidate-preview')).toBeInTheDocument();
+
+    row.focus();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('planner-candidate-preview'),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it('releases a committed decision from its row', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Requirement Release Site' });

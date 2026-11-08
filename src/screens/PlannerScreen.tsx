@@ -7,7 +7,9 @@ import {
 } from 'react-router-dom';
 import { Loader2, PackageSearch } from 'lucide-react';
 import RequirementRows from '@/components/optimize/RequirementRows';
-import MemberBoardViewer from '@/components/optimize/MemberBoardViewer';
+import MemberBoardViewer, {
+  type CandidatePreviewState,
+} from '@/components/optimize/MemberBoardViewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -41,6 +43,8 @@ export default function PlannerScreen() {
   const [typeFilter, setTypeFilter] = useState<MemberTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>('all');
   const [selectedRequirementId, setSelectedRequirementId] = useState('');
+  const [candidatePreview, setCandidatePreview] =
+    useState<CandidatePreviewState | null>(null);
   const { members, plan, loading, loadError, error, memberView } = workspace;
 
   const memberViews = useMemo(
@@ -115,6 +119,10 @@ export default function PlannerScreen() {
     : undefined;
 
   useEffect(() => {
+    setCandidatePreview(null);
+  }, [selectedMemberId]);
+
+  useEffect(() => {
     if (!selectedRequirementId) return;
     const row = document.querySelector(
       `[data-testid="requirement-row-${selectedRequirementId}"]`,
@@ -141,6 +149,7 @@ export default function PlannerScreen() {
     next.set('member', memberId);
     setSearchParams(next, { replace: true });
     setSelectedRequirementId('');
+    setCandidatePreview(null);
   }
 
   function handlePanelClick(panelId: string) {
@@ -151,11 +160,17 @@ export default function PlannerScreen() {
       changeMember(owner.id);
     }
     setSelectedRequirementId(panelId);
+    setCandidatePreview(null);
   }
 
   function handleExclusiveChange(checked: boolean) {
     if (!selectedMemberId) return;
     workspace.requestExclusiveChange(selectedMemberId, checked);
+  }
+
+  function decide(action: () => void) {
+    setCandidatePreview(null);
+    action();
   }
 
   const reviewedTotal = selectedMemberView?.totalRequirements ?? 0;
@@ -364,11 +379,28 @@ export default function PlannerScreen() {
                 lockedRequirementIds={workspace.lockedRequirementIds}
                 selectedRequirementId={selectedRequirementId}
                 onSelectRequirement={setSelectedRequirementId}
-                onAccept={workspace.accept}
-                onDecline={workspace.decline}
-                onRestoreDeclined={workspace.restoreDeclined}
-                onResetRequirement={workspace.resetRequirement}
-                onRelease={workspace.release}
+                onAccept={(group, candidate) =>
+                  decide(() => workspace.accept(group, candidate))
+                }
+                onDecline={(group, candidate) =>
+                  decide(() => workspace.decline(group, candidate))
+                }
+                onRestoreDeclined={(group, candidate) =>
+                  decide(() => workspace.restoreDeclined(group, candidate))
+                }
+                onResetRequirement={(group) =>
+                  decide(() => workspace.resetRequirement(group))
+                }
+                onRelease={(group) =>
+                  decide(() => workspace.release(group))
+                }
+                onPreviewCandidate={(group, candidate) =>
+                  setCandidatePreview({
+                    requirement: group.requirement,
+                    candidate,
+                  })
+                }
+                onClearCandidatePreview={() => setCandidatePreview(null)}
               />
             </>
           )}
@@ -385,6 +417,7 @@ export default function PlannerScreen() {
               memberColors={workspace.memberColors}
               highlightPanelIds={selectedMemberView?.projection?.panelIds}
               focusedPanelId={focusedPanelId}
+              candidatePreview={candidatePreview}
               onPanelClick={handlePanelClick}
               onError={workspace.reportError}
             />

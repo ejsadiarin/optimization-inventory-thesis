@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import CandidatePreview from '@/components/optimize/CandidatePreview';
 import { BoardPreview } from '@/components/optimize/BoardPreview';
 import { SheetDiagram } from '@/components/optimize/CutPlanSheet';
 import { Button } from '@/components/ui/button';
+import type { InventoryMatch, MatchRequirement } from '@/engine/types';
 import type { PlannerBoard } from '@/lib/planner';
 import { boardTitle, exportPlannerBoard } from '@/lib/plannerExport';
+
+export interface CandidatePreviewState {
+  requirement: MatchRequirement;
+  candidate: InventoryMatch;
+}
 
 export default function MemberBoardViewer({
   boards,
@@ -12,6 +19,7 @@ export default function MemberBoardViewer({
   memberColors,
   highlightPanelIds,
   focusedPanelId,
+  candidatePreview,
   onPanelClick,
   onError,
 }: {
@@ -20,6 +28,7 @@ export default function MemberBoardViewer({
   memberColors: ReadonlyMap<string, string>;
   highlightPanelIds?: ReadonlySet<string>;
   focusedPanelId?: string;
+  candidatePreview?: CandidatePreviewState | null;
   onPanelClick?: (panelId: string) => void;
   onError: (message: string) => void;
 }) {
@@ -48,7 +57,7 @@ export default function MemberBoardViewer({
     if (index >= 0) setSelectedKey(orderedBoards[index]!.key);
   }, [focusedPanelId, orderedBoards]);
 
-  if (!board) return null;
+  if (!board && !candidatePreview) return null;
 
   function selectBoard(index: number) {
     const wrapped = (index + orderedBoards.length) % orderedBoards.length;
@@ -77,78 +86,95 @@ export default function MemberBoardViewer({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Cutting plans</h2>
         <span className="text-xs text-muted-foreground">
-          {selectedIndex + 1} of {orderedBoards.length}
+          {candidatePreview
+            ? 'Preview'
+            : `${selectedIndex + 1} of ${orderedBoards.length}`}
         </span>
       </div>
 
-      <BoardPreview
-        board={board}
-        memberColors={memberColors}
-        highlightPanelIds={highlightPanelIds}
-        focusedPanelId={focusedPanelId}
-        onPanelClick={onPanelClick}
-        onExportSvg={(item) =>
-          exportPlannerBoard(item, projectName, 'svg', onError)
-        }
-        onExportPng={(item) =>
-          exportPlannerBoard(item, projectName, 'png', onError)
-        }
-      />
+      {candidatePreview ? (
+        <CandidatePreview
+          requirement={candidatePreview.requirement}
+          candidate={candidatePreview.candidate}
+        />
+      ) : (
+        board && (
+          <BoardPreview
+            board={board}
+            memberColors={memberColors}
+            highlightPanelIds={highlightPanelIds}
+            focusedPanelId={focusedPanelId}
+            onPanelClick={onPanelClick}
+            onExportSvg={(item) =>
+              exportPlannerBoard(item, projectName, 'svg', onError)
+            }
+            onExportPng={(item) =>
+              exportPlannerBoard(item, projectName, 'png', onError)
+            }
+          />
+        )
+      )}
 
-      <div className="flex items-center justify-between gap-2">
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          aria-label="Previous board"
-          onClick={() => selectBoard(selectedIndex - 1)}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <p className="min-w-0 truncate text-sm font-medium">{boardTitle(board)}</p>
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          aria-label="Next board"
-          onClick={() => selectBoard(selectedIndex + 1)}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      {!candidatePreview && board && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              aria-label="Previous board"
+              onClick={() => selectBoard(selectedIndex - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <p className="min-w-0 truncate text-sm font-medium">
+              {boardTitle(board)}
+            </p>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              aria-label="Next board"
+              onClick={() => selectBoard(selectedIndex + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
 
-      <div
-        data-testid="planner-board-thumbnails"
-        className="flex gap-2 overflow-x-auto pb-1"
-      >
-        {orderedBoards.map((item, index) => (
-          <button
-            key={item.key}
-            type="button"
-            aria-label={`Show ${boardTitle(item)}`}
-            aria-pressed={index === selectedIndex}
-            onClick={() => setSelectedKey(item.key)}
-            className={[
-              'w-24 shrink-0 rounded-md border p-1 transition-colors',
-              index === selectedIndex
-                ? 'border-primary bg-primary/5'
-                : 'hover:bg-accent',
-            ].join(' ')}
+          <div
+            data-testid="planner-board-thumbnails"
+            className="flex gap-2 overflow-x-auto pb-1"
           >
-            {item.plan && (
-              <SheetDiagram
-                sheet={item.plan}
-                memberColors={memberColors}
-                svgId={`planner-thumb-${item.key}`}
-                decorative
-              />
-            )}
-            <span className="mt-1 block truncate text-[10px] text-muted-foreground">
-              {item.source === 'reuse' ? 'Reused' : 'New stock'} · {index + 1}
-            </span>
-          </button>
-        ))}
-      </div>
+            {orderedBoards.map((item, index) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-label={`Show ${boardTitle(item)}`}
+                aria-pressed={index === selectedIndex}
+                onClick={() => setSelectedKey(item.key)}
+                className={[
+                  'w-24 shrink-0 rounded-md border p-1 transition-colors',
+                  index === selectedIndex
+                    ? 'border-primary bg-primary/5'
+                    : 'hover:bg-accent',
+                ].join(' ')}
+              >
+                {item.plan && (
+                  <SheetDiagram
+                    sheet={item.plan}
+                    memberColors={memberColors}
+                    svgId={`planner-thumb-${item.key}`}
+                    decorative
+                  />
+                )}
+                <span className="mt-1 block truncate text-[10px] text-muted-foreground">
+                  {item.source === 'reuse' ? 'Reused' : 'New stock'} · {index + 1}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

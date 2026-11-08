@@ -1,4 +1,9 @@
-import { useMemo, useState } from 'react';
+import {
+  useMemo,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+} from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +24,23 @@ const STATUS_ORDER: ReuseStatus[] = [
   'noMatch',
 ];
 
+function candidatePreviewHandlers(onPreview: () => void, onClear: () => void) {
+  return {
+    onMouseEnter: onPreview,
+    onMouseLeave: (event: MouseEvent<HTMLElement>) => {
+      if (event.currentTarget.contains(document.activeElement)) return;
+      onClear();
+    },
+    onFocus: onPreview,
+    onBlur: (event: FocusEvent<HTMLElement>) => {
+      if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        return;
+      }
+      onClear();
+    },
+  };
+}
+
 export interface RequirementRowsProps {
   reviews: readonly RequirementReview[];
   lockedRequirementIds?: ReadonlySet<string>;
@@ -29,6 +51,8 @@ export interface RequirementRowsProps {
   onRestoreDeclined: (group: MatchGroup, candidate: InventoryMatch) => void;
   onResetRequirement: (group: MatchGroup) => void;
   onRelease?: (group: MatchGroup) => void;
+  onPreviewCandidate?: (group: MatchGroup, candidate: InventoryMatch) => void;
+  onClearCandidatePreview?: () => void;
 }
 
 export default function RequirementRows({
@@ -41,6 +65,8 @@ export default function RequirementRows({
   onRestoreDeclined,
   onResetRequirement,
   onRelease,
+  onPreviewCandidate,
+  onClearCandidatePreview,
 }: RequirementRowsProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -103,6 +129,8 @@ export default function RequirementRows({
                 onRestoreDeclined={onRestoreDeclined}
                 onResetRequirement={onResetRequirement}
                 onRelease={onRelease}
+                onPreviewCandidate={onPreviewCandidate}
+                onClearCandidatePreview={onClearCandidatePreview}
               />
             ))}
           </div>
@@ -124,6 +152,8 @@ function RequirementRow({
   onRestoreDeclined,
   onResetRequirement,
   onRelease,
+  onPreviewCandidate,
+  onClearCandidatePreview,
 }: {
   review: RequirementReview;
   expanded: boolean;
@@ -136,6 +166,8 @@ function RequirementRow({
   onRestoreDeclined: RequirementRowsProps['onRestoreDeclined'];
   onResetRequirement: RequirementRowsProps['onResetRequirement'];
   onRelease?: RequirementRowsProps['onRelease'];
+  onPreviewCandidate?: RequirementRowsProps['onPreviewCandidate'];
+  onClearCandidatePreview?: RequirementRowsProps['onClearCandidatePreview'];
 }) {
   const { group, status } = review;
   const requirement = group.requirement;
@@ -145,6 +177,12 @@ function RequirementRow({
     otherCandidates.length + review.declinedCandidates.length;
   const canReset =
     status === 'satisfied' || review.declinedCandidates.length > 0;
+  const clearPreview = onClearCandidatePreview ?? (() => {});
+  const previewHandlers = (candidate: InventoryMatch) =>
+    candidatePreviewHandlers(
+      () => onPreviewCandidate?.(group, candidate),
+      clearPreview,
+    );
 
   return (
     <article
@@ -220,7 +258,13 @@ function RequirementRow({
       {status === 'satisfied' ? (
         <p className="mt-0.5 text-xs text-emerald-700">Excluded from cutting.</p>
       ) : topCandidate ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+        <div
+          data-testid={`candidate-option-${topCandidate.pieceId}`}
+          tabIndex={0}
+          aria-label={`Preview candidate ${shortId(topCandidate.piece.id)} for ${requirement.label}`}
+          {...previewHandlers(topCandidate)}
+          className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <span className="font-mono text-xs font-semibold">
             {shortId(topCandidate.piece.id)}
           </span>
@@ -317,6 +361,8 @@ function RequirementRow({
                   shared={review.sharedPieceCandidateIds.includes(
                     candidate.pieceId,
                   )}
+                  onPreview={() => onPreviewCandidate?.(group, candidate)}
+                  onClearPreview={clearPreview}
                   onAccept={() => onAccept(group, candidate)}
                   onDecline={() => onDecline(group, candidate)}
                 />
@@ -353,17 +399,27 @@ function CandidateLine({
   requirementLabel,
   candidate,
   shared,
+  onPreview,
+  onClearPreview,
   onAccept,
   onDecline,
 }: {
   requirementLabel: string;
   candidate: InventoryMatch;
   shared: boolean;
+  onPreview: () => void;
+  onClearPreview: () => void;
   onAccept: () => void;
   onDecline: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 px-2 py-1 text-xs">
+    <div
+      data-testid={`candidate-option-${candidate.pieceId}`}
+      tabIndex={0}
+      aria-label={`Preview candidate ${shortId(candidate.piece.id)} for ${requirementLabel}`}
+      {...candidatePreviewHandlers(onPreview, onClearPreview)}
+      className="flex flex-wrap items-center gap-2 px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <span className="font-mono">{shortId(candidate.piece.id)}</span>
       <span className="text-muted-foreground">
         {candidateDimensions(candidate.piece)}
