@@ -45,7 +45,16 @@ export default function PlannerScreen() {
   const [selectedRequirementId, setSelectedRequirementId] = useState('');
   const [candidatePreview, setCandidatePreview] =
     useState<CandidatePreviewState | null>(null);
-  const { members, plan, loading, loadError, error, memberView } = workspace;
+  const [confirmingBulkAccept, setConfirmingBulkAccept] = useState(false);
+  const {
+    members,
+    plan,
+    loading,
+    loadError,
+    error,
+    memberView,
+    bulkAcceptPreview: previewBulkAccept,
+  } = workspace;
 
   const memberViews = useMemo(
     () => members.map((member) => memberView(member.id)),
@@ -104,6 +113,10 @@ export default function PlannerScreen() {
   };
   const reviews = selectedMemberView?.reviews ?? [];
   const exclusiveBlockedTotal = selectedMemberView?.exclusiveBlockedCount ?? 0;
+  const bulkAcceptPreview = useMemo(
+    () => (selectedMemberId ? previewBulkAccept(selectedMemberId) : null),
+    [selectedMemberId, previewBulkAccept],
+  );
   const visibleBoards = useMemo(
     () => selectedMemberView?.projection?.boards ?? [],
     [selectedMemberView?.projection?.boards],
@@ -120,6 +133,7 @@ export default function PlannerScreen() {
 
   useEffect(() => {
     setCandidatePreview(null);
+    setConfirmingBulkAccept(false);
   }, [selectedMemberId]);
 
   useEffect(() => {
@@ -371,6 +385,80 @@ export default function PlannerScreen() {
                       }}
                     />
                   </div>
+
+                  {bulkAcceptPreview && bulkAcceptPreview.totalUndecided > 0 && (
+                    <div
+                      data-testid="planner-bulk-accept"
+                      className="space-y-2 border-t pt-3"
+                    >
+                      {confirmingBulkAccept ? (
+                        <div
+                          data-testid="planner-bulk-accept-confirmation"
+                          role="status"
+                          className="space-y-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-amber-900"
+                        >
+                          <p>
+                            Accept {bulkAcceptPreview.acceptedCount} of{' '}
+                            {bulkAcceptPreview.totalUndecided};{' '}
+                            {bulkAcceptPreview.needsCuttingCount}{' '}
+                            {bulkAcceptPreview.needsCuttingCount === 1
+                              ? 'needs'
+                              : 'need'}{' '}
+                            cutting and stay undecided.
+                          </p>
+                          {bulkAcceptPreview.unavailableCount > 0 && (
+                            <p className="text-xs">
+                              {bulkAcceptPreview.unavailableCount} candidate
+                              {bulkAcceptPreview.unavailableCount === 1
+                                ? ' is'
+                                : 's are'}{' '}
+                              no longer available after earlier acceptances.
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={bulkAcceptPreview.acceptedCount === 0}
+                              onClick={() => {
+                                workspace.bulkAccept(selectedMemberId);
+                                setConfirmingBulkAccept(false);
+                                setCandidatePreview(null);
+                              }}
+                            >
+                              Accept {bulkAcceptPreview.acceptedCount}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setConfirmingBulkAccept(false)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setConfirmingBulkAccept(true);
+                              setCandidatePreview(null);
+                            }}
+                          >
+                            Bulk accept top candidate for{' '}
+                            {bulkAcceptPreview.totalUndecided} undecided
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Candidates that require cutting stay undecided.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

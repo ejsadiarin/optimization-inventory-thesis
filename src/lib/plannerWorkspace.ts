@@ -38,6 +38,15 @@ export interface SharedPieceRequirementIds {
   committedRequirementIds: string[];
 }
 
+export interface BulkAcceptPreview {
+  memberId: string;
+  totalUndecided: number;
+  acceptedCount: number;
+  needsCuttingCount: number;
+  unavailableCount: number;
+  acceptances: Array<{ requirementId: string; pieceId: string }>;
+}
+
 export interface PlannerMemberView {
   memberId: string;
   memberLabel: string;
@@ -72,6 +81,8 @@ export interface PlannerWorkspace {
   resetRequirement: (group: MatchGroup) => void;
   resetDecisions: () => void;
   release: (group: MatchGroup) => void;
+  bulkAcceptPreview: (memberId: string) => BulkAcceptPreview;
+  bulkAccept: (memberId: string) => void;
 
   exclusiveConfirmation: boolean;
   exclusiveError: string;
@@ -522,6 +533,101 @@ export function usePlannerWorkspace(project: Project): PlannerWorkspace {
     [updatePlan],
   );
 
+  const bulkAcceptPreview = useCallback(
+    (memberId: string): BulkAcceptPreview => {
+      const undecided = state.reviews.filter(
+        (review) =>
+          review.group.requirement.memberId === memberId &&
+          review.status === 'needsDecision',
+      );
+      const requirementById = new Map(
+        state.requirements.map((requirement) => [requirement.id, requirement]),
+      );
+      const acceptedByRequirement = new Map(
+        Object.entries(state.acceptedByRequirement),
+      );
+      const requirementsByPiece = new Map<string, MatchRequirement[]>();
+      for (const [requirementId, pieceId] of acceptedByRequirement) {
+        const requirement = requirementById.get(requirementId);
+        if (!requirement) continue;
+        const existing = requirementsByPiece.get(pieceId) ?? [];
+        existing.push(requirement);
+        requirementsByPiece.set(pieceId, existing);
+      }
+
+      const acceptances: BulkAcceptPreview['acceptances'] = [];
+      let needsCuttingCount = 0;
+      let unavailableCount = 0;
+
+      for (const review of undecided) {
+        const requirement = review.group.requirement;
+        const top = review.availableCandidates[0];
+        if (!top) {
+          unavailableCount += 1;
+          continue;
+        }
+        if (top.requiresCutting) {
+          needsCuttingCount += 1;
+          continue;
+        }
+
+        const candidate = review.availableCandidates.find((option) => {
+          if (option.requiresCutting) return false;
+          return canFitRequirementAlongside(
+            requirement,
+            requirementsByPiece.get(option.pieceId) ?? [],
+            option.piece,
+          );
+        });
+        if (!candidate) {
+          unavailableCount += 1;
+          continue;
+        }
+
+        acceptedByRequirement.set(requirement.id, candidate.pieceId);
+        const existing = requirementsByPiece.get(candidate.pieceId) ?? [];
+        existing.push(requirement);
+        requirementsByPiece.set(candidate.pieceId, existing);
+        acceptances.push({
+          requirementId: requirement.id,
+          pieceId: candidate.pieceId,
+        });
+      }
+
+      return {
+        memberId,
+        totalUndecided: undecided.length,
+        acceptedCount: acceptances.length,
+        needsCuttingCount,
+        unavailableCount,
+        acceptances,
+      };
+    },
+    [state],
+  );
+
+  const bulkAccept = useCallback(
+    (memberId: string) => {
+      const preview = bulkAcceptPreview(memberId);
+      if (preview.acceptances.length === 0) return;
+      updatePlan((current) =>
+        draftPlan({
+          ...current,
+          acceptedByRequirement: {
+            ...current.acceptedByRequirement,
+            ...Object.fromEntries(
+              preview.acceptances.map(({ requirementId, pieceId }) => [
+                requirementId,
+                pieceId,
+              ]),
+            ),
+          },
+        }),
+      );
+    },
+    [bulkAcceptPreview, updatePlan],
+  );
+
   const canCommit =
     !committing && state.reviews.length > 0 && state.counts.needsDecision === 0;
 
@@ -636,6 +742,8 @@ export function usePlannerWorkspace(project: Project): PlannerWorkspace {
     resetRequirement,
     resetDecisions,
     release,
+    bulkAcceptPreview,
+    bulkAccept,
     exclusiveConfirmation,
     exclusiveError,
     requestExclusiveChange,

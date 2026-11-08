@@ -772,6 +772,114 @@ describe('PlannerScreen requirement rows', () => {
     });
   });
 
+  it('confirms counts and bulk accepts only non-cutting candidates for the selected member', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Bulk Accept Site' });
+    const beam = await createStructuralMember({
+      projectId: project.id,
+      type: 'beam',
+      label: 'B1',
+      length: 2,
+      width: 1,
+      height: 0.5,
+    });
+    const other = await addMember(project.id, 'S2');
+    const exact = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2,
+      width: 1,
+      thickness: 0.018,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.2,
+      width: 0.6,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    await user.click(screen.getByTestId(`planner-member-${beam.id}`));
+    await user.click(
+      await screen.findByRole('button', {
+        name: /bulk accept top candidate for 3 undecided/i,
+      }),
+    );
+
+    const confirmation = screen.getByTestId(
+      'planner-bulk-accept-confirmation',
+    );
+    expect(confirmation).toHaveTextContent(
+      'Accept 1 of 3; 2 need cutting and stay undecided.',
+    );
+    const before = await getProjectPlan(project.id);
+    expect(before?.acceptedByRequirement ?? {}).toEqual({});
+
+    await user.click(
+      within(confirmation).getByRole('button', { name: /^accept 1$/i }),
+    );
+
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan?.acceptedByRequirement[`${beam.id}-panel-1`]).toBe(exact.id);
+      expect(plan?.acceptedByRequirement[`${beam.id}-panel-2`]).toBeUndefined();
+      expect(plan?.acceptedByRequirement[`${beam.id}-panel-3`]).toBeUndefined();
+      expect(plan?.acceptedByRequirement[`${other.id}-panel-1`]).toBeUndefined();
+    });
+  });
+
+  it('does not double-book a piece across the bulk accept sequence', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Bulk Accept Double Booking Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 0.5,
+    });
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 1,
+      width: 0.5,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: /bulk accept top candidate for 4 undecided/i,
+      }),
+    );
+    const confirmation = screen.getByTestId(
+      'planner-bulk-accept-confirmation',
+    );
+    expect(confirmation).toHaveTextContent(
+      'Accept 1 of 4; 0 need cutting and stay undecided.',
+    );
+    expect(confirmation).toHaveTextContent(
+      '3 candidates are no longer available',
+    );
+
+    await user.click(
+      within(confirmation).getByRole('button', { name: /^accept 1$/i }),
+    );
+
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      const accepted = Object.values(plan?.acceptedByRequirement ?? {});
+      expect(accepted).toEqual([piece.id]);
+      expect(plan?.acceptedByRequirement[`${column.id}-panel-1`]).toBe(
+        piece.id,
+      );
+    });
+  });
+
   it('renders a 100+ requirement member in an independently scrolling list', async () => {
     const project = await seedProject({ name: 'Large Requirement Site' });
     const slab = await addMember(project.id, 'S1');
