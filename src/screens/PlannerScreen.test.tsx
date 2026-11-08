@@ -470,35 +470,42 @@ describe('PlannerScreen member workspace', () => {
   });
 });
 
-describe('PlannerScreen board viewer', () => {
-  async function seedColumnBoards(projectId: string, columnId: string) {
-    const first = await addPiece({
-      projectId,
-      materialType: 'phenolic',
-      length: 2.44,
-      width: 1.22,
-      thickness: 0.018,
-    });
-    const second = await addPiece({
-      projectId,
-      materialType: 'phenolic',
-      length: 2.44,
-      width: 1.22,
-      thickness: 0.018,
-    });
-    const accepted = {
-      [`${columnId}-panel-1`]: first.id,
-      [`${columnId}-panel-2`]: first.id,
-      [`${columnId}-panel-3`]: second.id,
-      [`${columnId}-panel-4`]: second.id,
-    };
-    await saveProjectPlan(projectId, {
-      ...emptyProjectPlan(),
-      acceptedByRequirement: accepted,
-    });
-    return accepted;
-  }
+function visiblePanelIds(): string[] {
+  return Array.from(document.querySelectorAll('[data-testid^="panel-"]'))
+    .map((element) => element.getAttribute('data-testid') ?? '')
+    .filter((id) => !id.startsWith('panel-label-'))
+    .map((id) => id.slice('panel-'.length));
+}
 
+async function seedColumnBoards(projectId: string, columnId: string) {
+  const first = await addPiece({
+    projectId,
+    materialType: 'phenolic',
+    length: 2.44,
+    width: 1.22,
+    thickness: 0.018,
+  });
+  const second = await addPiece({
+    projectId,
+    materialType: 'phenolic',
+    length: 2.44,
+    width: 1.22,
+    thickness: 0.018,
+  });
+  const accepted = {
+    [`${columnId}-panel-1`]: first.id,
+    [`${columnId}-panel-2`]: first.id,
+    [`${columnId}-panel-3`]: second.id,
+    [`${columnId}-panel-4`]: second.id,
+  };
+  await saveProjectPlan(projectId, {
+    ...emptyProjectPlan(),
+    acceptedByRequirement: accepted,
+  });
+  return accepted;
+}
+
+describe('PlannerScreen board viewer', () => {
   it('shows one board at a time with thumbnails, arrows and exports', async () => {
     const user = userEvent.setup();
     const project = await seedProject({ name: 'Board Viewer Site' });
@@ -711,6 +718,127 @@ describe('PlannerScreen requirement rows', () => {
     const list = await screen.findByTestId('planner-requirement-list');
     expect(within(list).getAllByTestId(/^requirement-row-/)).toHaveLength(106);
     expect(list).toHaveClass('lg:overflow-y-auto');
+  });
+});
+
+describe('PlannerScreen row and panel linking', () => {
+  it('jumps from a requirement row to its board and highlights the panel', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Row To Board Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    await screen.findByTestId('planner-board-viewer');
+    const visibleBefore = visiblePanelIds();
+    expect(visibleBefore).toHaveLength(2);
+    const targetPanelId = [1, 2, 3, 4]
+      .map((index) => `${column.id}-panel-${index}`)
+      .find((panelId) => !visibleBefore.includes(panelId));
+    expect(targetPanelId).toBeDefined();
+
+    const row = screen.getByTestId(`requirement-row-${targetPanelId}`);
+    await user.click(row);
+
+    await waitFor(() => {
+      expect(screen.getByTestId(`panel-${targetPanelId}`)).toHaveAttribute(
+        'data-focused',
+        'true',
+      );
+    });
+    expect(row).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('selects and scrolls to the row when a board panel is clicked', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Panel To Row Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      await renderPlanner(project.id);
+
+      const panelId = visiblePanelIds()[0]!;
+      await user.click(screen.getByTestId(`panel-${panelId}`));
+
+      const row = screen.getByTestId(`requirement-row-${panelId}`);
+      await waitFor(() => {
+        expect(row).toHaveAttribute('aria-current', 'true');
+      });
+      expect(scrollIntoView).toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
+  it('does nothing for a requirement without a placement', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Unplaced Requirement Site' });
+    const slab = await createStructuralMember({
+      projectId: project.id,
+      type: 'slab',
+      label: 'S1',
+      length: 10,
+      width: 10,
+      height: 0,
+    });
+
+    await renderPlanner(project.id);
+
+    const row = screen.getByTestId(`requirement-row-${slab.id}-panel-1`);
+    await user.click(row);
+
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(document.querySelector('[data-focused="true"]')).toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('selects a row when it receives keyboard focus', async () => {
+    const project = await seedProject({ name: 'Row Focus Site' });
+    const column = await createStructuralMember({
+      projectId: project.id,
+      type: 'column',
+      label: 'C1',
+      length: 1,
+      width: 1,
+      height: 1,
+    });
+    await seedColumnBoards(project.id, column.id);
+
+    await renderPlanner(project.id);
+
+    const visibleBefore = visiblePanelIds();
+    const targetPanelId = [1, 2, 3, 4]
+      .map((index) => `${column.id}-panel-${index}`)
+      .find((panelId) => !visibleBefore.includes(panelId));
+    const row = await screen.findByTestId(`requirement-row-${targetPanelId}`);
+    row.focus();
+
+    await waitFor(() => {
+      expect(row).toHaveAttribute('aria-current', 'true');
+      expect(screen.getByTestId(`panel-${targetPanelId}`)).toHaveAttribute(
+        'data-focused',
+        'true',
+      );
+    });
   });
 });
 

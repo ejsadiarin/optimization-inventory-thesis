@@ -16,6 +16,8 @@ export interface SheetDiagramProps {
   decorative?: boolean;
   ariaLabel?: string;
   highlightPanelIds?: ReadonlySet<string>;
+  focusedPanelId?: string;
+  onPanelClick?: (panelId: string) => void;
 }
 
 export interface CutPlanSheetProps {
@@ -79,6 +81,8 @@ export function SheetDiagram({
   decorative = false,
   ariaLabel,
   highlightPanelIds,
+  focusedPanelId,
+  onPanelClick,
 }: SheetDiagramProps) {
   const { stock } = sheet;
   const patternKey =
@@ -177,6 +181,7 @@ export function SheetDiagram({
         const fill = memberColors.get(panel.label) ?? MEMBER_COLORS[0];
         const highlighted =
           !highlightPanelIds || highlightPanelIds.has(panel.panelId);
+        const focused = focusedPanelId === panel.panelId;
 
         return (
           <g
@@ -184,7 +189,22 @@ export function SheetDiagram({
             data-testid={decorative ? undefined : `panel-${panel.panelId}`}
             data-rotated={String(panel.rotated)}
             data-highlighted={highlightPanelIds ? String(highlighted) : undefined}
+            data-focused={focused ? 'true' : undefined}
             opacity={highlighted ? 1 : 0.2}
+            role={onPanelClick ? 'button' : undefined}
+            tabIndex={onPanelClick ? 0 : undefined}
+            aria-label={onPanelClick ? `Panel ${panel.panelId}` : undefined}
+            className={onPanelClick ? 'cursor-pointer' : undefined}
+            onClick={onPanelClick ? () => onPanelClick(panel.panelId) : undefined}
+            onKeyDown={
+              onPanelClick
+                ? (event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    onPanelClick(panel.panelId);
+                  }
+                : undefined
+            }
           >
             <rect
               x={transposed ? panel.y : panel.x}
@@ -192,8 +212,8 @@ export function SheetDiagram({
               width={transposed ? panel.width : panel.length}
               height={transposed ? panel.length : panel.width}
               fill={fill}
-              stroke={PANEL_STROKE}
-              strokeWidth={0.008}
+              stroke={focused ? '#0f172a' : PANEL_STROKE}
+              strokeWidth={focused ? 0.02 : 0.008}
             />
           </g>
         );

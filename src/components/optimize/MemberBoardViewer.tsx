@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { BoardPreview } from '@/components/optimize/BoardPreview';
 import { SheetDiagram } from '@/components/optimize/CutPlanSheet';
@@ -11,12 +11,16 @@ export default function MemberBoardViewer({
   projectName,
   memberColors,
   highlightPanelIds,
+  focusedPanelId,
+  onPanelClick,
   onError,
 }: {
   boards: readonly PlannerBoard[];
   projectName: string;
   memberColors: ReadonlyMap<string, string>;
   highlightPanelIds?: ReadonlySet<string>;
+  focusedPanelId?: string;
+  onPanelClick?: (panelId: string) => void;
   onError: (message: string) => void;
 }) {
   const [selectedKey, setSelectedKey] = useState('');
@@ -35,6 +39,14 @@ export default function MemberBoardViewer({
     orderedBoards.findIndex((board) => board.key === selectedKey),
   );
   const board = orderedBoards[selectedIndex];
+
+  useEffect(() => {
+    if (!focusedPanelId) return;
+    const index = orderedBoards.findIndex((item) =>
+      item.panels.some((panel) => panel.panelId === focusedPanelId),
+    );
+    if (index >= 0) setSelectedKey(orderedBoards[index]!.key);
+  }, [focusedPanelId, orderedBoards]);
 
   if (!board) return null;
 
@@ -73,6 +85,8 @@ export default function MemberBoardViewer({
         board={board}
         memberColors={memberColors}
         highlightPanelIds={highlightPanelIds}
+        focusedPanelId={focusedPanelId}
+        onPanelClick={onPanelClick}
         onExportSvg={(item) =>
           exportPlannerBoard(item, projectName, 'svg', onError)
         }

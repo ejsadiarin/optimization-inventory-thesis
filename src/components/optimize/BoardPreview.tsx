@@ -15,12 +15,16 @@ export function BoardPreview({
   board,
   memberColors,
   highlightPanelIds,
+  focusedPanelId,
+  onPanelClick,
   onExportSvg,
   onExportPng,
 }: {
   board: PlannerBoard;
   memberColors: ReadonlyMap<string, string>;
   highlightPanelIds?: ReadonlySet<string>;
+  focusedPanelId?: string;
+  onPanelClick?: (panelId: string) => void;
   onExportSvg?: (board: PlannerBoard) => void;
   onExportPng?: (board: PlannerBoard) => void;
 }) {
@@ -43,6 +47,8 @@ export function BoardPreview({
         memberColors={memberColors}
         svgId={`planner-${board.key}`}
         highlightPanelIds={highlightPanelIds}
+        focusedPanelId={focusedPanelId}
+        onPanelClick={onPanelClick}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">

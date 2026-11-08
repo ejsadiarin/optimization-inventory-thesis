@@ -40,6 +40,7 @@ export default function PlannerScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [typeFilter, setTypeFilter] = useState<MemberTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>('all');
+  const [selectedRequirementId, setSelectedRequirementId] = useState('');
   const { members, plan, loading, loadError, error, memberView } = workspace;
 
   const memberViews = useMemo(
@@ -104,6 +105,22 @@ export default function PlannerScreen() {
     [selectedMemberView?.projection?.boards],
   );
   const memberCoverage = selectedMemberView?.projection?.panelCoverage;
+  const selectedPlacementBoard = selectedRequirementId
+    ? visibleBoards.find((board) =>
+        board.panels.some((panel) => panel.panelId === selectedRequirementId),
+      )
+    : undefined;
+  const focusedPanelId = selectedPlacementBoard
+    ? selectedRequirementId
+    : undefined;
+
+  useEffect(() => {
+    if (!selectedRequirementId) return;
+    const row = document.querySelector(
+      `[data-testid="requirement-row-${selectedRequirementId}"]`,
+    );
+    row?.scrollIntoView?.({ block: 'nearest' });
+  }, [loading, selectedMemberId, selectedRequirementId]);
 
   const filteredMembers = memberViews.filter((view) => {
     const member = memberById.get(view.memberId);
@@ -123,6 +140,17 @@ export default function PlannerScreen() {
     next.delete('scope');
     next.set('member', memberId);
     setSearchParams(next, { replace: true });
+    setSelectedRequirementId('');
+  }
+
+  function handlePanelClick(panelId: string) {
+    const owner = members.find((member) =>
+      panelId.startsWith(`${member.id}-panel-`),
+    );
+    if (owner && owner.id !== selectedMemberId) {
+      changeMember(owner.id);
+    }
+    setSelectedRequirementId(panelId);
   }
 
   function handleExclusiveChange(checked: boolean) {
@@ -334,6 +362,8 @@ export default function PlannerScreen() {
               <RequirementRows
                 reviews={reviews}
                 lockedRequirementIds={workspace.lockedRequirementIds}
+                selectedRequirementId={selectedRequirementId}
+                onSelectRequirement={setSelectedRequirementId}
                 onAccept={workspace.accept}
                 onDecline={workspace.decline}
                 onRestoreDeclined={workspace.restoreDeclined}
@@ -354,6 +384,8 @@ export default function PlannerScreen() {
               projectName={project.name}
               memberColors={workspace.memberColors}
               highlightPanelIds={selectedMemberView?.projection?.panelIds}
+              focusedPanelId={focusedPanelId}
+              onPanelClick={handlePanelClick}
               onError={workspace.reportError}
             />
           )}

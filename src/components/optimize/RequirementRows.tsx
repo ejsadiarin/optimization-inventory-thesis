@@ -22,6 +22,8 @@ const STATUS_ORDER: ReuseStatus[] = [
 export interface RequirementRowsProps {
   reviews: readonly RequirementReview[];
   lockedRequirementIds?: ReadonlySet<string>;
+  selectedRequirementId?: string;
+  onSelectRequirement?: (requirementId: string) => void;
   onAccept: (group: MatchGroup, candidate: InventoryMatch) => void;
   onDecline: (group: MatchGroup, candidate: InventoryMatch) => void;
   onRestoreDeclined: (group: MatchGroup, candidate: InventoryMatch) => void;
@@ -32,6 +34,8 @@ export interface RequirementRowsProps {
 export default function RequirementRows({
   reviews,
   lockedRequirementIds,
+  selectedRequirementId,
+  onSelectRequirement,
   onAccept,
   onDecline,
   onRestoreDeclined,
@@ -84,8 +88,14 @@ export default function RequirementRows({
                 key={review.group.requirement.id}
                 review={review}
                 expanded={expanded.has(review.group.requirement.id)}
+                selected={
+                  selectedRequirementId === review.group.requirement.id
+                }
                 locked={
                   lockedRequirementIds?.has(review.group.requirement.id) ?? false
+                }
+                onSelect={() =>
+                  onSelectRequirement?.(review.group.requirement.id)
                 }
                 onToggle={() => toggle(review.group.requirement.id)}
                 onAccept={onAccept}
@@ -105,7 +115,9 @@ export default function RequirementRows({
 function RequirementRow({
   review,
   expanded,
+  selected,
   locked,
+  onSelect,
   onToggle,
   onAccept,
   onDecline,
@@ -115,7 +127,9 @@ function RequirementRow({
 }: {
   review: RequirementReview;
   expanded: boolean;
+  selected: boolean;
   locked: boolean;
+  onSelect: () => void;
   onToggle: () => void;
   onAccept: RequirementRowsProps['onAccept'];
   onDecline: RequirementRowsProps['onDecline'];
@@ -135,7 +149,21 @@ function RequirementRow({
   return (
     <article
       data-testid={`requirement-row-${requirement.id}`}
-      className="px-3 py-2"
+      data-selected={selected ? 'true' : undefined}
+      aria-current={selected ? 'true' : undefined}
+      tabIndex={0}
+      onClick={onSelect}
+      onFocus={onSelect}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onSelect();
+      }}
+      className={[
+        'px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        selected ? 'bg-primary/5' : '',
+      ].join(' ')}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <div className="min-w-0 flex-1">
