@@ -580,6 +580,140 @@ describe('PlannerScreen board viewer', () => {
   });
 });
 
+describe('PlannerScreen requirement rows', () => {
+  it('renders one row per requirement grouped by status with needs decision first', async () => {
+    const project = await seedProject({ name: 'Requirement Rows Site' });
+    const slab = await addMember(project.id, 'S1');
+    await createLumberRequirement({
+      projectId: project.id,
+      memberId: slab.id,
+      label: 'S1 brace',
+      length: 2,
+      crossSection: '2x3',
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    const list = await screen.findByTestId('planner-requirement-list');
+    expect(within(list).getAllByTestId(/^requirement-row-/)).toHaveLength(2);
+    const sections = Array.from(list.querySelectorAll('section')).map((section) =>
+      section.getAttribute('aria-label'),
+    );
+    expect(sections).toEqual(['Needs decision', 'New stock']);
+  });
+
+  it('accepts, declines, restores and resets from a row', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Requirement Actions Site' });
+    const slab = await addMember(project.id, 'S1');
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+
+    await renderPlanner(project.id);
+
+    const rowId = `requirement-row-${slab.id}-panel-1`;
+    const row = () => screen.getByTestId(rowId);
+    await screen.findByTestId(rowId);
+    await user.click(
+      within(row()).getByRole('button', {
+        name: /^Decline .* for S1$/i,
+      }),
+    );
+    await user.click(
+      within(row()).getByRole('button', {
+        name: /show other candidates for S1/i,
+      }),
+    );
+    await user.click(
+      within(row()).getByRole('button', { name: /^restore .* for S1$/i }),
+    );
+
+    await user.click(
+      within(row()).getAllByRole('button', { name: /^accept .* for S1$/i })[0]!,
+    );
+    expect(within(row()).getByText('Satisfied')).toBeInTheDocument();
+
+    await user.click(
+      within(row()).getByRole('button', { name: /reset decisions for S1/i }),
+    );
+    expect(within(row()).getByText('Needs decision')).toBeInTheDocument();
+  });
+
+  it('releases a committed decision from its row', async () => {
+    const user = userEvent.setup();
+    const project = await seedProject({ name: 'Requirement Release Site' });
+    const slab = await addMember(project.id, 'S1');
+    const piece = await addPiece({
+      projectId: project.id,
+      materialType: 'phenolic',
+      length: 2.44,
+      width: 1.22,
+      thickness: 0.018,
+    });
+    const accepted = { [`${slab.id}-panel-1`]: piece.id };
+    await saveProjectPlan(project.id, {
+      ...emptyProjectPlan(),
+      status: 'committed',
+      acceptedByRequirement: accepted,
+      committedByRequirement: accepted,
+      committedAt: new Date().toISOString(),
+    });
+
+    await renderPlanner(project.id);
+
+    const row = await screen.findByTestId(`requirement-row-${slab.id}-panel-1`);
+    expect(within(row).getByText('Locked')).toBeInTheDocument();
+    await user.click(
+      within(row).getByRole('button', { name: /release S1/i }),
+    );
+
+    await waitFor(async () => {
+      const plan = await getProjectPlan(project.id);
+      expect(plan?.acceptedByRequirement[`${slab.id}-panel-1`]).toBeUndefined();
+      expect(plan?.committedByRequirement[`${slab.id}-panel-1`]).toBeUndefined();
+    });
+  });
+
+  it('renders a 100+ requirement member in an independently scrolling list', async () => {
+    const project = await seedProject({ name: 'Large Requirement Site' });
+    const slab = await addMember(project.id, 'S1');
+    for (let index = 0; index < 105; index += 1) {
+      await createLumberRequirement({
+        projectId: project.id,
+        memberId: slab.id,
+        label: `S1 brace ${index + 1}`,
+        length: 2,
+        crossSection: '2x3',
+      });
+    }
+
+    await renderPlanner(project.id);
+
+    const list = await screen.findByTestId('planner-requirement-list');
+    expect(within(list).getAllByTestId(/^requirement-row-/)).toHaveLength(106);
+    expect(list).toHaveClass('lg:overflow-y-auto');
+  });
+});
+
 describe('Planner routes and navigation', () => {
   it('redirects the legacy optimize route to Review & commit', async () => {
     const project = await seedProject({ name: 'Legacy Route Site' });

@@ -6,7 +6,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { Loader2, PackageSearch } from 'lucide-react';
-import MatchGroups from '@/components/optimize/MatchGroups';
+import RequirementRows from '@/components/optimize/RequirementRows';
 import MemberBoardViewer from '@/components/optimize/MemberBoardViewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -331,9 +331,8 @@ export default function PlannerScreen() {
                 </CardContent>
               </Card>
 
-              <MatchGroups
+              <RequirementRows
                 reviews={reviews}
-                memberColors={workspace.memberColors}
                 lockedRequirementIds={workspace.lockedRequirementIds}
                 onAccept={workspace.accept}
                 onDecline={workspace.decline}
